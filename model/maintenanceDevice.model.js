@@ -22,11 +22,6 @@ const vehicleMasterSchema = new mongoose.Schema(
       trim: true,
     },
 
-    emptyVehicleWeight: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
     grossVehicleWeight: {
       type: Number,
       required: false,

@@ -21,16 +21,15 @@ exports.createVehicleMaster = async (req, res) => {
       vehicleNumber,
       category,
       make,
-      emptyVehicleWeight,
       grossVehicleWeight,
       transporterId,
       supervisorId,
     } = req.body;
 
-    if (!vehicleNumber || !category || !make || emptyVehicleWeight === undefined) {
+    if (!vehicleNumber || !category || grossVehicleWeight === undefined) {
       return res.status(400).json({
         message:
-          "vehicleNumber, category, make and emptyVehicleWeight are required",
+          "vehicleNumber, category and grossVehicleWeight are required",
       });
     }
 
@@ -49,7 +48,6 @@ exports.createVehicleMaster = async (req, res) => {
       vehicleNumber,
       category,
       make,
-      emptyVehicleWeight,
       grossVehicleWeight,
       transporterId,
       supervisorId,
