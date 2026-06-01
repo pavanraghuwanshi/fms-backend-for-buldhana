@@ -35,6 +35,7 @@ const consigneeRoute = require("../routes/consigneeRoute");
 const reportRoutes = require("./reportRoutes");
 const materialRoutes = require("./materialRoute");
 const vehicleMasterRoutes = require("./maintenanceDeviceRoute");
+const transporterRoute = require("./transporterRoute");
 
 router.use("/drivers", driverRoutes);
 router.use("/leave", leaveRoutes);
@@ -71,5 +72,6 @@ router.use("/consignee", consigneeRoute);
 router.use("/report", reportRoutes);
 router.use("/material", materialRoutes);
 router.use("/vehicle-master", vehicleMasterRoutes);
+router.use("/transporter", transporterRoute);
 
 module.exports = router;
