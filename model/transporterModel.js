@@ -50,7 +50,7 @@ const transporterSchema = new mongoose.Schema(
     supervisorModel: {
       type: String,
       required: true,
-      enum: ["School", "Branch", "branchGroup"],
+      enum: ["School", "Branch", "BranchGroup"],
     },
     status: {
       type: String,

@@ -33,11 +33,16 @@ const vehicleMasterSchema = new mongoose.Schema(
       required: false,
     },
 
-    supervisorId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
+      supervisorId: {
+        type: mongoose.Schema.Types.ObjectId,
+        refPath: "supervisorModel",
+        required: true,
+      },
+      supervisorModel: {
+        type: String,
+        required: true,
+        enum: ["School", "Branch", "BranchGroup"],
+      },
   },
   { timestamps: true }
 );
