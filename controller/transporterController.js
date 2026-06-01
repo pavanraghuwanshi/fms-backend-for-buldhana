@@ -4,14 +4,32 @@ exports.createTransporter = async (req, res) => {
   try {
     const role = req.user.role;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "school", "branch", "branchGroup"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    if (role === "user") req.body.supervisorId = req.user.id;
+    const roleModelMap = {
+      school: "School",
+      branch: "Branch",
+      branchGroup: "BranchGroup",
+    };
+
+    // only these roles auto assign
+    if (
+      role === "school" ||
+      role === "branch" ||
+      role === "branchGroup"
+    ) {
+      req.body.supervisorId = req.user.id;
+      req.body.supervisorModel = roleModelMap[role];
+    }
 
     if (!req.body.supervisorId) {
       return res.status(400).json({ message: "supervisorId is required" });
+    }
+
+    if (!req.body.supervisorModel) {
+      return res.status(400).json({ message: "supervisorModel is required" });
     }
 
     const {
@@ -23,6 +41,7 @@ exports.createTransporter = async (req, res) => {
       gstNumber,
       panNumber,
       supervisorId,
+      supervisorModel,
       status,
     } = req.body;
 
@@ -35,6 +54,7 @@ exports.createTransporter = async (req, res) => {
     const existingTransporter = await Transporter.findOne({
       transporterName,
       supervisorId,
+      supervisorModel,
     });
 
     if (existingTransporter) {
@@ -52,6 +72,7 @@ exports.createTransporter = async (req, res) => {
       gstNumber,
       panNumber,
       supervisorId,
+      supervisorModel,
       status,
     });
 
