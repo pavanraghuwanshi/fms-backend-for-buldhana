@@ -27,7 +27,11 @@ const vehicleMasterSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
-
+    grossVehicleWeight: {
+      type: Number,
+      required: false,
+      min: 0,
+    },
     transporterId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Transporter",

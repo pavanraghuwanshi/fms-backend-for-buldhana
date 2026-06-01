@@ -22,6 +22,7 @@ exports.createVehicleMaster = async (req, res) => {
       category,
       make,
       emptyVehicleWeight,
+      grossVehicleWeight,
       transporterId,
       supervisorId,
     } = req.body;
@@ -49,6 +50,7 @@ exports.createVehicleMaster = async (req, res) => {
       category,
       make,
       emptyVehicleWeight,
+      grossVehicleWeight,
       transporterId,
       supervisorId,
     });
