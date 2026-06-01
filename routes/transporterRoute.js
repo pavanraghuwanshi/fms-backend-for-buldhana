@@ -3,12 +3,12 @@ const router = express.Router();
 
 const {  createTransporter, getTransporters, getTransporterById, updateTransporter, deleteTransporter,} = require("../controller/transporterController");
 
-const { auth } = require("../middleware/auth");
+const { authenticateToken } = require("../middleware/authMiddleware");
 
-router.post("/", auth, createTransporter);
-router.get("/", auth, getTransporters);
-router.get("/:id", auth, getTransporterById);
-router.put("/:id", auth, updateTransporter);
-router.delete("/:id", auth, deleteTransporter);
+router.post("/", authenticateToken, createTransporter);
+router.get("/", authenticateToken, getTransporters);
+router.get("/:id", authenticateToken, getTransporterById);
+router.put("/:id", authenticateToken, updateTransporter);
+router.delete("/:id", authenticateToken, deleteTransporter);
 
 module.exports = router;
