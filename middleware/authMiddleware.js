@@ -44,7 +44,6 @@ exports.authenticateToken = async (req, res, next) => {
       return next();
     }
 
-    console.log(req.user,"ggggggggggggg")
 
     return res.status(404).json({ message: "User not found" });
   } catch (error) {

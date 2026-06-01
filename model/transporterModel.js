@@ -41,13 +41,17 @@ const transporterSchema = new mongoose.Schema(
       trim: true,
       uppercase: true,
     },
-
     supervisorId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      refPath: "supervisorModel",
       required: true,
     },
 
+    supervisorModel: {
+      type: String,
+      required: true,
+      enum: ["School", "Branch", "branchGroup"],
+    },
     status: {
       type: String,
       enum: ["active", "inactive"],
@@ -57,7 +61,9 @@ const transporterSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Transporter", transporterSchema);
+const Transporter = maintenanceDB.model(
+  "Transporter",
+  transporterSchema
+);
 
-const Transporter = maintenanceDB.model("Transporter", transporterSchema);
-module.exports = Transporter
+module.exports = Transporter;
