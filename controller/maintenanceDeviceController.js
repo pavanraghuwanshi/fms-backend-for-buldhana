@@ -2,19 +2,42 @@ const VehicleMaster = require("../model/maintenanceDevice.model");
 
 
 
-
 exports.createVehicleMaster = async (req, res) => {
   try {
     const role = req.user.role;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (
+      !["superadmin", "school", "branch", "branchGroup"].includes(role)
+    ) {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    if (role === "user") req.body.supervisorId = req.user.id;
+    const roleModelMap = {
+      school: "School",
+      branch: "Branch",
+      branchGroup: "BranchGroup",
+    };
+
+    // auto assign supervisor
+    if (
+      role === "school" ||
+      role === "branch" ||
+      role === "branchGroup"
+    ) {
+      req.body.supervisorId = req.user.id;
+      req.body.supervisorModel = roleModelMap[role];
+    }
 
     if (!req.body.supervisorId) {
-      return res.status(400).json({ message: "supervisorId is required" });
+      return res.status(400).json({
+        message: "supervisorId is required",
+      });
+    }
+
+    if (!req.body.supervisorModel) {
+      return res.status(400).json({
+        message: "supervisorModel is required",
+      });
     }
 
     const {
@@ -24,6 +47,7 @@ exports.createVehicleMaster = async (req, res) => {
       grossVehicleWeight,
       transporterId,
       supervisorId,
+      supervisorModel,
     } = req.body;
 
     if (!vehicleNumber || !category || grossVehicleWeight === undefined) {
@@ -36,6 +60,7 @@ exports.createVehicleMaster = async (req, res) => {
     const existingVehicle = await VehicleMaster.findOne({
       vehicleNumber: vehicleNumber.toUpperCase(),
       supervisorId,
+      supervisorModel,
     });
 
     if (existingVehicle) {
@@ -45,12 +70,13 @@ exports.createVehicleMaster = async (req, res) => {
     }
 
     const vehicle = await VehicleMaster.create({
-      vehicleNumber,
+      vehicleNumber: vehicleNumber.toUpperCase(),
       category,
       make,
       grossVehicleWeight,
       transporterId,
       supervisorId,
+      supervisorModel,
     });
 
     return res.status(201).json({
