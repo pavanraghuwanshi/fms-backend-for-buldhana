@@ -1,0 +1,399 @@
+const Tire = require("../model/tyre.js");
+const Driver = require("../model/driverModel.js");
+const Trip = require("../model/tripModel.js");
+const { compressImage } = require("../utils/helperFunctions.js");
+const TyreBillImage = require("../model/tyreBillImage.js");
+const Vehicleexpense = require("../model/vehicleExpensesModel.js");
+const Device = require("../model/deviceModel.js");
+const VehicleExpenseImage = require("../model/vehicleExpenseImageModel.js");
+
+exports.addTire = async (req, res) => {
+     try {
+          if (req.user.role !== "driver" && req.user.role !== "user" && req.user.role !== "superadmin") return res.status(403).json({ success: false, message: "Unauthorized access" });
+          const { vehicleId, position, tyreSerialNumber, brandName, tyreStatus, installationDate, vendorName, location, lat, long, tyreSize, amount, paymentMode } = req.body;
+          if (!vehicleId) return res.status(400).json({ message: "Vehicle ID is required" });
+
+          let driver = null;
+          if (req.user.role === "driver") {
+               driver = await Driver.findById(req.user.id).select("currentVehicle currentVehicleName currentTripId").lean();
+               if (!driver || !driver.currentVehicle || driver.currentVehicle.toString() !== vehicleId) return res.status(400).json({ message: "Vehicle not assigned to this driver" });
+          } else {
+               driver = await Driver.findOne({ currentVehicle: vehicleId }).select("currentVehicleName currentTripId").lean();
+          }
+
+          const billImg = req.files?.["billImg"]?.[0];
+          let billImgId = null;
+
+          if (billImg) {
+               const { base64Data, contentType } = await compressImage(billImg);
+               const imgDoc = new VehicleExpenseImage({ base64Data, contentType });
+               await imgDoc.save();
+               billImgId = imgDoc._id;
+          }
+
+          const expense = new Vehicleexpense({
+               driverId: req.user.role === "driver" ? req.user.id : driver._id,
+               vehicleId,
+               vehicleName: (await Driver.findOne({ currentVehicle: vehicleId }))?.currentVehicleName || "Unknown",
+               amount,
+               expenseType: "tyreWheel",
+               date: installationDate,
+               vendor: vendorName,
+               description: `Tire purchase: ${brandName}, Serial: ${tyreSerialNumber}, Position: ${position}`,
+               billImg: billImgId,
+               paymentMode,
+               location,
+               lat: lat ? lat : null,
+               long: long ? long : null,
+          });
+          await expense.save();
+
+          const tire = new Tire({
+               vehicleId,
+               expenseId: expense._id,
+               category: (await Device.findById(vehicleId))?.category || "Unknown",
+               position,
+               tyreSerialNumber,
+               brandName,
+               tyreStatus,
+               installationDate,
+               vendorName,
+               location,
+               lat: lat ? lat : null,
+               long: long ? long : null,
+               tyreSize,
+               billImg: billImgId,
+               amount,
+               paymentMode,
+          });
+          await tire.save();
+
+          if (driver.currentTripId) await Trip.findByIdAndUpdate(driver.currentTripId, { $inc: { spentAmount: amount } });
+          return res.status(201).json({ success: true, message: "Tire and expense added successfully", tire, expense });
+     } catch (error) {
+          console.error(error.message);
+          return res.status(500).json({ success: false, message: "Error adding tire and expense", error: error.message });
+     }
+};
+
+exports.getAllTires = async (req, res) => {
+     try {
+          let tires = [];
+
+          if (req.user.role === "superadmin") {
+               tires = await Tire.find().select("-__v").sort({ createdAt: -1 });
+
+          } else if (req.user.role === "user") {
+               const drivers = await Driver.find({ supervisor: req.user.id });
+               if (drivers.length === 0) {
+                    return res.status(404).json({ message: "No drivers found." });
+               }
+
+               const vehicleIds = drivers
+                    .filter((d) => d.currentVehicle)
+                    .map((d) => d.currentVehicle);
+
+               tires = await Tire.find({ vehicleId: { $in: vehicleIds } })
+                    .select("-__v")
+                    .sort({ createdAt: -1 });
+
+          } else if (req.user.role === "driver") {
+               const driver = await Driver.findById(req.user.id);
+               if (!driver || !driver.currentVehicle) {
+                    return res.status(400).json({ message: "Driver not found or no assigned vehicle" });
+               }
+
+               tires = await Tire.find({ vehicleId: driver.currentVehicle })
+                    .select("-__v")
+                    .sort({ createdAt: -1 });
+
+          } else {
+               return res.status(403).json({ success: false, message: "Unauthorized access" });
+          }
+
+          // Manual population: fetch all required Device info in one query
+          const deviceIds = [...new Set(tires.map(t => t.vehicleId?.toString()))];
+          const devices = await Device.find({ _id: { $in: deviceIds } }).select("name");
+          console.log("this is devices", devices);
+
+          const deviceMap = {};
+          devices.forEach(device => {
+               deviceMap[device._id] = device.name;
+          });
+
+          const enrichedTires = tires.map(tire => ({
+               ...tire.toObject(),
+               vehicleId: {
+                    _id: tire.vehicleId,
+                    vehicleName: deviceMap[tire.vehicleId?.toString()] || null
+               }
+          }));
+
+          return res.status(200).json(enrichedTires);
+     } catch (error) {
+          console.error(error);
+          return res.status(500).json({
+               success: false,
+               message: "Error fetching tires",
+               error: error.message,
+          });
+     }
+};
+
+exports.updateTire = async (req, res) => {
+     try {
+          if (req.user.role !== "driver" && req.user.role !== "user") {
+               return res.status(403).json({ success: false, message: "Unauthorized access" });
+          }
+
+          const {
+               category,
+               position,
+               tyreSerialNumber,
+               brandName,
+               tyreStatus,
+               installationDate,
+               vendorName,
+               location,
+               lat,
+               long,
+               tyreSize,
+               amount,
+               paymentMode,
+          } = req.body;
+
+          const tire = await Tire.findById(req.params.id);
+          if (!tire) {
+               return res.status(404).json({ success: false, message: "Tire not found" });
+          }
+
+          if (req.user.role === "driver") {
+               const driver = await Driver.findById(req.user.id);
+               if (!driver || !driver.currentVehicle || driver.currentVehicle.toString() !== tire.vehicleId.toString()) {
+                    return res.status(403).json({ message: "Unauthorized: Tire does not belong to the driver's vehicle" });
+               }
+          }
+
+          let billImgId = tire.billImg;
+          const billImg = req.files?.["billImg"]?.[0];
+          if (billImg) {
+               const { base64Data, contentType } = await compressImage(billImg);
+
+               if (billImgId) {
+                    await VehicleExpenseImage.findByIdAndUpdate(billImgId, { base64Data, contentType });
+               } else {
+                    const newImage = new VehicleExpenseImage({ base64Data, contentType });
+                    const savedImg = await newImage.save();
+                    billImgId = savedImg._id;
+               }
+          }
+
+          const updateData = {
+               ...(category && { category }),
+               ...(position && { position }),
+               ...(tyreSerialNumber && { tyreSerialNumber }),
+               ...(brandName && { brandName }),
+               ...(tyreStatus && { tyreStatus }),
+               ...(installationDate && { installationDate }),
+               ...(vendorName && { vendorName }),
+               ...(location && { location }),
+               ...(lat && { lat }),
+               ...(long && { long }),
+               ...(tyreSize && { tyreSize }),
+               ...(billImgId && { billImg: billImgId }),
+               ...(amount && { amount }),
+               ...(paymentMode && { paymentMode }),
+          };
+
+          const existingTire = await Tire.findByIdAndUpdate(req.params.id, updateData, {
+               new: false,
+          });
+
+          if (!existingTire) {
+               return res.status(404).json({ success: false, message: "Tire not found" });
+          }
+
+          // 🧾 Update or create expense
+          const descriptionText = `Tire purchase: ${brandName || existingTire.brandName}, Serial: ${tyreSerialNumber || existingTire.tyreSerialNumber}, Position: ${position || existingTire.position}`;
+
+          const expense = await Vehicleexpense.findOne({
+               vehicleId: tire.vehicleId,
+          });
+
+          const vehicleName = (
+               await Driver.findOne({ currentVehicle: tire.vehicleId })
+          )?.currentVehicleName || "Unknown";
+
+          const expenseUpdateData = {
+               vehicleId: tire.vehicleId,
+               vehicleName,
+               amount: amount || existingTire.amount,
+               expenseType: "Tyre Wheel",
+               date: installationDate || existingTire.installationDate,
+               vendor: vendorName || existingTire.vendorName,
+               description: descriptionText,
+               billImg: billImgId || existingTire.billImage,
+               paymentMode: paymentMode || existingTire.paymentMode,
+               location: location || existingTire.location,
+               lat: lat || existingTire.lat,
+               long: long || existingTire.long,
+          };
+
+          if (expense) {
+               await Vehicleexpense.findByIdAndUpdate(expense._id, expenseUpdateData);
+          }
+
+          // 💰 Update trip expense
+          if (amount) {
+               const driver = await Driver.findById(req.user.id);
+               if (driver?.currentTripId) {
+                    const amountDiff = amount - existingTire.amount;
+                    if (amountDiff !== 0) {
+                         await Trip.findByIdAndUpdate(driver.currentTripId, {
+                              $inc: { spentAmount: amountDiff },
+                         });
+                    }
+               }
+          }
+
+          return res.json({
+               success: true,
+               message: "Tire updated successfully",
+          });
+     } catch (error) {
+          console.error(error);
+          return res.status(500).json({
+               success: false,
+               message: "Error updating tire",
+               error: error.message,
+          });
+     }
+};
+
+exports.deleteTire = async (req, res) => {
+     try {
+          const allowedRoles = ["driver", "user", "superadmin"];
+          if (!allowedRoles.includes(req.user.role)) {
+               return res.status(403).json({ success: false, message: "Unauthorized access" });
+          }
+
+          const tireId = req.params.id;
+
+          const tire = await Tire.findById(tireId);
+          if (!tire) {
+               return res.status(404).json({ success: false, message: "Tire not found" });
+          }
+
+          // Driver role: ensure tire belongs to their current vehicle
+          if (req.user.role === "driver") {
+               const driver = await Driver.findById(req.user.id);
+               if (!driver || !driver.currentVehicle || driver.currentVehicle.toString() !== tire.vehicleId.toString()) {
+                    return res.status(403).json({ message: "Unauthorized: Tire does not belong to the driver's vehicle" });
+               }
+          }
+
+          // Delete bill image if exists
+          if (tire.billImg) {
+               await VehicleExpenseImage.findByIdAndDelete(tire.billImg);
+          }
+
+          // Delete related vehicle expense
+          const descriptionText = `Tire purchase: ${tire.brandName}, Serial: ${tire.tyreSerialNumber}, Position: ${tire.position}`;
+          await Vehicleexpense.deleteOne({
+               expenseType: "tyreWheel",
+               vehicleId: tire.vehicleId,
+               description: descriptionText,
+          });
+
+          // Update driver's current trip (if driver role)
+          if (req.user.role === "driver") {
+               const driver = await Driver.findById(req.user.id);
+               if (driver && driver.currentTripId) {
+                    await Trip.findByIdAndUpdate(driver.currentTripId, {
+                         $inc: { spentAmount: -tire.amount },
+                    });
+               }
+          }
+
+          // Delete the tire
+          await Tire.findByIdAndDelete(tireId);
+
+          return res.json({ success: true, message: "Tire deleted successfully" });
+     } catch (error) {
+          console.error("Error deleting tire:", error);
+          return res.status(500).json({
+               success: false,
+               message: "Error deleting tire",
+               error: error.message,
+          });
+     }
+};
+
+exports.getTiresByVehicleId = async (req, res) => {
+     try {
+          const vehicleId = req.params.id;
+
+          const tires = await Tire.find({ vehicleId })
+               .select("-__v")
+               .sort({ createdAt: -1 });
+
+          if (!tires.length) {
+               return res.status(404).json({ message: "No tires found for this vehicle" });
+          }
+
+          const device = await Device.findById(vehicleId).select("name");
+
+          const vehicleName = device ? device.name : null;
+
+          const formattedTires = tires.map((item) => ({
+               _id: item._id,
+               vehicleName: vehicleName,
+               category: item.category,
+               position: item.position,
+               tyreSerialNumber: item.tyreSerialNumber,
+               brandName: item.brandName,
+               tyreStatus: item.tyreStatus,
+               installationDate: item.installationDate,
+               vendorName: item.vendorName,
+               location: item.location,
+               lat: item.lat,
+               long: item.long,
+               tyreSize: item.tyreSize,
+               billImg: item.billImg,
+               amount: item.amount,
+               paymentMode: item.paymentMode,
+               createdAt: item.createdAt,
+               updatedAt: item.updatedAt,
+          }));
+
+          return res.status(200).json(formattedTires);
+
+     } catch (error) {
+          console.error(error);
+          return res.status(500).json({
+               success: false,
+               message: "Error fetching tires",
+               error: error.message,
+          });
+     }
+};
+
+exports.getBillImageById = async (req, res) => {
+     try {
+          const imageId = req.params.id;
+
+          const imageDoc = await VehicleExpenseImage.findById(imageId).select("-_id");
+
+          if (!imageDoc) {
+               return res.status(404).json({ message: "Bill image not found" });
+          }
+
+          return res.json(imageDoc);
+     } catch (error) {
+          return res.status(500).json({
+               success: false,
+               message: "Error retrieving image metadata",
+               error: error.message,
+          });
+     }
+};
