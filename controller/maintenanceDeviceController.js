@@ -5,6 +5,7 @@ const VehicleMaster = require("../model/maintenanceDevice.model");
 exports.createVehicleMaster = async (req, res) => {
   try {
     const role = req.user.role;
+    const roleType = req.user.roleType;
 
     if (
       !["superadmin", "school", "branch", "branchGroup"].includes(role)
@@ -20,12 +21,12 @@ exports.createVehicleMaster = async (req, res) => {
 
     // auto assign supervisor
     if (
-      role === "school" ||
-      role === "branch" ||
-      role === "branchGroup"
+      roleType === "school" ||
+      roleType === "branch" ||
+      roleType === "branchGroup"
     ) {
       req.body.supervisorId = req.user.id;
-      req.body.supervisorModel = roleModelMap[role];
+      req.body.supervisorModel = roleModelMap[roleType];
     }
 
     if (!req.body.supervisorId) {

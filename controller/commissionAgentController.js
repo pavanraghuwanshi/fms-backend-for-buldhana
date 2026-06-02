@@ -5,15 +5,33 @@ const CommissionAgent = require("../model/commissionAgentModel");
 exports.createCommissionAgent = async (req, res) => {
   try {
     const role = req.user.role;
+    const roleType = req.user.roleType;
 
     if (!["superadmin", "user"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    if (role === "user") req.body.supervisorId = req.user.id;
+    const roleModelMap = {
+      school: "School",
+      branch: "Branch",
+      branchGroup: "BranchGroup",
+    };
+
+    if (
+      roleType === "school" ||
+      roleType === "branch" ||
+      roleType === "branchGroup"
+    ) {
+      req.body.supervisorId = req.user.id;
+      req.body.supervisorModel = roleModelMap[roleType];
+    }
 
     if (!req.body.supervisorId) {
       return res.status(400).json({ message: "supervisorId is required" });
+    }
+
+    if (!req.body.supervisorModel) {
+      return res.status(400).json({ message: "supervisorModel is required" });
     }
 
     const {
@@ -26,6 +44,7 @@ exports.createCommissionAgent = async (req, res) => {
       panNumber,
       transporterId,
       supervisorId,
+      supervisorModel,
       status,
     } = req.body;
 
@@ -38,6 +57,7 @@ exports.createCommissionAgent = async (req, res) => {
     const existingAgent = await CommissionAgent.findOne({
       agentName,
       supervisorId,
+      supervisorModel,
       transporterId: transporterId || null,
     });
 
@@ -58,6 +78,7 @@ exports.createCommissionAgent = async (req, res) => {
       transporterId: transporterId || null,
       agentSide: transporterId ? "transporter" : "our",
       supervisorId,
+      supervisorModel,
       status,
     });
 

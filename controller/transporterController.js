@@ -3,8 +3,11 @@ const Transporter = require("../model/transporterModel");
 exports.createTransporter = async (req, res) => {
   try {
     const role = req.user.role;
+    const roleType = req.user.roleType;
 
-    if (!["superadmin", "school", "branch", "branchGroup"].includes(role)) {
+    console.log( req.user.role)
+
+    if (!["superadmin", "user"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -16,12 +19,12 @@ exports.createTransporter = async (req, res) => {
 
     // only these roles auto assign
     if (
-      role === "school" ||
-      role === "branch" ||
-      role === "branchGroup"
+      roleType === "school" ||
+      roleType === "branch" ||
+      roleType === "branchGroup"
     ) {
       req.body.supervisorId = req.user.id;
-      req.body.supervisorModel = roleModelMap[role];
+      req.body.supervisorModel = roleModelMap[roleType];
     }
 
     if (!req.body.supervisorId) {
