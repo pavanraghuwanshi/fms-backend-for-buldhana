@@ -36,6 +36,7 @@ const reportRoutes = require("./reportRoutes");
 const materialRoutes = require("./materialRoute");
 const vehicleMasterRoutes = require("./maintenanceDeviceRoute");
 const transporterRoute = require("./transporterRoute");
+const commissionAgentRoute = require("./commissionAgentRoute");
 
 router.use("/drivers", driverRoutes);
 router.use("/leave", leaveRoutes);
@@ -73,5 +74,6 @@ router.use("/report", reportRoutes);
 router.use("/material", materialRoutes);
 router.use("/vehicle-master", vehicleMasterRoutes);
 router.use("/transporter", transporterRoute);
+router.use("/commission-agent", commissionAgentRoute);
 
 module.exports = router;
