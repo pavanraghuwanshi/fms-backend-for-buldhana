@@ -41,7 +41,7 @@ exports.createVehicleMaster = async (req, res) => {
 
     const {
       vehicleNumber,
-      category,
+      categoryId,
       make,
       grossVehicleWeight,
       transporterId,
@@ -49,10 +49,10 @@ exports.createVehicleMaster = async (req, res) => {
       supervisorModel,
     } = req.body;
 
-    if (!vehicleNumber || !category || grossVehicleWeight === undefined) {
+    if (!vehicleNumber || !categoryId || grossVehicleWeight === undefined) {
       return res.status(400).json({
         message:
-          "vehicleNumber, category and grossVehicleWeight are required",
+          "vehicleNumber, categoryId and grossVehicleWeight are required",
       });
     }
 
@@ -70,7 +70,7 @@ exports.createVehicleMaster = async (req, res) => {
 
     const vehicle = await VehicleMaster.create({
       vehicleNumber: vehicleNumber.toUpperCase(),
-      category,
+      categoryId,
       make,
       grossVehicleWeight,
       transporterId,
@@ -103,7 +103,7 @@ exports.getVehicleMasters = async (req, res) => {
       limit = 10,
       search,
       transporterId,
-      category,
+      categoryId,
     } = req.query;
 
     const query = {};
@@ -115,18 +115,19 @@ exports.getVehicleMasters = async (req, res) => {
     }
 
     if (transporterId) query.transporterId = transporterId;
-    if (category) query.category = category;
+    if (categoryId) query.categoryId = categoryId;
 
     if (search) {
       query.$or = [
         { vehicleNumber: { $regex: search, $options: "i" } },
-        { category: { $regex: search, $options: "i" } },
+        { categoryId: { $regex: search, $options: "i" } },
         { make: { $regex: search, $options: "i" } },
       ];
     }
 
     const vehicles = await VehicleMaster.find(query)
       .populate("transporterId")
+      .populate("categoryId")
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit));
@@ -164,6 +165,7 @@ exports.getVehicleMasterById = async (req, res) => {
 
     const vehicle = await VehicleMaster.findOne(query)
       .populate("transporterId")
+      .populate("categoryId")
       .populate("supervisorId", "name email mobile");
 
     if (!vehicle) {

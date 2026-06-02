@@ -10,10 +10,9 @@ const vehicleMasterSchema = new mongoose.Schema(
       uppercase: true,
     },
 
-    category: {
-      type: String,
-      required: true,
-      trim: true,
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "VehicleCategory",
     },
 
     make: {
