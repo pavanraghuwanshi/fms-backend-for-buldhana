@@ -68,16 +68,19 @@ const builtySchema = new mongoose.Schema(
 
     transporterId: {
       type: mongoose.Schema.Types.ObjectId,
+      ref: "Transporter",
       default: null,
     },
 
     commissionAgentId: {
       type: mongoose.Schema.Types.ObjectId,
+      ref: "CommissionAgent",
       default: null,
     },
 
     vehicleId: {
       type: mongoose.Schema.Types.ObjectId,
+        ref: "VehicleMaster",
       default: null,
     },
 
