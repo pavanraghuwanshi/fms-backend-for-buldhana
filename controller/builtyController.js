@@ -51,6 +51,14 @@ exports.createBuilty = async (req, res) => {
       return res.status(400).json({ message: "consigneeName is required" });
     }
 
+    if (!payload.consignerId) {
+    return res.status(400).json({ message: "consignerId is required" });
+    }
+
+    if (!payload.consigneeId) {
+    return res.status(400).json({ message: "consigneeId is required" });
+    }
+
     if (!payload.destinationLocation) {
       return res.status(400).json({ message: "destinationLocation is required" });
     }

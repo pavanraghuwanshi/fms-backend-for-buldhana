@@ -174,7 +174,17 @@ const builtySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
     },
+    consignerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Consignor",
+    required: true,
+    },
 
+    consigneeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Consignee",
+    required: true,
+    },
     supervisorModel: {
       type: String,
       required: true,
