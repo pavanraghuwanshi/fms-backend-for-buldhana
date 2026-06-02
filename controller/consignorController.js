@@ -4,7 +4,7 @@ const Consignor = require("../model/consignorModel");
 // CREATE
 exports.createconsignor = async (req, res) => {
   try {
-    const { name, address, supervisorId, supervisorName, workerId } = req.body;
+    const { name, address,pincode,contactNumber,contactPerson,gstNumber,panNumber, supervisorId, supervisorName, workerId } = req.body;
 
     // PERMISSION
     if (!["user", "worker"].includes(req.user.role)) {
@@ -19,7 +19,7 @@ exports.createconsignor = async (req, res) => {
       });
     }
 
-    const payload = { name, address };
+    const payload = { name, address, pincode, contactNumber, contactPerson, gstNumber, panNumber };
 
     // ROLE BASED PAYLOAD
     if (req.user.role === "user") {
@@ -152,7 +152,11 @@ exports.updateconsignor = async (req, res) => {
     const updateData = {};
     if (req.body.name !== undefined) updateData.name = req.body.name;
     if (req.body.address !== undefined) updateData.address = req.body.address;
-
+    if (req.body.pincode !== undefined) updateData.pincode = req.body.pincode;
+    if (req.body.contactNumber !== undefined) updateData.contactNumber = req.body.contactNumber;
+    if (req.body.contactPerson !== undefined) updateData.contactPerson = req.body.contactPerson;
+    if (req.body.gstNumber !== undefined) updateData.gstNumber = req.body.gstNumber;
+    if (req.body.panNumber !== undefined) updateData.panNumber = req.body.panNumber;
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({
         message: "No fields provided to update",
