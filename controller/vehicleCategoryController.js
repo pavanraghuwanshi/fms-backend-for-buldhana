@@ -34,7 +34,6 @@ exports.createVehicleCategory = async (req, res) => {
 
     const {
       categoryName,
-      wheelerType,
       tyreCount,
       supervisorId,
       supervisorModel,
@@ -43,10 +42,6 @@ exports.createVehicleCategory = async (req, res) => {
 
     if (!categoryName) {
       return res.status(400).json({ message: "categoryName is required" });
-    }
-
-    if (!wheelerType) {
-      return res.status(400).json({ message: "wheelerType is required" });
     }
 
     if (tyreCount === undefined) {
@@ -67,7 +62,6 @@ exports.createVehicleCategory = async (req, res) => {
 
     const category = await VehicleCategory.create({
       categoryName,
-      wheelerType,
       tyreCount,
       supervisorId,
       supervisorModel,
@@ -114,7 +108,6 @@ exports.getVehicleCategories = async (req, res) => {
     if (search) {
       query.$or = [
         { categoryName: { $regex: search, $options: "i" } },
-        { wheelerType: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -204,13 +197,11 @@ exports.updateVehicleCategory = async (req, res) => {
 
     const {
       categoryName,
-      wheelerType,
       tyreCount,
       status,
     } = req.body;
 
     if (categoryName) category.categoryName = categoryName;
-    if (wheelerType) category.wheelerType = wheelerType;
     if (tyreCount !== undefined) category.tyreCount = tyreCount;
     if (status) category.status = status;
 

@@ -9,12 +9,6 @@ const vehicleCategorySchema = new mongoose.Schema(
       trim: true,
     },
 
-    wheelerType: {
-      type: String,
-      required: true,
-      trim: true,
-      // example: "2 Wheeler", "3 Wheeler", "4 Wheeler", "6 Wheeler", "10 Wheeler"
-    },
 
     tyreCount: {
       type: Number,
