@@ -261,3 +261,52 @@ exports.deleteTransporter = async (req, res) => {
     });
   }
 };
+
+
+exports.getTransporterDropdown = async (req, res) => {
+  try {
+    const role = req.user.role;
+    const roleType = req.user.roleType;
+
+    if (!["superadmin", "user"].includes(role)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const query = {
+      status: "active",
+    };
+
+    // hierarchy wise filter
+    if (
+      roleType === "school" ||
+      roleType === "branch" ||
+      roleType === "branchGroup"
+    ) {
+      query.supervisorId = req.user.id;
+    } else if (req.query.supervisorId) {
+      query.supervisorId = req.query.supervisorId;
+    }
+
+    // optional search
+    if (req.query.search) {
+      query.transporterName = {
+        $regex: req.query.search,
+        $options: "i",
+      };
+    }
+
+    const transporters = await Transporter.find(query)
+      .select("_id transporterName")
+      .sort({ transporterName: 1 });
+
+    return res.status(200).json({
+      message: "Transporter dropdown fetched successfully",
+      transporters,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching transporter dropdown",
+      error: error.message,
+    });
+  }
+};
