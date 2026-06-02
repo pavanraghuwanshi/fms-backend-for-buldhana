@@ -7,9 +7,7 @@ exports.createVehicleMaster = async (req, res) => {
     const role = req.user.role;
     const roleType = req.user.roleType;
 
-    if (
-      !["superadmin", "school", "branch", "branchGroup"].includes(role)
-    ) {
+    if (!["superadmin", "user"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
