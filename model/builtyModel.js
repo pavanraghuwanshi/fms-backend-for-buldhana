@@ -197,4 +197,9 @@ const builtySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+builtySchema.index(
+  { supervisorId: 1, supervisorModel: 1, tpNo: 1 },
+  { unique: true }
+);
+
 module.exports = maintenanceDB.model("Builty", builtySchema);
