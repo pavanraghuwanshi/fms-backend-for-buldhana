@@ -333,6 +333,11 @@ exports.getBuiltys = async (req, res) => {
     }
 
     const builtys = await Builty.find(query)
+      .populate("consignerId", "name contactNumber contactPerson")
+      .populate("consigneeId", "name contactNumber contactPerson")
+      .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
+      .populate("transporterId", "transporterName contactPerson contactNumber")
+      .populate("commissionAgentId", "name contactNumber contactPerson")
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
