@@ -137,7 +137,7 @@ exports.getCommissionAgents = async (req, res) => {
     }
 
     const agents = await CommissionAgent.find(query)
-      .populate("transporterId")
+      .populate("transporterId"," transporterName")
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit));
