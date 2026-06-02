@@ -95,7 +95,7 @@ const builtySchema = new mongoose.Schema(
 
     advanceMode: {
       type: String,
-      enum: ["cash", "diesel"],
+      enum: ["cash", "fuel", "cash_fuel","upi","bank_transfer","other"],
     },
 
     advanceAmount: {
