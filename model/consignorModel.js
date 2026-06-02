@@ -13,6 +13,26 @@ const consignorSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+        pincode: {
+      type: String,
+      trim: true,
+    },
+    contactNumber: {
+      type: String,
+      trim: true,
+    },
+    contactPerson: {
+      type: String,
+      trim: true,
+    },
+    gstNumber: {
+      type: String,
+      trim: true,
+    },
+    panNumber: {
+      type: String,
+      trim: true,
+    },
   supervisorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
