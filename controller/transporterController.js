@@ -1,5 +1,6 @@
 const Transporter = require("../model/transporterModel");
 
+
 exports.createTransporter = async (req, res) => {
   try {
     const role = req.user.role;
@@ -122,7 +123,6 @@ exports.getTransporters = async (req, res) => {
     }
 
     const transporters = await Transporter.find(query)
-      .populate("supervisorId", "name email mobile")
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit));

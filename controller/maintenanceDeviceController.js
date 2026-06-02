@@ -129,7 +129,6 @@ exports.getVehicleMasters = async (req, res) => {
 
     const vehicles = await VehicleMaster.find(query)
       .populate("transporterId")
-      .populate("supervisorId", "name email mobile")
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit));

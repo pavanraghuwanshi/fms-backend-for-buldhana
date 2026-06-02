@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { maintenanceDB } = require("../database/database");
 
 const commissionAgentSchema = new mongoose.Schema(
   {
@@ -69,4 +70,6 @@ const commissionAgentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("CommissionAgent", commissionAgentSchema);
+
+const CommissionAgent = maintenanceDB.model("CommissionAgent", commissionAgentSchema);
+module.exports = CommissionAgent;
