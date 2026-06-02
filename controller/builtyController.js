@@ -362,7 +362,13 @@ exports.getBuiltys = async (req, res) => {
 
 exports.getBuiltyById = async (req, res) => {
   try {
-    const builty = await Builty.findById(req.params.id).lean();
+    const builty = await Builty.findById(req.params.id)
+    .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
+    .populate("transporterId", "transporterName contactPerson contactNumber")
+    .populate("commissionAgentId", "name contactNumber contactPerson")
+    .populate("consignerId", "name contactNumber contactPerson")
+    .populate("consigneeId", "name contactNumber contactPerson")
+    .lean();
 
     if (!builty) {
       return res.status(404).json({ message: "Builty not found" });
