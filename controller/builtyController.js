@@ -75,9 +75,9 @@ exports.createBuilty = async (req, res) => {
       return res.status(400).json({ message: "vehicleNumber or vehicleId is required" });
     }
 
-    if (!payload.products || payload.products.length === 0) {
-      return res.status(400).json({ message: "products are required" });
-    }
+    // if (!payload.products || payload.products.length === 0) {
+    //   return res.status(400).json({ message: "products are required" });
+    // }
 
     if (payload.vehicleId) {
       const vehicle = await VehicleMaster.findById(payload.vehicleId).lean();
