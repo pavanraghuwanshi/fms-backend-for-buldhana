@@ -46,6 +46,22 @@ const transporterSchema = new mongoose.Schema(
       refPath: "supervisorModel",
       required: true,
     },
+    accountHolderName: {
+        type: String,
+        trim: true,
+      },
+    accountNumber: {
+        type: String,
+        trim: true,
+      },
+    bankName: {
+        type: String,
+        trim: true,
+      },
+    ifscCode: {
+        type: String,
+        trim: true,
+      },
 
     supervisorModel: {
       type: String,

@@ -54,6 +54,22 @@ const commissionAgentSchema = new mongoose.Schema(
       enum: ["our", "transporter"],
       default: "our",
     },
+        accountHolderName: {
+      type: String,
+      trim: true,
+    },
+    accountNumber: {
+      type: String,
+      trim: true,
+    },
+    bankName: {
+      type: String,
+      trim: true,
+    },
+    ifscCode: {
+      type: String,
+      trim: true,
+    },
 
     supervisorId: {
       type: mongoose.Schema.Types.ObjectId,
