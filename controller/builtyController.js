@@ -313,10 +313,7 @@ exports.dispatchBuilty = async (req, res) => {
       advanceDieselLiters,
     } = req.body;
 
-    if (
-      loadingEmptyWeight === undefined ||
-      loadingLoadedWeight === undefined
-    ) {
+    if (loadingEmptyWeight === undefined || loadingLoadedWeight === undefined) {
       return res.status(400).json({
         message: "loadingEmptyWeight and loadingLoadedWeight are required",
       });
@@ -334,10 +331,12 @@ exports.dispatchBuilty = async (req, res) => {
       });
     }
 
-    // direct store only
     builty.loadingEmptyWeight = Number(loadingEmptyWeight);
     builty.loadingLoadedWeight = Number(loadingLoadedWeight);
-    builty.loadingMaterialWeight = Number(loadingMaterialWeight);
+
+    if (loadingMaterialWeight !== undefined) {
+      builty.loadingMaterialWeight = Number(loadingMaterialWeight);
+    }
 
     if (advanceMode !== undefined) {
       builty.advanceMode = advanceMode;
