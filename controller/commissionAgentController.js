@@ -38,6 +38,10 @@ exports.createCommissionAgent = async (req, res) => {
       agentName,
       contactPerson,
       contactNumber,
+      accountHolderName,
+      accountNumber,
+      bankName,
+      ifscCode,
       email,
       address,
       gstNumber,
@@ -80,6 +84,10 @@ exports.createCommissionAgent = async (req, res) => {
       supervisorId,
       supervisorModel,
       status,
+      accountHolderName,
+      accountNumber,
+      bankName,
+      ifscCode,
     });
 
     return res.status(201).json({

@@ -40,6 +40,10 @@ exports.createTransporter = async (req, res) => {
       transporterName,
       contactPerson,
       contactNumber,
+      accountHolderName,
+      accountNumber,
+      bankName,
+      ifscCode,
       email,
       address,
       gstNumber,
@@ -78,6 +82,10 @@ exports.createTransporter = async (req, res) => {
       supervisorId,
       supervisorModel,
       status,
+      accountHolderName,
+      accountNumber,
+      bankName,
+      ifscCode,
     });
 
     return res.status(201).json({
