@@ -338,6 +338,7 @@ exports.getBuiltys = async (req, res) => {
       .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
       .populate("transporterId", "transporterName contactPerson contactNumber")
       .populate("commissionAgentId", "name contactNumber contactPerson")
+      .populate("driverId", "name contactNumber")
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
@@ -368,6 +369,7 @@ exports.getBuiltyById = async (req, res) => {
     .populate("commissionAgentId", "name contactNumber contactPerson")
     .populate("consignerId", "name contactNumber contactPerson")
     .populate("consigneeId", "name contactNumber contactPerson")
+    .populate("driverId", "name contactNumber")
     .lean();
 
     if (!builty) {
