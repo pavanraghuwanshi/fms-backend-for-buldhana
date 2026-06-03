@@ -14,9 +14,9 @@ const { authenticateToken } = require("../middleware/authMiddleware");
 
 router.post("/", authenticateToken, createVehicleMaster);
 router.get("/", authenticateToken, getVehicleMasters);
+router.get("/dropdown", authenticateToken, getVehicleMasterDropdown);
 router.get("/:id", authenticateToken, getVehicleMasterById);
 router.put("/:id", authenticateToken, updateVehicleMaster);
 router.delete("/:id", authenticateToken, deleteVehicleMaster);
-router.get("/dropdown", authenticateToken, getVehicleMasterDropdown);
 
 module.exports = router;
