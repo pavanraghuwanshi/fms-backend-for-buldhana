@@ -303,7 +303,7 @@ exports.getVehicleMasterDropdown = async (req, res) => {
     }
 
     const vehicles = await VehicleMaster.find(query)
-      .select("vehicleNumber transporterId")
+      .select("vehicleNumber transporterId grossVehicleWeight")
       .sort({ vehicleNumber: 1 })
       .lean();
 
@@ -313,6 +313,7 @@ exports.getVehicleMasterDropdown = async (req, res) => {
         id: v._id,
         vehicleNumber: v.vehicleNumber,
         transporterId: v.transporterId || null,
+        grossVehicleWeight: v.grossVehicleWeight || null,
         vehicleType: v.transporterId ? "transporter" : "our",
       })),
     });
