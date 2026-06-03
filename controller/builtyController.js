@@ -298,6 +298,79 @@ exports.updateLoadingWeight = async (req, res) => {
   }
 };
 
+exports.departureBuilty = async (req, res) => {
+  try {
+    if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const {
+      loadingEmptyWeight,
+      loadingLoadedWeight,
+      advanceMode,
+      advanceAmount,
+      advanceDieselLiters,
+    } = req.body;
+
+    if (loadingEmptyWeight === undefined || loadingLoadedWeight === undefined) {
+      return res.status(400).json({
+        message: "loadingEmptyWeight and loadingLoadedWeight are required",
+      });
+    }
+
+    const builty = await Builty.findById(req.params.id);
+
+    if (!builty) {
+      return res.status(404).json({ message: "Builty not found" });
+    }
+
+    if (builty.status !== "Created") {
+      return res.status(400).json({
+        message: "Only created builty can be dispatched",
+      });
+    }
+
+    const loadingMaterialWeight =
+      Number(loadingLoadedWeight) - Number(loadingEmptyWeight);
+
+    if (loadingMaterialWeight <= 0) {
+      return res.status(400).json({
+        message: "loadingLoadedWeight must be greater than loadingEmptyWeight",
+      });
+    }
+
+    builty.loadingEmptyWeight = Number(loadingEmptyWeight);
+    builty.loadingLoadedWeight = Number(loadingLoadedWeight);
+    builty.loadingMaterialWeight = loadingMaterialWeight;
+
+    if (advanceMode !== undefined) {
+      builty.advanceMode = advanceMode;
+    }
+
+    if (advanceAmount !== undefined) {
+      builty.advanceAmount = Number(advanceAmount);
+    }
+
+    if (advanceDieselLiters !== undefined) {
+      builty.advanceDieselLiters = Number(advanceDieselLiters);
+    }
+
+    builty.status = "Dispatched";
+
+    await builty.save();
+
+    return res.status(200).json({
+      message: "Builty dispatched successfully",
+      builty,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error dispatching builty",
+      error: error.message,
+    });
+  }
+};
+
 exports.completeBuilty = async (req, res) => {
   try {
     if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
