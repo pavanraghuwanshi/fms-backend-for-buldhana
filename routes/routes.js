@@ -39,6 +39,7 @@ const transporterRoute = require("./transporterRoute");
 const commissionAgentRoute = require("./commissionAgentRoute");
 const vehicleCategoryRoute = require("./vehicleCategoryRoute");
 const builtyRoute = require("./builtyRoute");
+const sendWhatsappInvoiceRoute = require("./sendWhatappInvoiceRoute");
 
 router.use("/drivers", driverRoutes);
 router.use("/leave", leaveRoutes);
@@ -79,5 +80,6 @@ router.use("/transporter", transporterRoute);
 router.use("/commission-agent", commissionAgentRoute);
 router.use("/vehicle-category", vehicleCategoryRoute);
 router.use("/builty", builtyRoute);
+router.use("/send-whatsapp-invoice", sendWhatsappInvoiceRoute);
 
 module.exports = router;
