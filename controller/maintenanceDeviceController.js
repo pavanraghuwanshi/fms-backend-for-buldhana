@@ -264,3 +264,62 @@ exports.deleteVehicleMaster = async (req, res) => {
     });
   }
 };
+
+
+exports.getVehicleMasterDropdown = async (req, res) => {
+  try {
+    const role = req.user.role;
+
+    if (!["superadmin", "user"].includes(role)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const { type, transporterId, search } = req.query;
+
+    const query = {};
+
+    if (role === "user") {
+      query.supervisorId = req.user.id;
+    } else if (req.query.supervisorId) {
+      query.supervisorId = req.query.supervisorId;
+    }
+
+    // type = our / transporter
+    if (type === "our") {
+      query.transporterId = null;
+    }
+
+    if (type === "transporter") {
+      query.transporterId = { $ne: null };
+    }
+
+    // specific transporter selected
+    if (transporterId) {
+      query.transporterId = transporterId;
+    }
+
+    if (search) {
+      query.vehicleNumber = { $regex: search, $options: "i" };
+    }
+
+    const vehicles = await VehicleMaster.find(query)
+      .select("vehicleNumber transporterId")
+      .sort({ vehicleNumber: 1 })
+      .lean();
+
+    return res.status(200).json({
+      message: "Vehicle dropdown fetched successfully",
+      vehicles: vehicles.map((v) => ({
+        id: v._id,
+        vehicleNumber: v.vehicleNumber,
+        transporterId: v.transporterId || null,
+        vehicleType: v.transporterId ? "transporter" : "our",
+      })),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching vehicle dropdown",
+      error: error.message,
+    });
+  }
+};
