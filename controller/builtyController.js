@@ -298,7 +298,7 @@ exports.updateLoadingWeight = async (req, res) => {
   }
 };
 
-exports.departureBuilty = async (req, res) => {
+exports.dispatchBuilty = async (req, res) => {
   try {
     if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
       return res.status(403).json({ message: "Access denied" });

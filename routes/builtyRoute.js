@@ -10,7 +10,7 @@ router.get("/:id", authenticateToken, builtyController.getBuiltyById);
 router.put("/loading-weight/:id", authenticateToken, builtyController.updateLoadingWeight);
 router.put("/update/:id", authenticateToken, builtyController.updateBuilty);
 router.put("/dispatch/:id", authenticateToken, builtyController.dispatchBuilty);
-router.put(  "/complete/:id",  authenticateToken,  builtyController.completeBuilty);
+router.put("/complete/:id",  authenticateToken,  builtyController.completeBuilty);
 
 router.put( "/cancel/:id", authenticateToken, builtyController.cancelBuilty);
 
