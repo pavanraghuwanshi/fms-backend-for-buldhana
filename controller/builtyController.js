@@ -131,6 +131,126 @@ exports.createBuilty = async (req, res) => {
   }
 };
 
+
+exports.updateBuilty = async (req, res) => {
+  try {
+    if (!["superadmin", "user", "worker"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const { id } = req.params;
+
+    const payload = applyHierarchy(req, req.body);
+
+    const builty = await Builty.findById(id);
+
+    if (!builty) {
+      return res.status(404).json({ message: "Builty not found" });
+    }
+
+    if (
+      String(builty.supervisorId) !== String(payload.supervisorId) ||
+      builty.supervisorModel !== payload.supervisorModel
+    ) {
+      return res.status(403).json({ message: "Access denied for this builty" });
+    }
+
+    if (!payload.supervisorId) {
+      return res.status(400).json({ message: "supervisorId is required" });
+    }
+
+    if (!payload.supervisorModel) {
+      return res.status(400).json({ message: "supervisorModel is required" });
+    }
+
+    if (!payload.consignerName) {
+      return res.status(400).json({ message: "consignerName is required" });
+    }
+
+    if (!payload.consigneeName) {
+      return res.status(400).json({ message: "consigneeName is required" });
+    }
+
+    if (!payload.consignerId) {
+      return res.status(400).json({ message: "consignerId is required" });
+    }
+
+    if (!payload.consigneeId) {
+      return res.status(400).json({ message: "consigneeId is required" });
+    }
+
+    if (!payload.destinationLocation) {
+      return res.status(400).json({ message: "destinationLocation is required" });
+    }
+
+    if (!payload.vehicleOwnership) {
+      return res.status(400).json({ message: "vehicleOwnership is required" });
+    }
+
+    if (!payload.bookingMode) {
+      return res.status(400).json({ message: "bookingMode is required" });
+    }
+
+    if (!payload.vehicleNumber && !payload.vehicleId) {
+      return res.status(400).json({ message: "vehicleNumber or vehicleId is required" });
+    }
+
+    if (payload.vehicleId) {
+      const vehicle = await VehicleMaster.findById(payload.vehicleId).lean();
+
+      if (!vehicle) {
+        return res.status(404).json({ message: "Vehicle not found" });
+      }
+
+      payload.vehicleNumber = vehicle.vehicleNumber;
+      payload.grossVehicleWeight = vehicle.grossVehicleWeight;
+    }
+
+    if (!payload.grossVehicleWeight) {
+      return res.status(400).json({ message: "grossVehicleWeight is required" });
+    }
+
+    if (payload.bookingMode === "transporter" && !payload.transporterId) {
+      return res.status(400).json({ message: "transporterId is required" });
+    }
+
+    if (payload.bookingMode === "commissionAgent" && !payload.commissionAgentId) {
+      return res.status(400).json({ message: "commissionAgentId is required" });
+    }
+
+    if (payload.bookingMode === "transporter") {
+      payload.commissionAgentId = null;
+    }
+
+    if (payload.bookingMode === "commissionAgent") {
+      payload.transporterId = null;
+    }
+
+    if (payload.vehicleNumber) {
+      payload.vehicleNumber = payload.vehicleNumber.toUpperCase();
+    }
+
+    delete payload.tpNo;
+    delete payload.createdBy;
+    delete payload.createdByRole;
+
+    const updatedBuilty = await Builty.findByIdAndUpdate(id, payload, {
+      new: true,
+      runValidators: true,
+    });
+
+    return res.status(200).json({
+      message: "Builty updated successfully",
+      builty: updatedBuilty,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error updating builty",
+      error: error.message,
+    });
+  }
+};
+
 exports.updateLoadingWeight = async (req, res) => {
   try {
     if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {

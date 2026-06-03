@@ -7,8 +7,8 @@ const {authenticateToken} = require("../middleware/authMiddleware");
 router.post("/", authenticateToken, builtyController.createBuilty);
 router.get("/", authenticateToken, builtyController.getBuiltys);
 router.get("/:id", authenticateToken, builtyController.getBuiltyById);
-
 router.put("/loading-weight/:id", authenticateToken, builtyController.updateLoadingWeight);
+router.put("/:id", authenticateToken, builtyController.updateBuilty);
 
 router.put(  "/complete/:id",  authenticateToken,  builtyController.completeBuilty);
 
