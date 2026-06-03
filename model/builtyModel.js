@@ -3,7 +3,7 @@ const { maintenanceDB } = require("../database/database");
 
 const builtyProductSchema = new mongoose.Schema(
   {
-    productName: { type: String, required: true, trim: true },
+    productName: { type: String, trim: true },
     quantity: { type: Number, default: 0 },
     unit: { type: String, trim: true }, // MT / Bags / Kg
     bagSize: { type: Number },
