@@ -177,6 +177,11 @@ const builtySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
     },
+    driverId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Driver",
+      default: null,
+    },
     consignerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Consignor",
