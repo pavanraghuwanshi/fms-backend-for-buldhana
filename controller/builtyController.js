@@ -492,8 +492,22 @@ exports.getBuiltys = async (req, res) => {
       search,
       status,
       supervisorId,
+      supervisorModel,
       startDate,
       endDate,
+
+      consignerId,
+      consigneeId,
+      vehicleId,
+      transporterId,
+      commissionAgentId,
+      driverId,
+      workerId,
+      createdBy,
+
+      bookingMode,
+      vehicleOwnership,
+      advanceMode,
     } = req.query;
 
     const query = {};
@@ -506,7 +520,21 @@ exports.getBuiltys = async (req, res) => {
       query.supervisorId = supervisorId;
     }
 
+    if (supervisorModel) query.supervisorModel = supervisorModel;
     if (status) query.status = status;
+
+    if (consignerId) query.consignerId = consignerId;
+    if (consigneeId) query.consigneeId = consigneeId;
+    if (vehicleId) query.vehicleId = vehicleId;
+    if (transporterId) query.transporterId = transporterId;
+    if (commissionAgentId) query.commissionAgentId = commissionAgentId;
+    if (driverId) query.driverId = driverId;
+    if (workerId) query.workerId = workerId;
+    if (createdBy) query.createdBy = createdBy;
+
+    if (bookingMode) query.bookingMode = bookingMode;
+    if (vehicleOwnership) query.vehicleOwnership = vehicleOwnership;
+    if (advanceMode) query.advanceMode = advanceMode;
 
     if (startDate && endDate) {
       query.date = {
