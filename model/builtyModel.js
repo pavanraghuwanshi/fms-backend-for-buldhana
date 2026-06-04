@@ -64,7 +64,7 @@ const builtySchema = new mongoose.Schema(
       enum: ["self", "market"],
       required: true,
     },
-    transportRateAmountUnit: { type: Number, default: 0 },
+    transportRateAmount: { type: Number, default: 0 },
     transportRateType: { type: String, enum: ["fixed", "per_ton"] },
 
     bookingMode: {
