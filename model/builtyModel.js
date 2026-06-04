@@ -62,7 +62,7 @@ const builtySchema = new mongoose.Schema(
 
     bookingMode: {
       type: String,
-      enum: ["transporter", "commissionAgent"],
+      enum: ["transporter", "self"],
       required: true,
     },
 
