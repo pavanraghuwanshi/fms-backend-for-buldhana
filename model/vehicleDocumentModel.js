@@ -3,7 +3,7 @@ const { maintenanceDB } = require("../database/database");
 
 const vehicleDocumentSchema = new mongoose.Schema(
   {
-    vehicleId: {
+    deviceObjId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "VehicleMaster",
       unique: true,

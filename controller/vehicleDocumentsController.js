@@ -5,13 +5,13 @@ const { compressImage } = require("../utils/helperFunctions");
 
 exports.addVehicleDocument = async (req, res) => {
   try {
-    const { vehicleId, documents } = req.body;
+    const { deviceObjId, documents } = req.body;
 
-    if (!vehicleId) {
-      return res.status(400).json({ message: "vehicleId is required" });
+    if (!deviceObjId) {
+      return res.status(400).json({ message: "deviceObjId is required" });
     }
 
-    const vehicle = await VehicleMaster.findById(vehicleId).select(
+    const vehicle = await VehicleMaster.findById(deviceObjId).select(
       "vehicleNumber"
     );
 
@@ -40,7 +40,7 @@ exports.addVehicleDocument = async (req, res) => {
       }),
     };
 
-    const existingDocument = await VehicleDocument.findOne({ vehicleId });
+    const existingDocument = await VehicleDocument.findOne({ deviceObjId });
 
     if (existingDocument) {
       if (InsuranceImage) {
@@ -51,7 +51,7 @@ exports.addVehicleDocument = async (req, res) => {
         }
 
         await VehicleDocument.findOneAndUpdate(
-          { vehicleId },
+          { deviceObjId },
           {
             $set: {
               "documents.Insurance.issueDate":
@@ -78,7 +78,7 @@ exports.addVehicleDocument = async (req, res) => {
         }
 
         await VehicleDocument.findOneAndUpdate(
-          { vehicleId },
+          { deviceObjId },
           {
             $set: {
               "documents.rc.issueDate": documents?.rc?.issueDate,
@@ -102,7 +102,7 @@ exports.addVehicleDocument = async (req, res) => {
         }
 
         await VehicleDocument.findOneAndUpdate(
-          { vehicleId },
+          { deviceObjId },
           {
             $set: {
               "documents.puc.issueDate": documents?.puc?.issueDate,
@@ -128,7 +128,7 @@ exports.addVehicleDocument = async (req, res) => {
         }
 
         await VehicleDocument.findOneAndUpdate(
-          { vehicleId },
+          { deviceObjId },
           {
             $set: {
               "documents.fitnessCertificate.issueDate":
@@ -152,7 +152,7 @@ exports.addVehicleDocument = async (req, res) => {
     }
 
     const newDocument = new VehicleDocument({
-      vehicleId,
+      deviceObjId,
       vehicleName: vehicle.vehicleNumber,
       documents: {
         Insurance: {
@@ -200,7 +200,7 @@ exports.updateVehicleDocument = async (req, res) => {
     try {
         const { documents } = req.body;
 
-        const existingDocument = await VehicleDocument.findOne({ vehicleId: req.params.id });
+        const existingDocument = await VehicleDocument.findOne({ deviceObjId: req.params.id });
         if (!existingDocument) return res.status(404).json({ message: "Vehicle document not found" });
 
         const InsuranceImage = req.files?.["insuranceImage"]?.[0];
@@ -233,7 +233,7 @@ exports.updateVehicleDocument = async (req, res) => {
         updatedFields["documents.fitnessCertificate.companyName"] = documents?.fitnessCertificate?.companyName || existingDocument.documents.fitnessCertificate.companyName;
 
         const updatedDocument = await VehicleDocument.findOneAndUpdate(
-            { vehicleId: req.params.id },
+            { deviceObjId: req.params.id },
             { $set: updatedFields },
             { new: true }
         );
@@ -247,8 +247,8 @@ exports.updateVehicleDocument = async (req, res) => {
 
 exports.getVehicleDocument = async (req, res) => {
     try {
-        const { vehicleId, field } = req.query
-        const vehicleDocument = await VehicleDocument.findOne({ vehicleId }).select(`documents.${field}`);
+        const { deviceObjId, field } = req.query
+        const vehicleDocument = await VehicleDocument.findOne({ deviceObjId }).select(`documents.${field}`);
 
         if (!vehicleDocument) return res.status(404).json({ message: "Vehicle document not found" });
 
@@ -293,9 +293,9 @@ exports.getVehicleDocument = async (req, res) => {
 
 exports.deleteVehicleDocumentImage = async (req, res) => {
     try {
-        const { vehicleId, field } = req.query;
+        const { deviceObjId, field } = req.query;
 
-        const vehicleDocument = await VehicleDocument.findOne({ vehicleId }).select(`documents.${field}`);
+        const vehicleDocument = await VehicleDocument.findOne({ deviceObjId }).select(`documents.${field}`);
 
         if (!vehicleDocument) return res.status(404).json({ message: "Vehicle document not found" });
 
@@ -304,7 +304,7 @@ exports.deleteVehicleDocumentImage = async (req, res) => {
                 return res.status(404).json({ message: "No image found" });
             }
 
-            await VehicleDocument.findOneAndUpdate({ vehicleId }, {
+            await VehicleDocument.findOneAndUpdate({ deviceObjId }, {
                 $unset: { 'documents.Insurance': 1 }
             }).select(`documents.${field}`);
             return res.status(200).json({ message: "Vehicle document deleted successfully" });
@@ -312,7 +312,7 @@ exports.deleteVehicleDocumentImage = async (req, res) => {
             if (!vehicleDocument.documents.rc.image.base64Data) {
                 return res.status(404).json({ message: "No image found" });
             }
-            await VehicleDocument.findOneAndUpdate({ vehicleId }, {
+            await VehicleDocument.findOneAndUpdate({ deviceObjId }, {
                 $unset: { 'documents.rc': 1 }
             }).select(`documents.${field}`);
             return res.status(200).json({ message: "Vehicle document deleted successfully" });
@@ -320,7 +320,7 @@ exports.deleteVehicleDocumentImage = async (req, res) => {
             if (!vehicleDocument.documents.puc.image.base64Data) {
                 return res.status(404).json({ message: "No image found" });
             }
-            await VehicleDocument.findOneAndUpdate({ vehicleId }, {
+            await VehicleDocument.findOneAndUpdate({ deviceObjId }, {
                 $unset: { 'documents.puc': 1 }
             }).select(`documents.${field}`);
             return res.status(200).json({ message: "Vehicle document deleted successfully" });
@@ -329,7 +329,7 @@ exports.deleteVehicleDocumentImage = async (req, res) => {
             if (!vehicleDocument.documents.fitnessCertificate.image.base64Data) {
                 return res.status(404).json({ message: "No image found" });
             }
-            await VehicleDocument.findOneAndUpdate({ vehicleId }, {
+            await VehicleDocument.findOneAndUpdate({ deviceObjId }, {
                 $unset: { 'documents.fitnessCertificate': 1 }
             }).select(`documents.${field}`);
             return res.status(200).json({ message: "Vehicle document deleted successfully" });
@@ -372,11 +372,11 @@ exports.getVehicleExpiryDocuments = async (req, res) => {
             ],
         };
 
-        if (vehicleIds.length > 0) vehicleQuery.vehicleId = { $in: vehicleIds };
+        if (vehicleIds.length > 0) vehicleQuery.deviceObjId = { $in: vehicleIds };
         const expiringDocuments = await VehicleDocument.find(vehicleQuery).select(' -documents.Insurance.image -documents.rc.image -documents.puc.image -documents.fitnessCertificate.image -createdAt -updatedAt -__v').lean();
 
         const result = expiringDocuments.map(doc => {
-            const vehicle = vehicles.find(v => v._id.toString() === doc.vehicleId.toString());
+            const vehicle = vehicles.find(v => v._id.toString() === doc.deviceObjId.toString());
             return { ...doc, users: vehicle ? vehicle.users : [] };
         });
 
