@@ -1,4 +1,5 @@
 const Device = require("../model/deviceModel");
+const VehicleMaster = require("../model/maintenanceDevice.model");
 const User = require("../model/userModel");
 const VehicleDocument = require("../model/vehicleDocumentModel");
 
@@ -115,7 +116,7 @@ exports.getDeviceById = async (req, res) => {
   try {
     const vehicleId = req.params.id;
     const [device, vehicleDocument] = await Promise.all([
-      Device.findById(vehicleId).select('name model category'),
+      VehicleMaster.findById(vehicleId).select('name model category'),
       VehicleDocument.findOne({ vehicleId }).select('documents'),
     ]);
 
