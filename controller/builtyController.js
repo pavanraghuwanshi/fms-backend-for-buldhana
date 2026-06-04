@@ -372,7 +372,12 @@ exports.completeBuilty = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const { deliveryLoadedWeight, deliveryEmptyWeight } = req.body;
+    const {
+      deliveryLoadedWeight,
+      deliveryEmptyWeight,
+      deliveryStatus,
+      paymentCutAmount,
+    } = req.body;
 
     if (deliveryLoadedWeight === undefined || deliveryEmptyWeight === undefined) {
       return res.status(400).json({
@@ -397,14 +402,16 @@ exports.completeBuilty = async (req, res) => {
 
     const loadingMaterialWeight = Number(builty.loadingMaterialWeight || 0);
 
-    const weightDifference =
-      loadingMaterialWeight - deliveryMaterialWeight;
+    const weightDifference = loadingMaterialWeight - deliveryMaterialWeight;
 
     const allowedDiscountWeight = Number(builty.discountWeight || 0);
 
-    if (weightDifference > allowedDiscountWeight) {
+    const isLessDelivered = weightDifference > allowedDiscountWeight;
+
+    if (isLessDelivered && deliveryStatus !== "Less Delivered") {
       return res.status(400).json({
-        message: "Weight difference is greater than allowed discount weight",
+        message:
+          "deliveryStatus must be Less Delivered because material delivered is less than allowed discount weight",
         loadingMaterialWeight,
         deliveryMaterialWeight,
         weightDifference,
@@ -417,13 +424,14 @@ exports.completeBuilty = async (req, res) => {
     builty.deliveryMaterialWeight = deliveryMaterialWeight;
     builty.weightDifference = weightDifference;
 
+    builty.deliveryStatus = isLessDelivered ? "Less Delivered" : "Delivered";
+    builty.paymentCutAmount = Number(paymentCutAmount || 0);
+    builty.isLessDelivered = isLessDelivered;
+
     builty.status = "Completed";
     builty.completedAt = new Date();
 
     await builty.save();
-
-    // await sendBuiltyWhatsapp(builty.consignerContactNumber, builty);
-    // await sendBuiltyWhatsapp(builty.consigneeContactNumber, builty);
 
     return res.status(200).json({
       message: "Builty completed successfully",

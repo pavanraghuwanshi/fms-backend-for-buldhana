@@ -204,6 +204,21 @@ const builtySchema = new mongoose.Schema(
       required: true,
       enum: ["School", "Branch", "BranchGroup"],
     },
+    deliveryStatus: {
+      type: String,
+      enum: ["Delivered", "Less Delivered"],
+      default: "Delivered",
+    },
+
+    paymentCutAmount: {
+      type: Number,
+      default: null,
+    },
+
+    isLessDelivered: {
+      type: Boolean,
+      default: false,
+    },
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
