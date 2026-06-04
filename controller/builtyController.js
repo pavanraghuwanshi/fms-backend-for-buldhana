@@ -62,6 +62,9 @@ exports.createBuilty = async (req, res) => {
     if (!payload.destinationLocation) {
       return res.status(400).json({ message: "destinationLocation is required" });
     }
+    if(!payload.pickupLocation){
+      return res.status(400).json({ message: "pickupLocation is required" });
+    }
 
     if (!payload.vehicleOwnership) {
       return res.status(400).json({ message: "vehicleOwnership is required" });

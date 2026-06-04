@@ -3,7 +3,7 @@ const { maintenanceDB } = require("../database/database");
 
 const builtyProductSchema = new mongoose.Schema(
   {
-    productName: { type: String, trim: true },
+    productName: { type: String,required:true, trim: true },
     quantity: { type: Number, default: 0 },
     unit: { type: String, trim: true }, // MT / Bags / Kg
     bagSize: { type: Number },
@@ -49,6 +49,11 @@ const builtySchema = new mongoose.Schema(
     },
 
     destinationLocation: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    pickupLocation:{
       type: String,
       required: true,
       trim: true,
