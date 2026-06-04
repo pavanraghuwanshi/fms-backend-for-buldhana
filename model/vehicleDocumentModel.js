@@ -3,17 +3,18 @@ const { maintenanceDB } = require("../database/database");
 
 const vehicleDocumentSchema = new mongoose.Schema(
   {
-    vehicleId: {
+    deviceObjId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Device",
+      ref: "VehicleMaster",
       unique: true,
       required: [true, "Vehicle is required please select vehicle"],
     },
+
     vehicleName: {
       type: String,
-      unique: true,
       required: [true, "Vehicle Name is required please select vehicle"],
     },
+
     documents: {
       Insurance: {
         issueDate: Date,
@@ -53,16 +54,12 @@ const vehicleDocumentSchema = new mongoose.Schema(
       },
     },
   },
-  {
-    timestamps: {
-      currentTime: () => {
-        const now = new Date();
-        const istOffset = 5.5 * 60 * 60 * 1000;
-        return new Date(now.getTime() + istOffset);
-      },
-    },
-  }
+  { timestamps: true }
 );
 
-const VehicleDocument = maintenanceDB.model("VehicleDocument", vehicleDocumentSchema);
+const VehicleDocument = maintenanceDB.model(
+  "VehicleDocument",
+  vehicleDocumentSchema
+);
+
 module.exports = VehicleDocument;

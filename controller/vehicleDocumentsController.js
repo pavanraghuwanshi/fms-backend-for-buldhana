@@ -1,149 +1,206 @@
-const Device = require("../model/deviceModel");
+const VehicleMaster = require("../model/maintenanceDevice.model");
 const VehicleDocument = require("../model/vehicleDocumentModel");
 const { compressImage } = require("../utils/helperFunctions");
 
+
 exports.addVehicleDocument = async (req, res) => {
-    try {
-        const { vehicleId, documents } = req.body;
-        const vehicleName = await Device.findById(vehicleId).select('-_id name');
+  try {
+    const { deviceObjId, documents } = req.body;
 
-        const InsuranceImage = req.files?.["insuranceImage"]?.[0];
-        const rcImage = req.files?.["rcImage"]?.[0];
-        const pucImage = req.files?.["pucImage"]?.[0];
-        const fitnessCertificateImage = req.files?.["fitnessCertificateImage"]?.[0];
+    if (!deviceObjId) {
+      return res.status(400).json({ message: "deviceObjId is required" });
+    }
 
-        const images = {
-            ...(InsuranceImage && {
-                Insurance: await compressImage(InsuranceImage),
-            }),
-            ...(rcImage && {
-                rc: await compressImage(rcImage),
-            }),
-            ...(pucImage && {
-                puc: await compressImage(pucImage),
-            }),
-            ...(fitnessCertificateImage && {
-                fitnessCertificate: await compressImage(fitnessCertificateImage),
-            }),
-        };
+    const vehicle = await VehicleMaster.findById(deviceObjId).select(
+      "vehicleNumber"
+    );
 
-        const existingDocument = await VehicleDocument.findOne({ vehicleId })
-        if (existingDocument) {
-            if (InsuranceImage) {
-                if (existingDocument.documents.Insurance.image.base64Data) {
-                    return res.status(400).json({ message: "An insurance record with these details already exists. Please check and try again." });
-                } else {
-                    await VehicleDocument.findOneAndUpdate({ vehicleId },
-                        {
-                            $set: {
-                                "documents.Insurance.issueDate": documents?.Insurance?.issueDate,
-                                "documents.Insurance.expiryDate": documents?.Insurance?.expiryDate,
-                                "documents.Insurance.companyName": documents?.Insurance?.companyName,
-                                "documents.Insurance.image": images.Insurance
-                            }
-                        }
-                    )
-                    return res.status(201).json({ message: "Vehicle document saved successfully" });
-                }
-            } else if (rcImage) {
-                if (existingDocument.documents.rc.image.base64Data) {
-                    return res.status(400).json({ message: "An rc record with these details already exists. Please check and try again." });
-                } else {
-                    await VehicleDocument.findOneAndUpdate({ vehicleId },
-                        {
-                            $set: {
-                                "documents.rc.issueDate": documents?.rc?.issueDate,
-                                "documents.rc.expiryDate": documents?.rc?.expiryDate,
-                                "documents.rc.companyName": documents?.rc?.companyName,
-                                "documents.rc.image": images.rc
-                            }
-                        }
-                    )
-                    return res.status(201).json({ message: "Vehicle document saved successfully" });
-                }
+    if (!vehicle) {
+      return res.status(404).json({ message: "Vehicle not found" });
+    }
 
-            } else if (pucImage) {
-                if (existingDocument.documents.puc.image.base64Data) {
-                    return res.status(400).json({ message: "An puc record with these details already exists. Please check and try again." });
-                } else {
-                    await VehicleDocument.findOneAndUpdate({ vehicleId },
-                        {
-                            $set: {
-                                "documents.puc.issueDate": documents?.puc?.issueDate,
-                                "documents.puc.expiryDate": documents?.puc?.expiryDate,
-                                "documents.puc.companyName": documents?.puc?.companyName,
-                                "documents.puc.image": images.puc
-                            }
-                        }
-                    )
-                    return res.status(201).json({ message: "Vehicle document saved successfully" });
-                }
+    const InsuranceImage = req.files?.["insuranceImage"]?.[0];
+    const rcImage = req.files?.["rcImage"]?.[0];
+    const pucImage = req.files?.["pucImage"]?.[0];
+    const fitnessCertificateImage =
+      req.files?.["fitnessCertificateImage"]?.[0];
 
-            } else if (fitnessCertificateImage) {
-                if (existingDocument.documents.fitnessCertificate.image.base64Data) {
-                    return res.status(400).json({ message: "An fitnessCertificate record with these details already exists. Please check and try again." });
-                } else {
-                    await VehicleDocument.findOneAndUpdate({ vehicleId },
-                        {
-                            $set: {
-                                "documents.fitnessCertificate.issueDate": documents?.fitnessCertificate?.issueDate,
-                                "documents.fitnessCertificate.expiryDate": documents?.fitnessCertificate?.expiryDate,
-                                "documents.fitnessCertificate.companyName": documents?.fitnessCertificate?.companyName,
-                                "documents.fitnessCertificate.image": images.fitnessCertificate
-                            }
-                        }
-                    )
-                    return res.status(201).json({ message: "Vehicle document saved successfully" });
-                }
+    const images = {
+      ...(InsuranceImage && {
+        Insurance: await compressImage(InsuranceImage),
+      }),
+      ...(rcImage && {
+        rc: await compressImage(rcImage),
+      }),
+      ...(pucImage && {
+        puc: await compressImage(pucImage),
+      }),
+      ...(fitnessCertificateImage && {
+        fitnessCertificate: await compressImage(fitnessCertificateImage),
+      }),
+    };
 
-            } else {
-                return res.status(400).json({ message: "No image found" });
-            }
+    const existingDocument = await VehicleDocument.findOne({ deviceObjId });
+
+    if (existingDocument) {
+      if (InsuranceImage) {
+        if (existingDocument.documents?.Insurance?.image?.base64Data) {
+          return res.status(400).json({
+            message: "Insurance document already exists",
+          });
         }
 
-        const newDocument = new VehicleDocument({
-            vehicleId,
-            vehicleName: vehicleName.name,
-            documents: {
-                Insurance: {
-                    issueDate: documents?.Insurance?.issueDate,
-                    expiryDate: documents?.Insurance?.expiryDate,
-                    companyName: documents?.Insurance?.companyName,
-                    image: images.Insurance
-                },
-                rc: {
-                    issueDate: documents?.rc?.issueDate,
-                    expiryDate: documents?.rc?.expiryDate,
-                    companyName: documents?.rc?.companyName,
-                    image: images.rc
-                },
-                puc: {
-                    issueDate: documents?.puc?.issueDate,
-                    expiryDate: documents?.puc?.expiryDate,
-                    companyName: documents?.puc?.companyName,
-                    image: images.puc
-                },
-                fitnessCertificate: {
-                    issueDate: documents?.fitnessCertificate?.issueDate,
-                    expiryDate: documents?.fitnessCertificate?.expiryDate,
-                    companyName: documents?.fitnessCertificate?.companyName,
-                    image: images.fitnessCertificate
-                }
-            }
-        });
+        await VehicleDocument.findOneAndUpdate(
+          { deviceObjId },
+          {
+            $set: {
+              "documents.Insurance.issueDate":
+                documents?.Insurance?.issueDate,
+              "documents.Insurance.expiryDate":
+                documents?.Insurance?.expiryDate,
+              "documents.Insurance.companyName":
+                documents?.Insurance?.companyName,
+              "documents.Insurance.image": images.Insurance,
+            },
+          }
+        );
 
-        await newDocument.save();
-        return res.status(201).json({ message: "Vehicle document saved successfully", data: newDocument });
-    } catch (error) {
-        return res.status(500).json({ message: "Error saving vehicle document", error: error.message });
+        return res
+          .status(201)
+          .json({ message: "Vehicle document saved successfully" });
+      }
+
+      if (rcImage) {
+        if (existingDocument.documents?.rc?.image?.base64Data) {
+          return res.status(400).json({
+            message: "RC document already exists",
+          });
+        }
+
+        await VehicleDocument.findOneAndUpdate(
+          { deviceObjId },
+          {
+            $set: {
+              "documents.rc.issueDate": documents?.rc?.issueDate,
+              "documents.rc.expiryDate": documents?.rc?.expiryDate,
+              "documents.rc.companyName": documents?.rc?.companyName,
+              "documents.rc.image": images.rc,
+            },
+          }
+        );
+
+        return res
+          .status(201)
+          .json({ message: "Vehicle document saved successfully" });
+      }
+
+      if (pucImage) {
+        if (existingDocument.documents?.puc?.image?.base64Data) {
+          return res.status(400).json({
+            message: "PUC document already exists",
+          });
+        }
+
+        await VehicleDocument.findOneAndUpdate(
+          { deviceObjId },
+          {
+            $set: {
+              "documents.puc.issueDate": documents?.puc?.issueDate,
+              "documents.puc.expiryDate": documents?.puc?.expiryDate,
+              "documents.puc.companyName": documents?.puc?.companyName,
+              "documents.puc.image": images.puc,
+            },
+          }
+        );
+
+        return res
+          .status(201)
+          .json({ message: "Vehicle document saved successfully" });
+      }
+
+      if (fitnessCertificateImage) {
+        if (
+          existingDocument.documents?.fitnessCertificate?.image?.base64Data
+        ) {
+          return res.status(400).json({
+            message: "Fitness certificate document already exists",
+          });
+        }
+
+        await VehicleDocument.findOneAndUpdate(
+          { deviceObjId },
+          {
+            $set: {
+              "documents.fitnessCertificate.issueDate":
+                documents?.fitnessCertificate?.issueDate,
+              "documents.fitnessCertificate.expiryDate":
+                documents?.fitnessCertificate?.expiryDate,
+              "documents.fitnessCertificate.companyName":
+                documents?.fitnessCertificate?.companyName,
+              "documents.fitnessCertificate.image":
+                images.fitnessCertificate,
+            },
+          }
+        );
+
+        return res
+          .status(201)
+          .json({ message: "Vehicle document saved successfully" });
+      }
+
+      return res.status(400).json({ message: "No image found" });
     }
+
+    const newDocument = new VehicleDocument({
+      deviceObjId,
+      vehicleName: vehicle.vehicleNumber,
+      documents: {
+        Insurance: {
+          issueDate: documents?.Insurance?.issueDate,
+          expiryDate: documents?.Insurance?.expiryDate,
+          companyName: documents?.Insurance?.companyName,
+          image: images.Insurance,
+        },
+        rc: {
+          issueDate: documents?.rc?.issueDate,
+          expiryDate: documents?.rc?.expiryDate,
+          companyName: documents?.rc?.companyName,
+          image: images.rc,
+        },
+        puc: {
+          issueDate: documents?.puc?.issueDate,
+          expiryDate: documents?.puc?.expiryDate,
+          companyName: documents?.puc?.companyName,
+          image: images.puc,
+        },
+        fitnessCertificate: {
+          issueDate: documents?.fitnessCertificate?.issueDate,
+          expiryDate: documents?.fitnessCertificate?.expiryDate,
+          companyName: documents?.fitnessCertificate?.companyName,
+          image: images.fitnessCertificate,
+        },
+      },
+    });
+
+    await newDocument.save();
+
+    return res.status(201).json({
+      message: "Vehicle document saved successfully",
+      data: newDocument,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error saving vehicle document",
+      error: error.message,
+    });
+  }
 };
 
 exports.updateVehicleDocument = async (req, res) => {
     try {
         const { documents } = req.body;
 
-        const existingDocument = await VehicleDocument.findOne({ vehicleId: req.params.id });
+        const existingDocument = await VehicleDocument.findOne({ deviceObjId: req.params.id });
         if (!existingDocument) return res.status(404).json({ message: "Vehicle document not found" });
 
         const InsuranceImage = req.files?.["insuranceImage"]?.[0];
@@ -176,7 +233,7 @@ exports.updateVehicleDocument = async (req, res) => {
         updatedFields["documents.fitnessCertificate.companyName"] = documents?.fitnessCertificate?.companyName || existingDocument.documents.fitnessCertificate.companyName;
 
         const updatedDocument = await VehicleDocument.findOneAndUpdate(
-            { vehicleId: req.params.id },
+            { deviceObjId: req.params.id },
             { $set: updatedFields },
             { new: true }
         );
@@ -190,8 +247,8 @@ exports.updateVehicleDocument = async (req, res) => {
 
 exports.getVehicleDocument = async (req, res) => {
     try {
-        const { vehicleId, field } = req.query
-        const vehicleDocument = await VehicleDocument.findOne({ vehicleId }).select(`documents.${field}`);
+        const { deviceObjId, field } = req.query
+        const vehicleDocument = await VehicleDocument.findOne({ deviceObjId }).select(`documents.${field}`);
 
         if (!vehicleDocument) return res.status(404).json({ message: "Vehicle document not found" });
 
@@ -236,9 +293,9 @@ exports.getVehicleDocument = async (req, res) => {
 
 exports.deleteVehicleDocumentImage = async (req, res) => {
     try {
-        const { vehicleId, field } = req.query;
+        const { deviceObjId, field } = req.query;
 
-        const vehicleDocument = await VehicleDocument.findOne({ vehicleId }).select(`documents.${field}`);
+        const vehicleDocument = await VehicleDocument.findOne({ deviceObjId }).select(`documents.${field}`);
 
         if (!vehicleDocument) return res.status(404).json({ message: "Vehicle document not found" });
 
@@ -247,7 +304,7 @@ exports.deleteVehicleDocumentImage = async (req, res) => {
                 return res.status(404).json({ message: "No image found" });
             }
 
-            await VehicleDocument.findOneAndUpdate({ vehicleId }, {
+            await VehicleDocument.findOneAndUpdate({ deviceObjId }, {
                 $unset: { 'documents.Insurance': 1 }
             }).select(`documents.${field}`);
             return res.status(200).json({ message: "Vehicle document deleted successfully" });
@@ -255,7 +312,7 @@ exports.deleteVehicleDocumentImage = async (req, res) => {
             if (!vehicleDocument.documents.rc.image.base64Data) {
                 return res.status(404).json({ message: "No image found" });
             }
-            await VehicleDocument.findOneAndUpdate({ vehicleId }, {
+            await VehicleDocument.findOneAndUpdate({ deviceObjId }, {
                 $unset: { 'documents.rc': 1 }
             }).select(`documents.${field}`);
             return res.status(200).json({ message: "Vehicle document deleted successfully" });
@@ -263,7 +320,7 @@ exports.deleteVehicleDocumentImage = async (req, res) => {
             if (!vehicleDocument.documents.puc.image.base64Data) {
                 return res.status(404).json({ message: "No image found" });
             }
-            await VehicleDocument.findOneAndUpdate({ vehicleId }, {
+            await VehicleDocument.findOneAndUpdate({ deviceObjId }, {
                 $unset: { 'documents.puc': 1 }
             }).select(`documents.${field}`);
             return res.status(200).json({ message: "Vehicle document deleted successfully" });
@@ -272,7 +329,7 @@ exports.deleteVehicleDocumentImage = async (req, res) => {
             if (!vehicleDocument.documents.fitnessCertificate.image.base64Data) {
                 return res.status(404).json({ message: "No image found" });
             }
-            await VehicleDocument.findOneAndUpdate({ vehicleId }, {
+            await VehicleDocument.findOneAndUpdate({ deviceObjId }, {
                 $unset: { 'documents.fitnessCertificate': 1 }
             }).select(`documents.${field}`);
             return res.status(200).json({ message: "Vehicle document deleted successfully" });
@@ -315,11 +372,11 @@ exports.getVehicleExpiryDocuments = async (req, res) => {
             ],
         };
 
-        if (vehicleIds.length > 0) vehicleQuery.vehicleId = { $in: vehicleIds };
+        if (vehicleIds.length > 0) vehicleQuery.deviceObjId = { $in: vehicleIds };
         const expiringDocuments = await VehicleDocument.find(vehicleQuery).select(' -documents.Insurance.image -documents.rc.image -documents.puc.image -documents.fitnessCertificate.image -createdAt -updatedAt -__v').lean();
 
         const result = expiringDocuments.map(doc => {
-            const vehicle = vehicles.find(v => v._id.toString() === doc.vehicleId.toString());
+            const vehicle = vehicles.find(v => v._id.toString() === doc.deviceObjId.toString());
             return { ...doc, users: vehicle ? vehicle.users : [] };
         });
 
