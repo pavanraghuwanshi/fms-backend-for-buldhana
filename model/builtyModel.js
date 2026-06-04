@@ -130,26 +130,32 @@ const builtySchema = new mongoose.Schema(
 
     loadingEmptyWeight: {
       type: Number,
+      default: null,
     },
 
     loadingLoadedWeight: {
       type: Number,
+      default: null,
     },
 
     loadingMaterialWeight: {
       type: Number,
+      default: null,
     },
 
     deliveryLoadedWeight: {
       type: Number,
+      default: null,
     },
 
     deliveryEmptyWeight: {
       type: Number,
+      default: null,
     },
 
     deliveryMaterialWeight: {
       type: Number,
+      default: null,
     },
 
     products: [builtyProductSchema],
