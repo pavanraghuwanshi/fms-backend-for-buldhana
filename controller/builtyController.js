@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Builty = require("../model/builtyModel");
 const BuiltyCounter = require("../model/builtyCounterModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
+const Driver = require("../model/driverModel");
 
 const roleModelMap = {
   school: "School",
