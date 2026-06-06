@@ -11,7 +11,7 @@ router.post( "/save/:builtyId",authenticateToken, upload.single("invoicePdf"), b
 
 router.patch("/invoice/:invoiceId/payment",authenticateToken, builtyInvoiceController.updateInvoicePaymentStatus);
 
-router.get( "/get", authenticateToken, builtyInvoiceController.getBuiltyInvoice);
+router.get( "/get/:builtyId", authenticateToken, builtyInvoiceController.getBuiltyInvoice);
 
 router.get( "/builty/:builtyId/invoice-history", authenticateToken, builtyInvoiceController.getBuiltyInvoiceHistory);
 
