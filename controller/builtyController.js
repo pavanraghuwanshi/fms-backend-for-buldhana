@@ -134,6 +134,11 @@ exports.createBuilty = async (req, res) => {
         isAssigned: true,
       });
     }
+    if (payload.driverId) {
+      await Driver.findByIdAndUpdate(payload.driverId, {
+        isAssigned: true,
+      });
+    }
 
     return res.status(201).json({
       message: "Builty created successfully",
@@ -451,6 +456,11 @@ exports.completeBuilty = async (req, res) => {
 
     if (builty.vehicleId) {
       await VehicleMaster.findByIdAndUpdate(builty.vehicleId, {
+        isAssigned: false,
+      });
+    }
+    if (builty.driverId) {
+      await Driver.findByIdAndUpdate(builty.driverId, {
         isAssigned: false,
       });
     }

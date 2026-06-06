@@ -383,3 +383,61 @@ exports.leaveDashboard = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+
+
+exports.getDriverDropdown = async (req, res) => {
+  try {
+    const role = req.user.role;
+
+    if (!["superadmin", "user", "worker"].includes(role)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const { supervisorId, search } = req.query;
+
+    const query = {
+      isAssigned: false,
+    };
+
+    if (role === "superadmin") {
+      if (supervisorId) {
+        query.supervisor = supervisorId;
+      }
+    } else if (role === "worker") {
+      query.supervisor = req.user.supervisor;
+    } else {
+      query.supervisor = req.user.id;
+    }
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { contactNumber: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const drivers = await Driver.find(query)
+      .select("name contactNumber email supervisor licenseNumber licenseExpiryDate")
+      .sort({ name: 1 })
+      .lean();
+
+    return res.status(200).json({
+      message: "Driver dropdown fetched successfully",
+      drivers: drivers.map((driver) => ({
+        id: driver._id,
+        name: driver.name,
+        contactNumber: driver.contactNumber || null,
+        email: driver.email || null,
+        supervisor: driver.supervisor || null,
+        licenseNumber: driver.licenseNumber || null,
+        licenseExpiryDate: driver.licenseExpiryDate || null,
+      })),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching driver dropdown",
+      error: error.message,
+    });
+  }
+};

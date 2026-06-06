@@ -50,6 +50,11 @@ const driverSchema = new mongoose.Schema(
       match: [/^\S+@\S+\.\S+$/, "Please use a valid email address"],
       // required: true,
     },
+    isAssigned: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     password: {
       type: String,
       required: [true, "Password is required"],
