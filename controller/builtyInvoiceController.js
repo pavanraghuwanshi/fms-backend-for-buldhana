@@ -86,7 +86,15 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
       });
     }
 
-    const invoiceDir = path.join(process.cwd(), "uploads", "builty", "invoice");
+    // FIX: server.js me /uploads public/uploads se serve ho raha hai,
+    // isliye file bhi public/uploads ke andar save hogi.
+    const invoiceDir = path.join(
+      process.cwd(),
+      "public",
+      "uploads",
+      "builty",
+      "invoice"
+    );
 
     if (!fs.existsSync(invoiceDir)) {
       fs.mkdirSync(invoiceDir, { recursive: true });
@@ -95,6 +103,7 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
     if (invoice?.invoicePdf?.filePath) {
       const oldPhysicalPath = path.join(
         process.cwd(),
+        "public",
         invoice.invoicePdf.filePath.replace(/^\/+/, "")
       );
 
@@ -234,22 +243,89 @@ exports.getBuiltyInvoice = async (req, res) => {
   }
 };
 
-exports.getBuiltyInvoiceHistory = async (req, res) => {
+exports.getAllBuiltyInvoices = async (req, res) => {
   try {
-    const { builtyId } = req.params;
+    if (!["superadmin", "user", "worker"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
 
-    const invoices = await BuiltyInvoice.find({ builtyId })
-      .sort({ createdAt: -1 })
-      .populate("replacedBy", "invoiceNo paymentStatus invoicePdf");
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      paymentStatus,
+      builtyId,
+      startDate,
+      endDate,
+      supervisorId,
+    } = req.query;
+
+    const query = {};
+
+    // hierarchy wise filter
+    if (req.user.role === "user") {
+      query.supervisorId = req.user.id;
+    } else if (req.user.role === "worker") {
+      query.supervisorId = req.user.supervisor;
+    } else if (req.user.role === "superadmin" && supervisorId) {
+      query.supervisorId = supervisorId;
+    }
+
+    if (builtyId) {
+      query.builtyId = builtyId;
+    }
+
+    if (paymentStatus) {
+      query.paymentStatus = paymentStatus;
+    }
+
+    if (startDate || endDate) {
+      query.createdAt = {};
+
+      if (startDate) {
+        query.createdAt.$gte = new Date(startDate);
+      }
+
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = end;
+      }
+    }
+
+    if (search) {
+      query.$or = [
+        { invoiceNo: { $regex: search, $options: "i" } },
+        { paymentStatus: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const [invoices, total] = await Promise.all([
+      BuiltyInvoice.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .populate("builtyId")
+        .populate("replacedBy", "invoiceNo paymentStatus invoicePdf")
+        .lean(),
+
+      BuiltyInvoice.countDocuments(query),
+    ]);
 
     return res.status(200).json({
-      message: "Invoice history fetched successfully",
+      message: "Builty invoices fetched successfully",
+      page: Number(page),
+      limit: Number(limit),
+      total,
+      totalPages: Math.ceil(total / Number(limit)),
       count: invoices.length,
       invoices,
     });
   } catch (error) {
     return res.status(500).json({
-      message: "Error fetching invoice history",
+      message: "Error fetching builty invoices",
       error: error.message,
     });
   }

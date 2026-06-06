@@ -13,6 +13,6 @@ router.patch("/invoice/:invoiceId/payment",authenticateToken, builtyInvoiceContr
 
 router.get( "/get/:builtyId", authenticateToken, builtyInvoiceController.getBuiltyInvoice);
 
-router.get( "/builty/:builtyId/invoice-history", authenticateToken, builtyInvoiceController.getBuiltyInvoiceHistory);
+router.get( "/get-all", authenticateToken, builtyInvoiceController.getAllBuiltyInvoices);
 
 module.exports = router;
