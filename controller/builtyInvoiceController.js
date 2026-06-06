@@ -3,7 +3,6 @@ const BuiltyInvoice = require("../model/builtyInvoiceModel");
 const fs = require("fs");
 const path = require("path");
 
-
 exports.createOrReplaceBuiltyInvoice = async (req, res) => {
   try {
     if (!["superadmin", "user", "worker"].includes(req.user.role)) {
@@ -13,14 +12,26 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
     const { builtyId } = req.params;
 
     const {
-      invoiceNo,
+      supervisorId: bodySupervisorId,
       totalAmount = 0,
       paidAmount = 0,
       paymentStatus = "Unpaid",
     } = req.body;
 
-    if (!invoiceNo) {
-      return res.status(400).json({ message: "invoiceNo is required" });
+    let finalSupervisorId;
+
+    if (req.user.role === "superadmin") {
+      finalSupervisorId = bodySupervisorId;
+    } else if (req.user.role === "worker") {
+      finalSupervisorId = req.user.supervisor;
+    } else if (req.user.role === "user") {
+      finalSupervisorId = req.user.id;
+    }
+
+    if (!finalSupervisorId) {
+      return res.status(400).json({
+        message: "supervisorId is required",
+      });
     }
 
     if (!req.file) {
@@ -47,7 +58,10 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
       });
     }
 
-    const builty = await Builty.findById(builtyId);
+    const builty = await Builty.findOne({
+      _id: builtyId,
+      supervisorId: finalSupervisorId,
+    });
 
     if (!builty) {
       return res.status(404).json({ message: "Builty not found" });
@@ -59,7 +73,12 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
       });
     }
 
-    let invoice = await BuiltyInvoice.findOne({ builtyId: builty._id });
+    let invoice = await BuiltyInvoice.findOne({
+      builtyId: builty._id,
+      supervisorId: finalSupervisorId,
+    });
+
+    const isNewInvoice = !invoice;
 
     if (invoice && invoice.paymentStatus === "Paid") {
       return res.status(400).json({
@@ -91,7 +110,6 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
     fs.writeFileSync(physicalFilePath, req.file.buffer);
 
     if (invoice) {
-      invoice.invoiceNo = invoiceNo;
       invoice.invoicePdf = {
         filePath: `/uploads/builty/invoice/${savedFileName}`,
         fileName: req.file.originalname,
@@ -107,7 +125,7 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
     } else {
       invoice = await BuiltyInvoice.create({
         builtyId: builty._id,
-        invoiceNo,
+        supervisorId: finalSupervisorId,
         invoicePdf: {
           filePath: `/uploads/builty/invoice/${savedFileName}`,
           fileName: req.file.originalname,
@@ -125,10 +143,10 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
     builty.paymentStatus = paymentStatus;
     await builty.save();
 
-    return res.status(invoice ? 200 : 201).json({
-      message: invoice
-        ? "Invoice saved/replaced successfully"
-        : "Invoice created successfully",
+    return res.status(isNewInvoice ? 201 : 200).json({
+      message: isNewInvoice
+        ? "Invoice created successfully"
+        : "Invoice saved/replaced successfully",
       invoice,
       builty,
     });

@@ -10,10 +10,15 @@ const builtyInvoiceSchema = new mongoose.Schema(
       index: true,
     },
 
-    invoiceNo: {
-      type: String,
+    supervisorId: {
+      type: mongoose.Schema.Types.ObjectId,
       required: true,
-      trim: true,
+      index: true,
+    },
+
+    invoiceNo: {
+      type: Number,
+      required: true,
     },
 
     invoicePdf: {
@@ -65,5 +70,28 @@ const builtyInvoiceSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+builtyInvoiceSchema.index(
+  { supervisorId: 1, invoiceNo: 1 },
+  { unique: true }
+);
+
+builtyInvoiceSchema.pre("validate", async function (next) {
+  try {
+    if (!this.isNew || this.invoiceNo) return next();
+
+    const lastInvoice = await this.constructor
+      .findOne({ supervisorId: this.supervisorId })
+      .sort({ invoiceNo: -1 })
+      .select("invoiceNo")
+      .lean();
+
+    this.invoiceNo = lastInvoice ? Number(lastInvoice.invoiceNo) + 1 : 1;
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = maintenanceDB.model("BuiltyInvoice", builtyInvoiceSchema);
