@@ -52,17 +52,18 @@ exports.createBuilty = async (req, res) => {
     }
 
     if (!payload.consignerId) {
-    return res.status(400).json({ message: "consignerId is required" });
+      return res.status(400).json({ message: "consignerId is required" });
     }
 
     if (!payload.consigneeId) {
-    return res.status(400).json({ message: "consigneeId is required" });
+      return res.status(400).json({ message: "consigneeId is required" });
     }
 
     if (!payload.destinationLocation) {
       return res.status(400).json({ message: "destinationLocation is required" });
     }
-    if(!payload.pickupLocation){
+
+    if (!payload.pickupLocation) {
       return res.status(400).json({ message: "pickupLocation is required" });
     }
 
@@ -83,10 +84,16 @@ exports.createBuilty = async (req, res) => {
     // }
 
     if (payload.vehicleId) {
-      const vehicle = await VehicleMaster.findById(payload.vehicleId).lean();
+      const vehicle = await VehicleMaster.findById(payload.vehicleId);
 
       if (!vehicle) {
         return res.status(404).json({ message: "Vehicle not found" });
+      }
+
+      if (vehicle.isAssigned) {
+        return res.status(400).json({
+          message: "Vehicle is already assigned to another active builty",
+        });
       }
 
       payload.vehicleNumber = vehicle.vehicleNumber;
@@ -121,6 +128,12 @@ exports.createBuilty = async (req, res) => {
     payload.status = "Created";
 
     const builty = await Builty.create(payload);
+
+    if (payload.vehicleId) {
+      await VehicleMaster.findByIdAndUpdate(payload.vehicleId, {
+        isAssigned: true,
+      });
+    }
 
     return res.status(201).json({
       message: "Builty created successfully",
@@ -435,6 +448,12 @@ exports.completeBuilty = async (req, res) => {
     builty.completedAt = new Date();
 
     await builty.save();
+
+    if (builty.vehicleId) {
+      await VehicleMaster.findByIdAndUpdate(builty.vehicleId, {
+        isAssigned: false,
+      });
+    }
 
     return res.status(200).json({
       message: "Builty completed successfully",

@@ -20,7 +20,11 @@ const vehicleMasterSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-
+    isAssigned: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
     grossVehicleWeight: {
       type: Number,
       required: false,

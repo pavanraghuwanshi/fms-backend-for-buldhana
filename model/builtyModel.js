@@ -18,7 +18,6 @@ const builtySchema = new mongoose.Schema(
     tpNo: {
       type: String,
       required: true,
-      unique: true,
     },
 
     date: {

@@ -270,7 +270,7 @@ exports.getVehicleMasterDropdown = async (req, res) => {
   try {
     const role = req.user.role;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "user", "worker"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -280,9 +280,13 @@ exports.getVehicleMasterDropdown = async (req, res) => {
 
     if (role === "user") {
       query.supervisorId = req.user.id;
+    } else if (role === "worker") {
+      query.supervisorId = req.user.supervisor;
     } else if (req.query.supervisorId) {
       query.supervisorId = req.query.supervisorId;
     }
+
+    query.isAssigned = false;
 
     // type = our / transporter
     if (type === "our") {
