@@ -2,33 +2,32 @@ const Trip = require("../model/tripModel");
 const Driver = require("../model/driverModel");
 const Subtrip = require("../model/subTripModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
-const History = require("../model/credenceHistoryModel");
 
 exports.createTrip = async (req, res) => {
   try {
-    if (req.user.role === "user") {
-      const payload = req.body;
-
-      const trip = new Trip({
-        ...payload,
-        supervisorId: req.user.id,
-      });
-
-      await trip.save();
-
-      await Driver.findByIdAndUpdate(req.body.driverId, {
-        currentVehicle: req.body.vehicleId,
-        currentVehicleName: req.body.vehicleName,
-        currentTripId: trip._id,
-      });
-
-      return res.status(201).json(trip);
-    } else {
+    if (req.user.role !== "user") {
       return res.status(403).json({
         success: false,
         message: "Unauthorized access",
       });
     }
+
+    const payload = req.body;
+
+    const trip = new Trip({
+      ...payload,
+      supervisorId: req.user.id,
+    });
+
+    await trip.save();
+
+    await Driver.findByIdAndUpdate(payload.driverId, {
+      currentVehicle: payload.vehicleId,
+      currentVehicleName: payload.vehicleName,
+      currentTripId: trip._id,
+    });
+
+    return res.status(201).json(trip);
   } catch (error) {
     return res.status(400).json({
       success: false,
@@ -87,30 +86,6 @@ exports.getAllTrips = async (req, res) => {
 
 exports.updateTrip = async (req, res) => {
   try {
-    const getGPSDistance = async (deviceId) => {
-      try {
-        let endDate = new Date();
-        endDate.setHours(0, 0, 0, 0);
-        endDate = new Date(endDate.getTime() + 5.5 * 60 * 60 * 1000);
-
-        const query = {
-          deviceId: Number(deviceId),
-          createdAt: { $gte: new Date(endDate) },
-          "attributes.totalDistance": { $exists: true },
-        };
-
-        const firstEntry = await History.findOne(query)
-          .sort({ createdAt: 1 })
-          .select("attributes.totalDistance")
-          .lean();
-
-        return (firstEntry?.attributes?.totalDistance || 0) / 1000;
-      } catch (error) {
-        console.error("Error calculating GPS distance:", error.message);
-        return 0;
-      }
-    };
-
     if (!["user", "driver"].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
@@ -180,7 +155,7 @@ exports.updateTrip = async (req, res) => {
           ? await VehicleMaster.findById(req.body.vehicleId).select(
               "vehicleNumber"
             )
-          : { vehicleNumber: null };
+          : null;
 
         await Driver.findByIdAndUpdate(req.body.driverId, {
           currentVehicle: req.body.vehicleId || null,
@@ -190,17 +165,6 @@ exports.updateTrip = async (req, res) => {
       }
 
       if (trip.status === "completed") {
-        if (trip.driverCheckIn) {
-          const vehicle = await VehicleMaster.findById(trip.vehicleId).select(
-            "deviceId"
-          );
-
-          if (vehicle) {
-            const endOdometerReading = await getGPSDistance(vehicle.deviceId);
-            await Trip.findByIdAndUpdate(tripId, { endOdometerReading });
-          }
-        }
-
         await Driver.findByIdAndUpdate(trip.driverId, {
           currentVehicle: null,
           currentVehicleName: null,
@@ -211,8 +175,11 @@ exports.updateTrip = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "Trip updated successfully",
+        trip,
       });
-    } else if (req.user.role === "driver") {
+    }
+
+    if (req.user.role === "driver") {
       const trip = await Trip.findById(tripId).select(
         "status driverId vehicleId driverCheckIn"
       );
@@ -221,6 +188,13 @@ exports.updateTrip = async (req, res) => {
         return res.status(404).json({
           success: false,
           message: "Trip not found",
+        });
+      }
+
+      if (String(trip.driverId) !== String(req.user.id)) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not assigned to this trip",
         });
       }
 
@@ -234,18 +208,16 @@ exports.updateTrip = async (req, res) => {
       const updatedField = {};
 
       if (req.body.status === "completed") {
-        updatedField.status = req.body.status;
+        updatedField.status = "completed";
 
-        if (trip.driverCheckIn) {
-          const vehicle = await VehicleMaster.findById(trip.vehicleId).select(
-            "deviceId"
-          );
-
-          if (vehicle) {
-            const endOdometerReading = await getGPSDistance(vehicle.deviceId);
-            updatedField.endOdometerReading = endOdometerReading;
-          }
+        if (req.body.endOdometerReading === undefined) {
+          return res.status(400).json({
+            success: false,
+            message: "endOdometerReading is required to complete trip",
+          });
         }
+
+        updatedField.endOdometerReading = Number(req.body.endOdometerReading);
       }
 
       const updatedTrip = await Trip.findByIdAndUpdate(
@@ -275,11 +247,12 @@ exports.updateTrip = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "Trip status updated successfully",
+        trip: updatedTrip,
       });
     }
   } catch (error) {
-    console.error("Error updating trip:", error);
     return res.status(400).json({
+      success: false,
       message: error.message,
     });
   }
@@ -287,35 +260,35 @@ exports.updateTrip = async (req, res) => {
 
 exports.deleteTrip = async (req, res) => {
   try {
-    if (req.user.role === "user") {
-      const trip = await Trip.findOneAndDelete({
-        _id: req.params.tripId,
-        supervisorId: req.user.id,
-      });
-
-      if (!trip) {
-        return res.status(404).json({
-          success: false,
-          message: "Trip not found",
-        });
-      }
-
-      await Driver.findByIdAndUpdate(trip.driverId, {
-        currentVehicle: null,
-        currentVehicleName: null,
-        currentTripId: null,
-      });
-
-      return res.status(200).json({
-        success: true,
-        message: "Trip deleted successfully",
-      });
-    } else {
+    if (req.user.role !== "user") {
       return res.status(403).json({
         success: false,
         message: "Unauthorized access",
       });
     }
+
+    const trip = await Trip.findOneAndDelete({
+      _id: req.params.tripId,
+      supervisorId: req.user.id,
+    });
+
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: "Trip not found",
+      });
+    }
+
+    await Driver.findByIdAndUpdate(trip.driverId, {
+      currentVehicle: null,
+      currentVehicleName: null,
+      currentTripId: null,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Trip deleted successfully",
+    });
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -330,7 +303,7 @@ exports.getTripByVehicleId = async (req, res) => {
 
     const trip = await Trip.find({ vehicleId })
       .populate("driverId", "-_id name")
-      .select("-vehicleId -supervisorId -__v ");
+      .select("-vehicleId -supervisorId -__v");
 
     if (!trip.length) {
       return res.status(404).json({
@@ -405,6 +378,15 @@ exports.tripCheckIn = async (req, res) => {
       });
     }
 
+    const { startOdometerReading } = req.body;
+
+    if (startOdometerReading === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "startOdometerReading is required",
+      });
+    }
+
     const driver = await Driver.findById(req.user.id).select(
       "currentTripId currentVehicle"
     );
@@ -430,17 +412,21 @@ exports.tripCheckIn = async (req, res) => {
       });
     }
 
-    const [trip, vehicle] = await Promise.all([
-      Trip.findById(driver.currentTripId).select(
-        "status driverCheckIn vehicleId"
-      ),
-      VehicleMaster.findById(driver.currentVehicle).select("deviceId"),
-    ]);
+    const trip = await Trip.findById(driver.currentTripId).select(
+      "status driverCheckIn vehicleId driverId"
+    );
 
     if (!trip) {
       return res.status(404).json({
         success: false,
         message: "Trip not found",
+      });
+    }
+
+    if (String(trip.driverId) !== String(req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not assigned to this trip",
       });
     }
 
@@ -465,51 +451,17 @@ exports.tripCheckIn = async (req, res) => {
       });
     }
 
-    const getGPSDistance = async (deviceId) => {
-      try {
-        let startDate = new Date();
-        startDate.setHours(0, 0, 0, 0);
-        startDate = new Date(startDate.getTime() + 5.5 * 60 * 60 * 1000);
-
-        const query = {
-          deviceId: Number(deviceId),
-          createdAt: { $gte: new Date(startDate) },
-          "attributes.totalDistance": { $exists: true },
-        };
-
-        const firstEntry = await History.findOne(query)
-          .sort({ createdAt: 1 })
-          .select("attributes.totalDistance")
-          .lean();
-
-        return (firstEntry?.attributes?.totalDistance || 0) / 1000;
-      } catch (error) {
-        console.error("Error calculating GPS distance:", error.message);
-        return 0;
-      }
-    };
-
-    if (!vehicle) {
-      return res.status(404).json({
-        success: false,
-        message: "Vehicle not found",
-      });
-    }
-
-    const startOdometerReading = await getGPSDistance(vehicle.deviceId);
-
     trip.driverCheckIn = true;
-    trip.startOdometerReading = startOdometerReading;
+    trip.startOdometerReading = Number(startOdometerReading);
 
     await trip.save();
 
     return res.status(200).json({
       success: true,
       message: "Driver checked in successfully",
-      startOdometerReading,
+      startOdometerReading: trip.startOdometerReading,
     });
   } catch (error) {
-    console.error("Error in tripCheckIn:", error.message);
     return res.status(500).json({
       success: false,
       message: error.message,
@@ -522,7 +474,7 @@ exports.getDutySlipByTripId = async (req, res) => {
     const trip = await Trip.findById(req.params.id)
       .populate("driverId", "-_id name contactNumber")
       .populate("companyId")
-      .select("-__v -createdAt -driverCheckIn -spentAmount ")
+      .select("-__v -createdAt -driverCheckIn -spentAmount")
       .lean();
 
     if (!trip) {
