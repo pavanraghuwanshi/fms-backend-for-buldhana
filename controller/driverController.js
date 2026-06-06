@@ -394,7 +394,16 @@ exports.getDriverDropdown = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const { supervisorId, search } = req.query;
+    const {
+      supervisorId,
+      search = "",
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    const currentPage = Math.max(Number(page) || 1, 1);
+    const perPage = Math.max(Number(limit) || 20, 1);
+    const skip = (currentPage - 1) * perPage;
 
     const query = {
       isAssigned: false,
@@ -410,28 +419,35 @@ exports.getDriverDropdown = async (req, res) => {
       query.supervisor = req.user.id;
     }
 
-    if (search) {
+    if (search.trim()) {
       query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { contactNumber: { $regex: search, $options: "i" } },
+        { name: { $regex: search.trim(), $options: "i" } },
+        { contactNumber: { $regex: search.trim(), $options: "i" } },
       ];
     }
 
-    const drivers = await Driver.find(query)
-      .select("name contactNumber email supervisor licenseNumber licenseExpiryDate")
-      .sort({ name: 1 })
-      .lean();
+    const [drivers, total] = await Promise.all([
+      Driver.find(query)
+        .select("_id name")
+        .sort({ name: 1 })
+        .skip(skip)
+        .limit(perPage)
+        .lean(),
+
+      Driver.countDocuments(query),
+    ]);
 
     return res.status(200).json({
       message: "Driver dropdown fetched successfully",
+      pagination: {
+        total,
+        page: currentPage,
+        limit: perPage,
+        totalPages: Math.ceil(total / perPage),
+      },
       drivers: drivers.map((driver) => ({
-        id: driver._id,
+        _id: driver._id,
         name: driver.name,
-        contactNumber: driver.contactNumber || null,
-        email: driver.email || null,
-        supervisor: driver.supervisor || null,
-        licenseNumber: driver.licenseNumber || null,
-        licenseExpiryDate: driver.licenseExpiryDate || null,
       })),
     });
   } catch (error) {

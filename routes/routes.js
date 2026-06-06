@@ -1,4 +1,6 @@
 const express = require("express");
+const router = express.Router();
+
 const driverRoutes = require("./driverRoutes");
 const leaveRoutes = require("./leaveRoutes");
 const tyreRoutes = require("./tyreRoutes");
@@ -28,7 +30,6 @@ const dailyTripByDriverRouter = require("./DailyTripByDriverRoute");
 const warehouseProductRoute = require("../routes/wareHouseRoute");
 const warehouseRoute = require("../routes/wareHouseCountRoute");
 const godownLorryReceiptRoute = require("../routes/godownLorryReceiptRoute");
-const router = express.Router();
 const railheadRoutes  = require('../routes/railheadRoute');
 const consignorRoutes = require("../routes/consignorRoutes"); 
 const consigneeRoute = require("../routes/consigneeRoute");
