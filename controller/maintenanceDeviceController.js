@@ -274,19 +274,30 @@ exports.getVehicleMasterDropdown = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const { type, transporterId, search } = req.query;
+    const {
+      type,
+      transporterId,
+      supervisorId,
+      search = "",
+      page = 1,
+      limit = 20,
+    } = req.query;
 
-    const query = {};
+    const currentPage = Math.max(Number(page) || 1, 1);
+    const perPage = Math.max(Number(limit) || 20, 1);
+    const skip = (currentPage - 1) * perPage;
+
+    const query = {
+      isAssigned: false,
+    };
 
     if (role === "user") {
       query.supervisorId = req.user.id;
     } else if (role === "worker") {
       query.supervisorId = req.user.supervisor;
-    } else if (req.query.supervisorId) {
-      query.supervisorId = req.query.supervisorId;
+    } else if (supervisorId) {
+      query.supervisorId = supervisorId;
     }
-
-    query.isAssigned = false;
 
     // type = our / transporter
     if (type === "our") {
@@ -302,19 +313,34 @@ exports.getVehicleMasterDropdown = async (req, res) => {
       query.transporterId = transporterId;
     }
 
-    if (search) {
-      query.vehicleNumber = { $regex: search, $options: "i" };
+    if (search.trim()) {
+      query.vehicleNumber = {
+        $regex: search.trim(),
+        $options: "i",
+      };
     }
 
-    const vehicles = await VehicleMaster.find(query)
-      .select("vehicleNumber transporterId grossVehicleWeight")
-      .sort({ vehicleNumber: 1 })
-      .lean();
+    const [vehicles, total] = await Promise.all([
+      VehicleMaster.find(query)
+        .select("_id vehicleNumber transporterId grossVehicleWeight")
+        .sort({ vehicleNumber: 1 })
+        .skip(skip)
+        .limit(perPage)
+        .lean(),
+
+      VehicleMaster.countDocuments(query),
+    ]);
 
     return res.status(200).json({
       message: "Vehicle dropdown fetched successfully",
+      pagination: {
+        total,
+        page: currentPage,
+        limit: perPage,
+        totalPages: Math.ceil(total / perPage),
+      },
       vehicles: vehicles.map((v) => ({
-        id: v._id,
+        _id: v._id,
         vehicleNumber: v.vehicleNumber,
         transporterId: v.transporterId || null,
         grossVehicleWeight: v.grossVehicleWeight || null,
