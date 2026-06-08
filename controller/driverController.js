@@ -105,7 +105,8 @@ exports.getAllDrivers = async (req, res) => {
       let supervisor;
       if (req.user.role === "worker") supervisor = req.user.supervisor;
       else supervisor = req.user.id;
-      const drivers = await Driver.find({ supervisor }).select("name contactNumber email password supervisor licenseNumber licenseExpiryDate");
+      const drivers = await Driver.find({ supervisor }).select("name contactNumber email password supervisor licenseNumber licenseExpiryDate deviceId")
+        .populate("deviceId", "vehicleNumber");
       return res.status(200).json(
         drivers.map((driver) => {
           driver.password = driver.getDecryptedPassword();
@@ -123,7 +124,8 @@ exports.getAllDrivers = async (req, res) => {
 exports.getDriverProfile = async (req, res) => {
   try {
     if (req.user.role === "driver") {
-      const driver = await Driver.findById(req.user.id).select("name email contactNumber profileImage currentVehicleName currentVehicle ").lean()
+      const driver = await Driver.findById(req.user.id).select("name email contactNumber profileImage currentVehicleName currentVehicle deviceId")
+      .populate("deviceId", "vehicleNumber"); 
 
       if (!driver) return res.status(404).json({ message: "Driver not found" });
 
