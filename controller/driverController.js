@@ -164,7 +164,8 @@ exports.getDriverById = async (req, res) => {
     const lastDayIST = new Date(lastDayUTC.getTime() + istOffset);
 
     const [driver, attendance, leaves] = await Promise.all([
-      Driver.findById(req.params.id).select("name email contactNumber aadharNumber licenseNumber profileImage currentVehicleName createdAt"),
+      Driver.findById(req.params.id).select("name email contactNumber aadharNumber licenseNumber profileImage currentVehicleName createdAt deviceId").
+      populate("deviceId", "vehicleNumber"),
       Attendance.aggregate([
         {
           $match: {
