@@ -85,6 +85,10 @@ const driverSchema = new mongoose.Schema(
     amount: {
       type: Number,
     },
+    deviceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      unique: true,
+    },
     supervisor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

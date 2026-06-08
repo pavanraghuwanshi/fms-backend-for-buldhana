@@ -4,14 +4,33 @@ const LeaveRequest = require("../model/leaveModel");
 const Driver = require("../model/driverModel");
 const { compressImage } = require("../utils/helperFunctions");
 const Device = require("../model/deviceModel");
+const VehicleMaster = require("../model/maintenanceDevice.model");
 
 exports.createDriver = async (req, res) => {
   try {
-    const { name, contactNumber, email, password, licenseNumber,licenseExpiryDate, aadharNumber, amount, } = req.body;
-    if (req.user.role !== "superadmin" && req.user.role !== "user") return res.status(402).json({ message: "you are not authorized to create driver" })
+    const {
+      name,
+      contactNumber,
+      email,
+      password,
+      licenseNumber,
+      licenseExpiryDate,
+      aadharNumber,
+      amount,
+      deviceId,
+    } = req.body;
 
+    if (
+      req.user.role !== "superadmin" &&
+      req.user.role !== "user"
+    ) {
+      return res.status(402).json({
+        message: "you are not authorized to create driver",
+      });
+    }
 
     const existingDriver = await Driver.findOne({ contactNumber });
+
     if (existingDriver) {
       return res.status(400).json({
         success: false,
@@ -20,9 +39,9 @@ exports.createDriver = async (req, res) => {
       });
     }
 
-    const profileImage = req.files["profileImage"]?.[0];
-    const licenseImage = req.files["licenseImage"]?.[0];
-    const aadharImage = req.files["aadharImage"]?.[0];
+    const profileImage = req.files?.["profileImage"]?.[0];
+    const licenseImage = req.files?.["licenseImage"]?.[0];
+    const aadharImage = req.files?.["aadharImage"]?.[0];
 
     const driver = new Driver({
       name,
@@ -31,18 +50,42 @@ exports.createDriver = async (req, res) => {
       password,
       licenseNumber,
       aadharNumber,
-      profileImage: profileImage ? await compressImage(profileImage) : undefined,
-      licenseImage: licenseImage ? await compressImage(licenseImage) : undefined,
-      aadharImage: aadharImage ? await compressImage(aadharImage) : undefined,
+      profileImage: profileImage
+        ? await compressImage(profileImage)
+        : undefined,
+      licenseImage: licenseImage
+        ? await compressImage(licenseImage)
+        : undefined,
+      aadharImage: aadharImage
+        ? await compressImage(aadharImage)
+        : undefined,
       amount,
       supervisor: req.user.id,
-      licenseExpiryDate
+      licenseExpiryDate,
+      deviceId,
+      isAssigned: !!deviceId,
     });
 
     await driver.save();
+
+    // ✅ VehicleMaster bhi assign mark karo
+    if (deviceId) {
+      await VehicleMaster.findByIdAndUpdate(
+        deviceId,
+        {
+          $set: {
+            isAssigned: true,
+          },
+        },
+        { new: true }
+      );
+    }
+
     return res.status(201).json(driver);
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({
+      error: error.message,
+    });
   }
 };
 
@@ -174,36 +217,83 @@ exports.getDriverById = async (req, res) => {
   }
 };
 
+
 exports.updateDriver = async (req, res) => {
   try {
-    const { name, contactNumber, email, licenseNumber, licenseExpiryDate, aadharNumber, password } = req.body;
+    const {
+      name,
+      contactNumber,
+      email,
+      licenseNumber,
+      licenseExpiryDate,
+      aadharNumber,
+      password,
+      deviceId,
+    } = req.body;
+
     const profileImage = req.files?.["profileImage"]?.[0];
     const licenseImage = req.files?.["licenseImage"]?.[0];
     const aadharImage = req.files?.["aadharImage"]?.[0];
 
-    // Find the driver first
     const driver = await Driver.findById(req.params.id);
-    if (!driver) return res.status(404).json({ message: "Driver not found" });
 
-    // Set values from body if provided
+    if (!driver) {
+      return res.status(404).json({
+        message: "Driver not found",
+      });
+    }
+
+    const oldDeviceId = driver.deviceId?.toString();
+
     if (name) driver.name = name;
     if (contactNumber) driver.contactNumber = contactNumber;
     if (email) driver.email = email;
     if (licenseNumber) driver.licenseNumber = licenseNumber;
     if (aadharNumber) driver.aadharNumber = aadharNumber;
     if (password) driver.password = password;
-    if(licenseExpiryDate) driver.licenseExpiryDate = licenseExpiryDate;
+    if (licenseExpiryDate) driver.licenseExpiryDate = licenseExpiryDate;
 
-    // Handle images
-    if (profileImage) driver.profileImage = await compressImage(profileImage);
-    if (licenseImage) driver.licenseImage = await compressImage(licenseImage);
-    if (aadharImage) driver.aadharImage = await compressImage(aadharImage);
+    if (deviceId !== undefined) {
+      if (oldDeviceId && (!deviceId || oldDeviceId !== deviceId.toString())) {
+        await VehicleMaster.findByIdAndUpdate(oldDeviceId, {
+          $set: { isAssigned: false },
+        });
+      }
+
+      if (deviceId) {
+        await VehicleMaster.findByIdAndUpdate(deviceId, {
+          $set: { isAssigned: true },
+        });
+
+        driver.deviceId = deviceId;
+        driver.isAssigned = true;
+      } else {
+        driver.deviceId = null;
+        driver.isAssigned = false;
+      }
+    }
+
+    if (profileImage) {
+      driver.profileImage = await compressImage(profileImage);
+    }
+
+    if (licenseImage) {
+      driver.licenseImage = await compressImage(licenseImage);
+    }
+
+    if (aadharImage) {
+      driver.aadharImage = await compressImage(aadharImage);
+    }
 
     await driver.save();
+
     return res.status(200).json(driver);
   } catch (error) {
     console.error("Update driver error:", error.message);
-    return res.status(500).json({ error: error.message });
+
+    return res.status(500).json({
+      error: error.message,
+    });
   }
 };
 
