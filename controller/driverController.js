@@ -114,6 +114,7 @@ exports.getAllDrivers = async (req, res) => {
           return driver;
         })
       );
+
     } else {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
