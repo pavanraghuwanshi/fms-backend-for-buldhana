@@ -94,7 +94,8 @@ exports.getAllDrivers = async (req, res) => {
     if (req.user.role === "superadmin") {
       const { supervisorId } = req.query;
       const query = supervisorId ? { supervisor: supervisorId } : {};
-      const drivers = await Driver.find(query).select("name contactNumber email password supervisor licenseNumber licenseExpiryDate");
+      const drivers = await Driver.find(query).select("name contactNumber email password supervisor licenseNumber licenseExpiryDate deviceId")
+        .populate("deviceId", "vehicleNumber");
       return res.status(200).json(
         drivers.map((driver) => {
           driver.password = driver.getDecryptedPassword();
