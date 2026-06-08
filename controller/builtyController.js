@@ -136,9 +136,12 @@ exports.createBuilty = async (req, res) => {
       });
     }
     if (payload.driverId) {
-      await Driver.findByIdAndUpdate(payload.driverId, {
+    await Driver.findByIdAndUpdate(payload.driverId, {
+      $set: {
         isAssigned: true,
-      });
+        deviceId: payload.vehicleId || null,
+      },
+    });
     }
 
     return res.status(201).json({
@@ -460,11 +463,14 @@ exports.completeBuilty = async (req, res) => {
         isAssigned: false,
       });
     }
-    if (builty.driverId) {
-      await Driver.findByIdAndUpdate(builty.driverId, {
+  if (builty.driverId) {
+    await Driver.findByIdAndUpdate(builty.driverId, {
+      $set: {
         isAssigned: false,
-      });
-    }
+        deviceId: null,
+      },
+    });
+  }
 
     return res.status(200).json({
       message: "Builty completed successfully",
