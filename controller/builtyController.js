@@ -606,6 +606,8 @@ exports.getBuiltys = async (req, res) => {
       .populate("transporterId", "transporterName contactPerson contactNumber")
       .populate("commissionAgentId", "name contactNumber contactPerson")
       .populate("driverId", "name contactNumber")
+      .populate("pickupLocationId", "locationName latitude longitude")
+      .populate("destinationLocationId", "locationName latitude longitude")
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
@@ -637,6 +639,8 @@ exports.getBuiltyById = async (req, res) => {
     .populate("consignerId", "name contactNumber contactPerson")
     .populate("consigneeId", "name contactNumber contactPerson")
     .populate("driverId", "name contactNumber")
+    .populate("pickupLocationId", "locationName latitude longitude")
+    .populate("destinationLocationId", "locationName latitude longitude")
     .lean();
 
     if (!builty) {
