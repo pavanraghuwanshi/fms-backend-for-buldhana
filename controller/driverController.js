@@ -5,6 +5,9 @@ const Driver = require("../model/driverModel");
 const { compressImage } = require("../utils/helperFunctions");
 const Device = require("../model/deviceModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
+const mongoose = require("mongoose");
+
+
 
 exports.createDriver = async (req, res) => {
   try {
@@ -20,11 +23,8 @@ exports.createDriver = async (req, res) => {
       deviceId,
     } = req.body;
 
-    if (
-      req.user.role !== "superadmin" &&
-      req.user.role !== "user"
-    ) {
-      return res.status(402).json({
+    if (req.user.role !== "superadmin" && req.user.role !== "user") {
+      return res.status(403).json({
         message: "you are not authorized to create driver",
       });
     }
@@ -39,6 +39,29 @@ exports.createDriver = async (req, res) => {
       });
     }
 
+    if (deviceId && !mongoose.Types.ObjectId.isValid(deviceId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid vehicle id",
+      });
+    }
+
+    let vehicle = null;
+
+    if (deviceId) {
+      vehicle = await VehicleMaster.findOne({
+        _id: deviceId,
+        isAssigned: false,
+      });
+
+      if (!vehicle) {
+        return res.status(400).json({
+          success: false,
+          message: "Vehicle not found or already assigned",
+        });
+      }
+    }
+
     const profileImage = req.files?.["profileImage"]?.[0];
     const licenseImage = req.files?.["licenseImage"]?.[0];
     const aadharImage = req.files?.["aadharImage"]?.[0];
@@ -50,35 +73,36 @@ exports.createDriver = async (req, res) => {
       password,
       licenseNumber,
       aadharNumber,
-      profileImage: profileImage
-        ? await compressImage(profileImage)
-        : undefined,
-      licenseImage: licenseImage
-        ? await compressImage(licenseImage)
-        : undefined,
-      aadharImage: aadharImage
-        ? await compressImage(aadharImage)
-        : undefined,
+      profileImage: profileImage ? await compressImage(profileImage) : undefined,
+      licenseImage: licenseImage ? await compressImage(licenseImage) : undefined,
+      aadharImage: aadharImage ? await compressImage(aadharImage) : undefined,
       amount,
       supervisor: req.user.id,
       licenseExpiryDate,
-      deviceId,
+      deviceId: deviceId || null,
       isAssigned: !!deviceId,
     });
 
     await driver.save();
 
-    // ✅ VehicleMaster bhi assign mark karo
     if (deviceId) {
-      await VehicleMaster.findByIdAndUpdate(
+      const updatedVehicle = await VehicleMaster.findByIdAndUpdate(
         deviceId,
         {
           $set: {
             isAssigned: true,
+            driverId: driver._id,
           },
         },
         { new: true }
       );
+
+      if (!updatedVehicle) {
+        return res.status(400).json({
+          success: false,
+          message: "Vehicle assign update failed",
+        });
+      }
     }
 
     return res.status(201).json(driver);
@@ -223,6 +247,7 @@ exports.getDriverById = async (req, res) => {
 };
 
 
+
 exports.updateDriver = async (req, res) => {
   try {
     const {
@@ -236,10 +261,6 @@ exports.updateDriver = async (req, res) => {
       deviceId,
     } = req.body;
 
-    const profileImage = req.files?.["profileImage"]?.[0];
-    const licenseImage = req.files?.["licenseImage"]?.[0];
-    const aadharImage = req.files?.["aadharImage"]?.[0];
-
     const driver = await Driver.findById(req.params.id);
 
     if (!driver) {
@@ -249,6 +270,27 @@ exports.updateDriver = async (req, res) => {
     }
 
     const oldDeviceId = driver.deviceId?.toString();
+
+    if (deviceId && !mongoose.Types.ObjectId.isValid(deviceId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid vehicle id",
+      });
+    }
+
+    if (deviceId && oldDeviceId !== deviceId.toString()) {
+      const newVehicle = await VehicleMaster.findOne({
+        _id: deviceId,
+        isAssigned: false,
+      });
+
+      if (!newVehicle) {
+        return res.status(400).json({
+          success: false,
+          message: "Vehicle not found or already assigned",
+        });
+      }
+    }
 
     if (name) driver.name = name;
     if (contactNumber) driver.contactNumber = contactNumber;
@@ -261,13 +303,19 @@ exports.updateDriver = async (req, res) => {
     if (deviceId !== undefined) {
       if (oldDeviceId && (!deviceId || oldDeviceId !== deviceId.toString())) {
         await VehicleMaster.findByIdAndUpdate(oldDeviceId, {
-          $set: { isAssigned: false },
+          $set: {
+            isAssigned: false,
+            driverId: null,
+          },
         });
       }
 
       if (deviceId) {
         await VehicleMaster.findByIdAndUpdate(deviceId, {
-          $set: { isAssigned: true },
+          $set: {
+            isAssigned: true,
+            driverId: driver._id,
+          },
         });
 
         driver.deviceId = deviceId;
@@ -277,6 +325,10 @@ exports.updateDriver = async (req, res) => {
         driver.isAssigned = false;
       }
     }
+
+    const profileImage = req.files?.["profileImage"]?.[0];
+    const licenseImage = req.files?.["licenseImage"]?.[0];
+    const aadharImage = req.files?.["aadharImage"]?.[0];
 
     if (profileImage) {
       driver.profileImage = await compressImage(profileImage);
