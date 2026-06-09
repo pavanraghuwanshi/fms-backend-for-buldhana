@@ -49,15 +49,21 @@ const builtySchema = new mongoose.Schema(
 
     destinationLocation: {
       type: String,
-      required: true,
       trim: true,
     },
     pickupLocation:{
       type: String,
-      required: true,
       trim: true,
     },
+    pickupLocationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+    },
 
+    destinationLocationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+    },
     vehicleOwnership: {
       type: String,
       enum: ["self", "market"],

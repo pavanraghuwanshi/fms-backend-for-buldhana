@@ -60,12 +60,12 @@ exports.createBuilty = async (req, res) => {
       return res.status(400).json({ message: "consigneeId is required" });
     }
 
-    if (!payload.destinationLocation) {
-      return res.status(400).json({ message: "destinationLocation is required" });
+    if (!payload.pickupLocationId) {
+      return res.status(400).json({ message: "pickupLocationId is required" });
     }
 
-    if (!payload.pickupLocation) {
-      return res.status(400).json({ message: "pickupLocation is required" });
+    if (!payload.destinationLocationId) {
+      return res.status(400).json({ message: "destinationLocationId is required" });
     }
 
     if (!payload.vehicleOwnership) {
@@ -204,8 +204,12 @@ exports.updateBuilty = async (req, res) => {
       return res.status(400).json({ message: "consigneeId is required" });
     }
 
-    if (!payload.destinationLocation) {
-      return res.status(400).json({ message: "destinationLocation is required" });
+    if (!payload.destinationLocationId) {
+      return res.status(400).json({ message: "destinationLocationId is required" });
+    }
+
+    if (!payload.pickupLocationId) {
+      return res.status(400).json({ message: "pickupLocationId is required" });
     }
 
     if (!payload.vehicleOwnership) {
