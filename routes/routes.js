@@ -43,6 +43,7 @@ const builtyRoute = require("./builtyRoute");
 const sendWhatsappInvoiceRoute = require("./sendWhatappInvoiceRoute");
 const builtyInvoiceRoute = require("./builtyInvoiceRoute");
 const locationRoute = require("./locationRoutes");
+const vendorRoute = require("./vendorRoutes");
 
 router.use("/drivers", driverRoutes);
 router.use("/leave", leaveRoutes);
@@ -86,6 +87,7 @@ router.use("/builty", builtyRoute);
 
 router.use("/builty-invoice", builtyInvoiceRoute);
 router.use("/location", locationRoute);
+router.use("/vendor", vendorRoute);
 
 
 
