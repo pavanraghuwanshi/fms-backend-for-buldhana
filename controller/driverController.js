@@ -5,7 +5,6 @@ const Driver = require("../model/driverModel");
 const { compressImage } = require("../utils/helperFunctions");
 const Device = require("../model/deviceModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
-const mongoose = require("mongoose");
 
 
 
