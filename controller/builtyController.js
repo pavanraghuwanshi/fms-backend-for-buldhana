@@ -79,7 +79,7 @@ exports.createBuilty = async (req, res) => {
     if (!payload.vehicleNumber && !payload.vehicleId) {
       return res.status(400).json({ message: "vehicleNumber or vehicleId is required" });
     }
-    if(payload.vendorId && (advanceMode === "fuel" || advanceMode === "cash_fuel")){
+    if(payload.vendorId && (payload.advanceMode === "fuel" || payload.advanceMode === "cash_fuel")){
       return res.status(400).json({ message: "vendorId should not be provided" });
     }
 
@@ -115,7 +115,7 @@ exports.createBuilty = async (req, res) => {
     if (payload.bookingMode === "commissionAgent" && !payload.commissionAgentId) {
       return res.status(400).json({ message: "commissionAgentId is required" });
     }
-    if(payload.vendorId && (advanceMode === "fuel" || advanceMode === "cash_fuel")){
+    if(payload.vendorId && (payload.advanceMode === "fuel" || payload.advanceMode === "cash_fuel")){
       return res.status(400).json({ message: "vendorId should not be provided" });
     }
 
@@ -648,6 +648,7 @@ exports.getBuiltyById = async (req, res) => {
     .populate("driverId", "name contactNumber")
     .populate("pickupLocationId", "locationName latitude longitude")
     .populate("destinationLocationId", "locationName latitude longitude")
+    .populate("vendorId", "vendorName contactPerson contactNumber")
     .lean();
 
     if (!builty) {
