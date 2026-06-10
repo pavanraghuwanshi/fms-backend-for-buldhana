@@ -79,10 +79,13 @@ exports.createBuilty = async (req, res) => {
     if (!payload.vehicleNumber && !payload.vehicleId) {
       return res.status(400).json({ message: "vehicleNumber or vehicleId is required" });
     }
+    if(payload.vendorId && (advanceMode === "fuel" || advanceMode === "cash_fuel")){
+      return res.status(400).json({ message: "vendorId should not be provided" });
+    }
 
-    // if (!payload.products || payload.products.length === 0) {
-    //   return res.status(400).json({ message: "products are required" });
-    // }
+    if (!payload.products || payload.products.length === 0) {
+      return res.status(400).json({ message: "products are required" });
+    }
 
     if (payload.vehicleId) {
       const vehicle = await VehicleMaster.findById(payload.vehicleId);
@@ -111,6 +114,9 @@ exports.createBuilty = async (req, res) => {
 
     if (payload.bookingMode === "commissionAgent" && !payload.commissionAgentId) {
       return res.status(400).json({ message: "commissionAgentId is required" });
+    }
+    if(payload.vendorId && (advanceMode === "fuel" || advanceMode === "cash_fuel")){
+      return res.status(400).json({ message: "vendorId should not be provided" });
     }
 
     const counter = await BuiltyCounter.findOneAndUpdate(
@@ -608,6 +614,7 @@ exports.getBuiltys = async (req, res) => {
       .populate("driverId", "name contactNumber")
       .populate("pickupLocationId", "locationName latitude longitude")
       .populate("destinationLocationId", "locationName latitude longitude")
+      .populate("vendorId", "vendorName contactPerson contactNumber")
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))

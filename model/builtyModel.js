@@ -96,7 +96,11 @@ const builtySchema = new mongoose.Schema(
         ref: "VehicleMaster",
       default: null,
     },
-
+    vendorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Vendor",
+      default: null,
+    },
     vehicleNumber: {
       type: String,
       required: true,
