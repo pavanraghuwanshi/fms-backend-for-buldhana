@@ -562,8 +562,8 @@ exports.getBuiltys = async (req, res) => {
       query.supervisorId = req.user.id;
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
-    } else if (supervisorId) {
-      query.supervisorId = supervisorId;
+    } else if (req.user.role === "driver") {
+      query.driverId = req.user.id;
     }
 
     if (supervisorModel) query.supervisorModel = supervisorModel;
