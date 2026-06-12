@@ -13,7 +13,11 @@ const builtyCounterSchema = new mongoose.Schema(
       required: true,
       enum: ["School", "Branch", "BranchGroup"],
     },
-
+    builtyType: {
+      type: String,
+      enum: ["regular", "daily"],
+      default: "regular",
+    },
     seq: {
       type: Number,
       default: 0,
@@ -26,6 +30,7 @@ builtyCounterSchema.index(
   {
     supervisorId: 1,
     supervisorModel: 1,
+    builtyType:1
   },
   { unique: true }
 );

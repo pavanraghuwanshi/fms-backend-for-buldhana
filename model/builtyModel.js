@@ -72,7 +72,8 @@ const builtySchema = new mongoose.Schema(
     transportRateAmount: { type: Number, default: 0 },
     transportRateType: { type: String, enum: ["fixed", "per_ton"] },
     shortageDeductionRate: { type: Number, default: 0 },
-
+    description:{type:String},
+    vendorType: {type:String},
     bookingMode: {
       type: String,
       enum: ["transporter", "self"],

@@ -123,6 +123,7 @@ exports.createBuilty = async (req, res) => {
       {
         supervisorId: payload.supervisorId,
         supervisorModel: payload.supervisorModel,
+        builtyType:"regular"
       },
       { $inc: { seq: 1 } },
       { new: true, upsert: true }

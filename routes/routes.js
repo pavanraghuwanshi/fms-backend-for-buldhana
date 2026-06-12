@@ -44,6 +44,7 @@ const sendWhatsappInvoiceRoute = require("./sendWhatappInvoiceRoute");
 const builtyInvoiceRoute = require("./builtyInvoiceRoute");
 const locationRoute = require("./locationRoutes");
 const vendorRoute = require("./vendorRoutes");
+const dailyBuiltyRoute = require("./dailyBuiltyRoute")
 
 router.use("/drivers", driverRoutes);
 router.use("/leave", leaveRoutes);
@@ -84,6 +85,7 @@ router.use("/transporter", transporterRoute);
 router.use("/commission-agent", commissionAgentRoute);
 router.use("/vehicle-category", vehicleCategoryRoute);
 router.use("/builty", builtyRoute);
+router.use("/daily-builty", dailyBuiltyRoute);
 
 router.use("/builty-invoice", builtyInvoiceRoute);
 router.use("/location", locationRoute);
