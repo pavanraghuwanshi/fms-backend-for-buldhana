@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+const { default: mongoose } = require("mongoose");
+const { maintenanceDB } = require("../database/database");
 
 const dailyBuiltySchema = new mongoose.Schema(
   {
@@ -102,4 +103,6 @@ const dailyBuiltySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export default mongoose.model("DailyBuilty", dailyBuiltySchema);
+const DailyBuilty = maintenanceDB.model('DailyBuilty', dailyBuiltySchema);
+
+module.exports = DailyBuilty;

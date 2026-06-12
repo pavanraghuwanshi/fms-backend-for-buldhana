@@ -1,5 +1,7 @@
 const Driver = require("../model/driverModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
+const BuiltyCounter = require("../model/builtyCounterModel")
+const DailyBuilty = require("../model/dailyBuilty.model")
 
 const roleModelMap = {
   school: "School",
