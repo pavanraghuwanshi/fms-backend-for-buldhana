@@ -150,14 +150,16 @@ exports.getDriverProfile = async (req, res) => {
   try {
     if (req.user.role === "driver") {
       const driver = await Driver.findById(req.user.id).select("name email contactNumber profileImage currentVehicleName currentVehicle deviceId")
-      .populate("deviceId", "vehicleNumber"); 
+        .populate({
+        path: "deviceId",
+        select: "vehicleNumber categoryId categoryName",
+        populate: {
+          path: "categoryId",
+          select: "categoryName",
+        },
+      }); 
 
       if (!driver) return res.status(404).json({ message: "Driver not found" });
-
-      if (driver.currentVehicleName) {
-        const device = await Device.findOne({ name: driver.currentVehicleName }).select("category")
-        driver.category = device?.category
-      }
 
       // Convert base64 image to a proper URL or inline base64 data
       if (driver?.profileImage?.base64Data) {
