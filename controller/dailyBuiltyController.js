@@ -1,7 +1,7 @@
 const Driver = require("../model/driverModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
-const BuiltyCounter = require("../model/builtyCounterModel")
-const DailyBuilty = require("../model/dailyBuilty.model")
+const BuiltyCounter = require("../model/builtyCounterModel");
+const DailyBuilty = require("../model/dailyBuilty.model");
 
 const roleModelMap = {
   school: "School",
@@ -58,14 +58,13 @@ const buildDailyBuiltyFilter = (req) => {
 
   if (role === "superadmin") {
     if (req.query.supervisorId) filter.supervisorId = req.query.supervisorId;
-    if (req.query.supervisorModel)
-      filter.supervisorModel = req.query.supervisorModel;
+    if (req.query.supervisorModel) filter.supervisorModel = req.query.supervisorModel;
   }
 
   return filter;
 };
 
-const getAssignedVehicleNumber = async (driverId) => {
+const getAssignedVehicleDetails = async (driverId) => {
   const driver = await Driver.findById(driverId).populate("deviceId");
 
   if (!driver) {
@@ -88,7 +87,12 @@ const getAssignedVehicleNumber = async (driverId) => {
     return { error: "Vehicle number not found in assigned vehicle" };
   }
 
-  return { vehicleNumber };
+  return {
+    driverName: driver.name,
+    vehicleId: vehicle._id,
+    vehicleName: vehicleNumber,
+    vehicleNumber,
+  };
 };
 
 exports.createDailyBuilty = async (req, res) => {
@@ -98,6 +102,14 @@ exports.createDailyBuilty = async (req, res) => {
     }
 
     const payload = applyDailyBuiltyHierarchy(req, { ...req.body });
+
+    if (payload.consignor && !payload.consignerName) {
+      payload.consignerName = payload.consignor;
+    }
+
+    if (payload.productId && (!payload.products || payload.products.length === 0)) {
+      payload.products = [{ productId: payload.productId }];
+    }
 
     if (req.user.role !== "driver" && !payload.driverId) {
       return res.status(400).json({ message: "driverId is required" });
@@ -112,11 +124,15 @@ exports.createDailyBuilty = async (req, res) => {
     }
 
     if (!payload.consignerName) {
-      return res.status(400).json({ message: "consignerName is required" });
+      return res.status(400).json({ message: "consignor/consignerName is required" });
     }
 
     if (!payload.consigneeName) {
       return res.status(400).json({ message: "consigneeName is required" });
+    }
+
+    if (!payload.consigneeId) {
+      return res.status(400).json({ message: "consigneeId is required" });
     }
 
     if (!payload.pickupLocationId) {
@@ -124,27 +140,42 @@ exports.createDailyBuilty = async (req, res) => {
     }
 
     if (!payload.destinationLocationId) {
-      return res.status(400).json({
-        message: "destinationLocationId is required",
-      });
+      return res.status(400).json({ message: "destinationLocationId is required" });
     }
 
     if (!payload.grossVehicleWeight) {
-      return res.status(400).json({
-        message: "grossVehicleWeight is required",
-      });
+      return res.status(400).json({ message: "grossVehicleWeight is required" });
+    }
+
+    if (!payload.emptyWeight) {
+      return res.status(400).json({ message: "emptyWeight is required" });
+    }
+
+    if (!payload.deliveryWeight) {
+      return res.status(400).json({ message: "deliveryWeight is required" });
+    }
+
+    if (!payload.loadingWeight) {
+      return res.status(400).json({ message: "loadingWeight is required" });
+    }
+
+    if (!payload.transportRate) {
+      return res.status(400).json({ message: "transportRate is required" });
     }
 
     if (!payload.products || payload.products.length === 0) {
-      return res.status(400).json({ message: "products are required" });
+      return res.status(400).json({ message: "products/productId are required" });
     }
 
-    const assignedVehicle = await getAssignedVehicleNumber(payload.driverId);
+    const assignedVehicle = await getAssignedVehicleDetails(payload.driverId);
 
     if (assignedVehicle.error) {
       return res.status(400).json({ message: assignedVehicle.error });
     }
 
+    payload.driverName = assignedVehicle.driverName;
+    payload.vehicleId = assignedVehicle.vehicleId;
+    payload.vehicleName = assignedVehicle.vehicleName;
     payload.vehicleNumber = assignedVehicle.vehicleNumber.toUpperCase();
 
     const counter = await BuiltyCounter.findOneAndUpdate(
@@ -194,9 +225,7 @@ exports.getAllDailyBuilty = async (req, res) => {
     if (req.query.fromDate || req.query.toDate) {
       filter.createdAt = {};
 
-      if (req.query.fromDate) {
-        filter.createdAt.$gte = new Date(req.query.fromDate);
-      }
+      if (req.query.fromDate) filter.createdAt.$gte = new Date(req.query.fromDate);
 
       if (req.query.toDate) {
         const toDate = new Date(req.query.toDate);
@@ -209,6 +238,8 @@ exports.getAllDailyBuilty = async (req, res) => {
       filter.$or = [
         { tpNo: { $regex: req.query.search, $options: "i" } },
         { vehicleNumber: { $regex: req.query.search, $options: "i" } },
+        { vehicleName: { $regex: req.query.search, $options: "i" } },
+        { driverName: { $regex: req.query.search, $options: "i" } },
         { consignerName: { $regex: req.query.search, $options: "i" } },
         { consigneeName: { $regex: req.query.search, $options: "i" } },
       ];
@@ -217,6 +248,8 @@ exports.getAllDailyBuilty = async (req, res) => {
     const [dailyBuilty, total] = await Promise.all([
       DailyBuilty.find(filter)
         .populate("driverId", "name contactNumber deviceId")
+        .populate("vehicleId", "vehicleNumber make grossVehicleWeight")
+        .populate("consigneeId", "name contactNumber")
         .populate("pickupLocationId", "name")
         .populate("destinationLocationId", "name")
         .sort({ createdAt: -1 })
@@ -252,6 +285,8 @@ exports.getDailyBuiltyById = async (req, res) => {
 
     const dailyBuilty = await DailyBuilty.findOne(filter)
       .populate("driverId", "name contactNumber deviceId")
+      .populate("vehicleId", "vehicleNumber make grossVehicleWeight")
+      .populate("consigneeId", "name contactNumber")
       .populate("pickupLocationId", "name")
       .populate("destinationLocationId", "name");
 
@@ -283,6 +318,14 @@ exports.updateDailyBuilty = async (req, res) => {
 
     const updateData = { ...req.body };
 
+    if (updateData.consignor && !updateData.consignerName) {
+      updateData.consignerName = updateData.consignor;
+    }
+
+    if (updateData.productId && (!updateData.products || updateData.products.length === 0)) {
+      updateData.products = [{ productId: updateData.productId }];
+    }
+
     delete updateData.tpNo;
     delete updateData.supervisorId;
     delete updateData.supervisorModel;
@@ -290,16 +333,17 @@ exports.updateDailyBuilty = async (req, res) => {
     delete updateData.createdByRole;
     delete updateData.status;
     delete updateData.vehicleNumber;
+    delete updateData.vehicleName;
+    delete updateData.vehicleId;
+    delete updateData.driverName;
 
     if (req.user.role === "driver") {
       delete updateData.driverId;
     }
 
-    const dailyBuilty = await DailyBuilty.findOneAndUpdate(
-      filter,
-      updateData,
-      { new: true }
-    );
+    const dailyBuilty = await DailyBuilty.findOneAndUpdate(filter, updateData, {
+      new: true,
+    });
 
     if (!dailyBuilty) {
       return res.status(404).json({
