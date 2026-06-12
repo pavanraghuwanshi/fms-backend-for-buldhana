@@ -45,6 +45,8 @@ const builtyInvoiceRoute = require("./builtyInvoiceRoute");
 const locationRoute = require("./locationRoutes");
 const vendorRoute = require("./vendorRoutes");
 const dailyBuiltyRoute = require("./dailyBuiltyRoute")
+const zoneRoute = require("./zoneRoute")
+const customerRoute = require("./customerRoute")
 
 router.use("/drivers", driverRoutes);
 router.use("/leave", leaveRoutes);
@@ -86,6 +88,8 @@ router.use("/commission-agent", commissionAgentRoute);
 router.use("/vehicle-category", vehicleCategoryRoute);
 router.use("/builty", builtyRoute);
 router.use("/daily-builty", dailyBuiltyRoute);
+router.use("/zone", zoneRoute);
+router.use("/customer", customerRoute);
 
 router.use("/builty-invoice", builtyInvoiceRoute);
 router.use("/location", locationRoute);
