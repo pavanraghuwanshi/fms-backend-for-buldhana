@@ -26,16 +26,46 @@ const dailyBuiltySchema = new mongoose.Schema(
       required: true,
     },
 
+    // NEW
+    driverName: {
+      type: String,
+      trim: true,
+    },
+
+    // NEW
+    vehicleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "VehicleMaster",
+    },
+
+    // NEW
+    vehicleName: {
+      type: String,
+      trim: true,
+    },
+
     consignerName: {
       type: String,
       required: true,
       trim: true,
     },
 
+    // NEW (consignor alias agar id bhi rakhna hai)
+    consignorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
     consigneeName: {
       type: String,
       required: true,
       trim: true,
+    },
+
+    // NEW
+    consigneeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
 
     pickupLocationId: {
@@ -62,16 +92,48 @@ const dailyBuiltySchema = new mongoose.Schema(
       required: true,
     },
 
+    // NEW
+    emptyWeight: {
+      type: Number,
+      default: 0,
+    },
+
+    // NEW
+    loadingWeight: {
+      type: Number,
+      default: 0,
+    },
+
+    // NEW
+    deliveryWeight: {
+      type: Number,
+      default: 0,
+    },
+
+    // NEW
+    transportRate: {
+      type: Number,
+      default: 0,
+    },
+
     products: [
       {
+        // NEW
+        productId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Product",
+        },
+
         productName: {
           type: String,
           required: true,
         },
+
         quantity: {
           type: Number,
           required: true,
         },
+
         unit: {
           type: String,
           required: true,
@@ -99,10 +161,23 @@ const dailyBuiltySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+
+    cancelReason: {
+      type: String,
+      default: "",
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
   { timestamps: true }
 );
 
-const DailyBuilty = maintenanceDB.model('DailyBuilty', dailyBuiltySchema);
+const DailyBuilty = maintenanceDB.model(
+  "DailyBuilty",
+  dailyBuiltySchema
+);
 
 module.exports = DailyBuilty;
