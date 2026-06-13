@@ -115,6 +115,17 @@ const vendorSchema = new mongoose.Schema(
       ref: "User",
     },
 
+    fcmTokens: {
+      type: [
+        {
+          token: { type: String, required: true },
+          deviceId: String,
+          createdAt: { type: Date, default: Date.now },
+        }
+      ],
+      select: false 
+    },
+
     createdByRole: {
       type: String,
     },

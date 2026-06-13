@@ -9,7 +9,7 @@ exports.createMaterialOwner = async (req, res) => {
   try {
     const { name, contactNumber, email, address, supervisorId: bodySupervisorId } = req.body;
 
-    // ✅ Required validation
+    // Required validation
     if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
@@ -17,7 +17,7 @@ exports.createMaterialOwner = async (req, res) => {
       });
     }
 
-    // ✅ Email validation
+    // Email validation
     if (email && !/^\S+@\S+\.\S+$/.test(email)) {
       return res.status(400).json({
         success: false,
