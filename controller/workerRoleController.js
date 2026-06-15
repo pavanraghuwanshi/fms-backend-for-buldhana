@@ -20,28 +20,35 @@ const getMergedPermissions = (roleDoc) => {
 exports.saveWorkerRole = async (req, res) => {
     try {
         const { workerId, permissions, categoryName, customPermissions } = req.body;
+        const allowedRoles = ["school", "branch", "branchGroup"];
+        if (!req.user || !allowedRoles.includes(req.user.roleType)) {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied: Only schools, branches, and branch groups can perform this action."
+            });
+        }
 
         if (!workerId || !permissions) {
             return res.status(400).json({ success: false, message: "Missing required fields: workerId or permissions" });
         }
-        
+
         if (!mongoose.Types.ObjectId.isValid(workerId)) {
             return res.status(400).json({ success: false, message: "Invalid workerId format" });
-        }   
+        }
 
         const workerExists = await Worker.findById(workerId);
         if (!workerExists) {
             return res.status(404).json({ success: false, message: "Worker not found" });
-        } 
-        
+        }
+
         const updateQuery = { $set: { permissions: permissions } };
 
-    
+
         if (customPermissions && typeof customPermissions === 'object') {
             Object.entries(customPermissions).forEach(([key, val]) => {
                 updateQuery.$set[`customPermissions.${key}`] = val;
             });
-        } 
+        }
 
         else if (categoryName) {
             updateQuery.$set[`customPermissions.${categoryName}`] = permissions;
@@ -53,18 +60,18 @@ exports.saveWorkerRole = async (req, res) => {
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
 
-        return res.status(200).json({ 
-            success: true, 
-            message: "Permissions updated successfully", 
-            permissions: getMergedPermissions(role) 
+        return res.status(200).json({
+            success: true,
+            message: "Permissions updated successfully",
+            permissions: getMergedPermissions(role)
         });
 
     } catch (error) {
         console.error("SaveRoleError:", error);
-        return res.status(500).json({ 
-            success: false, 
-            message: "Internal server error", 
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 };
@@ -77,15 +84,15 @@ exports.getMyPermissions = async (req, res) => {
         }
 
         const roleDoc = await WorkerRole.findOne({ assignedWorkers: workerId });
-        
+
         // If no document exists, return the base template
         if (!roleDoc) {
             return res.status(200).json({ success: true, permissions: PERMISSION_TEMPLATE });
         }
-        
-        return res.status(200).json({ 
-            success: true, 
-            permissions: getMergedPermissions(roleDoc) 
+
+        return res.status(200).json({
+            success: true,
+            permissions: getMergedPermissions(roleDoc)
         });
     } catch (error) {
         console.error("GetByIdError:", error);
@@ -95,20 +102,28 @@ exports.getMyPermissions = async (req, res) => {
 
 exports.getPermissionsByWorkerId = async (req, res) => {
     try {
+        const allowedRoles = ["school", "branch", "branchGroup"];
+        if (!req.user || !allowedRoles.includes(req.user.roleType)) {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied: Only schools, branches, and branch groups can perform this action."
+            });
+        }
+
         const { workerId } = req.params;
         if (!mongoose.Types.ObjectId.isValid(workerId)) {
             return res.status(400).json({ success: false, message: "Invalid ID format" });
         }
 
         const roleDoc = await WorkerRole.findOne({ assignedWorkers: workerId });
-        
+
         if (!roleDoc) {
             return res.status(200).json({ success: true, permissions: PERMISSION_TEMPLATE });
         }
-        
-        return res.status(200).json({ 
-            success: true, 
-            permissions: getMergedPermissions(roleDoc) 
+
+        return res.status(200).json({
+            success: true,
+            permissions: getMergedPermissions(roleDoc)
         });
     } catch (error) {
         console.error("GetByIdError:", error);
@@ -118,6 +133,14 @@ exports.getPermissionsByWorkerId = async (req, res) => {
 
 exports.deleteWorkerRole = async (req, res) => {
     try {
+        const allowedRoles = ["school", "branch", "branchGroup"];
+        if (!req.user || !allowedRoles.includes(req.user.roleType)) {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied: Only schools, branches, and branch groups can perform this action."
+            });
+        }
+        
         const { workerId } = req.params;
 
         if (!mongoose.Types.ObjectId.isValid(workerId)) {
