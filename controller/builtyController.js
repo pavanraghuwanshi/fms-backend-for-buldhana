@@ -347,6 +347,7 @@ exports.dispatchBuilty = async (req, res) => {
       advanceMode,
       advanceAmount,
       advanceDieselLiters,
+      products,
     } = req.body;
 
     if (loadingEmptyWeight === undefined || loadingLoadedWeight === undefined) {
@@ -384,6 +385,14 @@ exports.dispatchBuilty = async (req, res) => {
 
     if (advanceDieselLiters !== undefined) {
       builty.advanceDieselLiters = Number(advanceDieselLiters);
+    }
+
+    if (products !== undefined) {
+      if (!Array.isArray(products) || products.length === 0) {
+        return res.status(400).json({ message: "products must be a non-empty array" });
+      }
+
+      builty.products = products;
     }
 
     builty.status = "Dispatched";
