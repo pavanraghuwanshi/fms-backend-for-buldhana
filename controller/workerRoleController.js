@@ -192,8 +192,8 @@ const PERMISSION_TEMPLATE = {
         category: { create: false, read: false, update: false, delete: false },
         attendance: { create: false, read: false, update: false, delete: false },
         leave: { create: false, read: false, update: false, delete: false },
-        zonesDetails: { create: false, read: false, update: false, delete: false },
-        customersDetails: { create: false, read: false, update: false, delete: false }
+        zone: { create: false, read: false, update: false, delete: false },
+        customer: { create: false, read: false, update: false, delete: false }
     },
     reports: {
         salary: { create: false, read: false, update: false, delete: false },

@@ -36,8 +36,8 @@ const WorkerRoleSchema = new mongoose.Schema({
       category: createCrudPermissions(),
       attendance: createCrudPermissions(),
       leave: createCrudPermissions(),
-      zonesDetails: createCrudPermissions(),
-      customersDetails: createCrudPermissions()
+      zone: createCrudPermissions(),
+      customer: createCrudPermissions()
     },
     reports: {
       salary: createCrudPermissions(),
