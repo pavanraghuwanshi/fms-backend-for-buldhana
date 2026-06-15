@@ -20,12 +20,10 @@ const getMergedPermissions = (roleDoc) => {
 exports.saveWorkerRole = async (req, res) => {
     try {
         const { workerId, permissions, categoryName, customPermissions } = req.body;
-        const allowedRoles = ["school", "branch", "branchGroup"];
-        if (!req.user || !allowedRoles.includes(req.user.roleType)) {
-            return res.status(403).json({
-                success: false,
-                message: "Access denied: Only schools, branches, and branch groups can perform this action."
-            });
+
+        const allowedRoles = ["superadmin", "user"];
+        if (!req.user?.role || !allowedRoles.includes(req.user.role)) {
+            return res.status(403).json({ message: "Unauthorized Access" });
         }
 
         if (!workerId || !permissions) {
@@ -102,12 +100,9 @@ exports.getMyPermissions = async (req, res) => {
 
 exports.getPermissionsByWorkerId = async (req, res) => {
     try {
-        const allowedRoles = ["school", "branch", "branchGroup"];
-        if (!req.user || !allowedRoles.includes(req.user.roleType)) {
-            return res.status(403).json({
-                success: false,
-                message: "Access denied: Only schools, branches, and branch groups can perform this action."
-            });
+        const allowedRoles = ["superadmin", "user"];
+        if (!req.user?.role || !allowedRoles.includes(req.user.role)) {
+            return res.status(403).json({ message: "Unauthorized Access" });
         }
 
         const { workerId } = req.params;
@@ -140,7 +135,7 @@ exports.deleteWorkerRole = async (req, res) => {
                 message: "Access denied: Only schools, branches, and branch groups can perform this action."
             });
         }
-        
+
         const { workerId } = req.params;
 
         if (!mongoose.Types.ObjectId.isValid(workerId)) {
