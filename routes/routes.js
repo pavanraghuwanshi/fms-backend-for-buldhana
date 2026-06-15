@@ -44,10 +44,12 @@ const sendWhatsappInvoiceRoute = require("./sendWhatappInvoiceRoute");
 const builtyInvoiceRoute = require("./builtyInvoiceRoute");
 const locationRoute = require("./locationRoutes");
 const vendorRoute = require("./vendorRoutes");
+const workerRoleRoute = require("./workerRoleRoute");
 const dailyBuiltyRoute = require("./dailyBuiltyRoute")
 const zoneRoute = require("./zoneRoute")
 const customerRoute = require("./customerRoute")
 
+router.use("/worker-role", workerRoleRoute);
 router.use("/drivers", driverRoutes);
 router.use("/leave", leaveRoutes);
 router.use("/tyre", tyreRoutes);

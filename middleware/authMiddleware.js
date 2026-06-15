@@ -16,8 +16,8 @@ exports.authenticateToken = async (req, res, next) => {
       req.user = { id: decoded.id, role: "superadmin", users: true };
       return next();
     }
-    if (role === "school"||role === "branch" || role === "branchGroup" /* user means supervisor */) {
-       const authData = await findAuthEntityById(decoded.id);
+    if (role === "school" || role === "branch" || role === "branchGroup" /* user means supervisor */) {
+      const authData = await findAuthEntityById(decoded.id);
       // const user = await User.findById(decoded.id);
       req.user = {
         id: authData.user._id,
@@ -43,7 +43,15 @@ exports.authenticateToken = async (req, res, next) => {
       };
       return next();
     }
-
+    if (role === "vendor") {
+      req.user = {
+        id: decoded.id,
+        role: "vendor",
+        supervisorId: decoded.supervisorId,     
+        supervisorName: decoded.supervisorName  
+      };
+      return next();
+    }
 
     return res.status(404).json({ message: "User not found" });
   } catch (error) {

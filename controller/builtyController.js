@@ -3,6 +3,7 @@ const Builty = require("../model/builtyModel");
 const BuiltyCounter = require("../model/builtyCounterModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Driver = require("../model/driverModel");
+const { notifyVendor } = require('../services/notificationService');
 
 const roleModelMap = {
   school: "School",
@@ -79,7 +80,7 @@ exports.createBuilty = async (req, res) => {
     if (!payload.vehicleNumber && !payload.vehicleId) {
       return res.status(400).json({ message: "vehicleNumber or vehicleId is required" });
     }
-    if(payload.vendorId && (payload.advanceMode === "fuel" || payload.advanceMode === "cash_fuel")){
+    if (payload.vendorId && (payload.advanceMode === "fuel" || payload.advanceMode === "cash_fuel")) {
       return res.status(400).json({ message: "vendorId should not be provided" });
     }
 
@@ -115,7 +116,7 @@ exports.createBuilty = async (req, res) => {
     if (payload.bookingMode === "commissionAgent" && !payload.commissionAgentId) {
       return res.status(400).json({ message: "commissionAgentId is required" });
     }
-    if(payload.vendorId && (payload.advanceMode === "fuel" || payload.advanceMode === "cash_fuel")){
+    if (payload.vendorId && (payload.advanceMode === "fuel" || payload.advanceMode === "cash_fuel")) {
       return res.status(400).json({ message: "vendorId should not be provided" });
     }
 
@@ -137,18 +138,24 @@ exports.createBuilty = async (req, res) => {
 
     const builty = await Builty.create(payload);
 
+    if (payload.vendorId) {
+      notifyVendor(payload.vendorId, builty).catch(err => {
+        console.error("Async notification background error:", err);
+      });
+    }
+    
     if (payload.vehicleId) {
       await VehicleMaster.findByIdAndUpdate(payload.vehicleId, {
         isAssigned: true,
       });
     }
     if (payload.driverId) {
-    await Driver.findByIdAndUpdate(payload.driverId, {
-      $set: {
-        isAssigned: true,
-        deviceId: payload.vehicleId || null,
-      },
-    });
+      await Driver.findByIdAndUpdate(payload.driverId, {
+        $set: {
+          isAssigned: true,
+          deviceId: payload.vehicleId || null,
+        },
+      });
     }
 
     return res.status(201).json({
@@ -483,14 +490,14 @@ exports.completeBuilty = async (req, res) => {
         isAssigned: false,
       });
     }
-  if (builty.driverId) {
-    await Driver.findByIdAndUpdate(builty.driverId, {
-      $set: {
-        isAssigned: false,
-        deviceId: null,
-      },
-    });
-  }
+    if (builty.driverId) {
+      await Driver.findByIdAndUpdate(builty.driverId, {
+        $set: {
+          isAssigned: false,
+          deviceId: null,
+        },
+      });
+    }
 
     return res.status(200).json({
       message: "Builty completed successfully",
@@ -650,16 +657,16 @@ exports.getBuiltys = async (req, res) => {
 exports.getBuiltyById = async (req, res) => {
   try {
     const builty = await Builty.findById(req.params.id)
-    .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
-    .populate("transporterId", "transporterName contactPerson contactNumber")
-    .populate("commissionAgentId", "name contactNumber contactPerson")
-    .populate("consignerId", "name contactNumber contactPerson")
-    .populate("consigneeId", "name contactNumber contactPerson")
-    .populate("driverId", "name contactNumber")
-    .populate("pickupLocationId", "locationName latitude longitude")
-    .populate("destinationLocationId", "locationName latitude longitude")
-    .populate("vendorId", "vendorName contactPerson contactNumber")
-    .lean();
+      .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
+      .populate("transporterId", "transporterName contactPerson contactNumber")
+      .populate("commissionAgentId", "name contactNumber contactPerson")
+      .populate("consignerId", "name contactNumber contactPerson")
+      .populate("consigneeId", "name contactNumber contactPerson")
+      .populate("driverId", "name contactNumber")
+      .populate("pickupLocationId", "locationName latitude longitude")
+      .populate("destinationLocationId", "locationName latitude longitude")
+      .populate("vendorId", "vendorName contactPerson contactNumber")
+      .lean();
 
     if (!builty) {
       return res.status(404).json({ message: "Builty not found" });
