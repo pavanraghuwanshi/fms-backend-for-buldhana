@@ -100,7 +100,7 @@ exports.getMyPermissions = async (req, res) => {
 
 exports.getPermissionsByWorkerId = async (req, res) => {
     try {
-        const allowedRoles = ["superadmin", "user"];
+        const allowedRoles = ["user"];
         if (!req.user?.role || !allowedRoles.includes(req.user.role)) {
             return res.status(403).json({ message: "Unauthorized Access" });
         }
