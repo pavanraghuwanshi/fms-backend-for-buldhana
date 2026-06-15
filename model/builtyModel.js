@@ -183,6 +183,11 @@ const builtySchema = new mongoose.Schema(
       enum: ["Created", "Dispatched", "Completed", "Cancelled"],
       default: "Created",
     },
+    paymentStatus: {
+    type: String,
+    enum: ["Pending", "Partial", "Completed"],
+    default: "Pending",
+  },
 
     cancelReason: {
       type: String,

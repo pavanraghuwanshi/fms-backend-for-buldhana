@@ -52,6 +52,8 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
     const paid = Number(paidAmount || 0);
     const pending = total - paid;
 
+    const builtyPaymentStatus =  paymentStatus === "Paid"? "Completed": paymentStatus === "Partial" ? "Partial" : "Pending";
+
     if (paid > total) {
       return res.status(400).json({
         message: "paidAmount cannot be greater than totalAmount",
@@ -149,13 +151,11 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
     }
 
     builty.invoiceId = invoice._id;
-    builty.paymentStatus = paymentStatus;
+    builty.paymentStatus = builtyPaymentStatus;
     await builty.save();
 
     return res.status(isNewInvoice ? 201 : 200).json({
-      message: isNewInvoice
-        ? "Invoice created successfully"
-        : "Invoice saved/replaced successfully",
+      message: isNewInvoice  ? "Invoice created successfully" : "Invoice saved/replaced successfully",
       invoice,
       builty,
     });
