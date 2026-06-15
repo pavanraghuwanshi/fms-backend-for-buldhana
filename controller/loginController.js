@@ -3,7 +3,7 @@ const Vendor = require("../model/vendor");
 const jwt = require("jsonwebtoken");
 
 exports.userLogin = async (req, res) => {
-  const { contactNumber } = req.body;
+  const { username: contactNumber } = req.body;
 
   try {
     const isDriver = await Driver.exists({ contactNumber });
