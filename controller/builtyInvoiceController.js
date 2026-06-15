@@ -121,6 +121,15 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
     fs.writeFileSync(physicalFilePath, req.file.buffer);
 
     if (invoice) {
+      const oldPaidAmount = Number(invoice.paidAmount || 0);
+
+      if (
+        ["Partial", "Paid"].includes(paymentStatus) &&
+        paid > oldPaidAmount
+      ) {
+        invoice.partialAmounts.push(paid - oldPaidAmount);
+      }
+
       invoice.invoicePdf = {
         filePath: `/uploads/builty/invoice/${savedFileName}`,
         fileName: req.file.originalname,
@@ -147,6 +156,10 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
         pendingAmount: pending,
         paymentStatus,
         isActive: true,
+        partialAmounts:
+          ["Partial", "Paid"].includes(paymentStatus) && paid > 0
+            ? [paid]
+            : [],
       });
     }
 

@@ -56,7 +56,10 @@ const builtyInvoiceSchema = new mongoose.Schema(
       enum: ["Unpaid", "Partial", "Paid"],
       default: "Unpaid",
     },
-
+    partialAmounts: {
+      type: [Number],
+      default: [],
+    },
     isActive: {
       type: Boolean,
       default: true,
