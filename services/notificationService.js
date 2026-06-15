@@ -1,11 +1,9 @@
-const admin = require('firebase-admin');
+const admin = require('../config/firebaseConfig');
 const Vendor = require('../model/vendor');
 
 const notifyVendor = async (vendorId, builtyData) => {
   try {
-    console.log(`[Notification] Initiating for Vendor: ${vendorId}`);
 
-    // 1. Fetch vendor
     const vendor = await Vendor.findById(vendorId).select('+fcmTokens');
     console.log(`[Notification] Vendor record retrieved.`);
 
@@ -14,7 +12,7 @@ const notifyVendor = async (vendorId, builtyData) => {
       console.warn(`[Notification] No registered FCM tokens found for Vendor: ${vendorId}. Skipping.`);
       return;
     }
-    console.log(`[Notification] Found ${vendor.fcmTokens.length} active tokens for vendor.`);
+
 
     // 3. Prepare payload
     const message = {
@@ -28,11 +26,11 @@ const notifyVendor = async (vendorId, builtyData) => {
         tpNo: builtyData.tpNo
       }
     };
-    console.log(`[Notification] Payload prepared for Builty: ${builtyData.tpNo}`);
+
 
     // 4. Send multicast
     const tokens = vendor.fcmTokens.map(item => item.token);
-    console.log(`[Notification] Dispatching multicast to ${tokens.length} devices.`);
+
 
     const response = await admin.messaging().sendEachForMulticast({
       tokens: tokens,
@@ -46,17 +44,16 @@ const notifyVendor = async (vendorId, builtyData) => {
       const failedTokens = [];
       response.responses.forEach((resp, idx) => {
         if (!resp.success) {
-          console.error(`[Notification] Token at index ${idx} failed:`, resp.error);
           failedTokens.push(tokens[idx]);
         }
       });
       
       if (failedTokens.length > 0) {
-        console.log(`[Notification] Cleaning up ${failedTokens.length} invalid tokens from DB.`);
+
         await Vendor.findByIdAndUpdate(vendorId, {
           $pull: { fcmTokens: { token: { $in: failedTokens } } }
         });
-        console.log(`[Notification] Cleanup successful.`);
+
       }
     }
     

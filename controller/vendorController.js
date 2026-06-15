@@ -367,8 +367,8 @@ exports.vendorLogin = async (req, res) => {
 
 exports.updateFcmToken = async (req, res) => {
   try {
-    const { deviceId, fcmToken } = req.body;
-    const vendorId = req.user.id; // From your authenticateToken middleware
+    const { vendorId, deviceId, fcmToken } = req.body;
+    //const vendorId = req.user.id; // From your authenticateToken middleware
 
     if (!deviceId || !fcmToken) {
       return res.status(400).json({ message: "deviceId and fcmToken are required" });
