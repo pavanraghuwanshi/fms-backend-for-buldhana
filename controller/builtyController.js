@@ -400,12 +400,47 @@ exports.dispatchBuilty = async (req, res) => {
       advanceAmount,
       advanceDieselLiters,
       products,
+
+      vehicleNumber,
+      dispatchDate,
+      startOdometerReading,
+      transportRateType,
+      bagType,
+      weightPerBag,
+      numberOfBags,
+      tareWeight,
+      tareWeightUnit,
+      grossWeight,
+      grossWeightUnit,
+      netWeight,
+      freightRate,
+      freightRateUnit,
+      fareAmount,
+      fareAmountAdvance,
+      loadKataCharge,
+      loadingCharge,
     } = req.body;
 
     if (loadingEmptyWeight === undefined || loadingLoadedWeight === undefined) {
       return res.status(400).json({
         message: "loadingEmptyWeight and loadingLoadedWeight are required",
       });
+    }
+
+    if (!transportRateType) {
+      return res.status(400).json({ message: "transportRateType is required" });
+    }
+
+    if (!["fixed", "per_ton", "per_quintal"].includes(transportRateType)) {
+      return res.status(400).json({ message: "Invalid transportRateType" });
+    }
+
+    if (transportRateType !== "fixed") {
+      if (tareWeight === undefined || grossWeight === undefined) {
+        return res.status(400).json({
+          message: "tareWeight and grossWeight are required when transportRateType is not fixed",
+        });
+      }
     }
 
     const builty = await Builty.findById(req.params.id);
@@ -445,6 +480,41 @@ exports.dispatchBuilty = async (req, res) => {
       }
 
       builty.products = products;
+    }
+
+    if (vehicleNumber !== undefined) builty.vehicleNumber = vehicleNumber;
+    if (dispatchDate !== undefined) builty.dispatchDate = dispatchDate;
+    if (startOdometerReading !== undefined) {
+      builty.startOdometerReading = Number(startOdometerReading);
+    }
+
+    builty.transportRateType = transportRateType;
+
+    if (bagType !== undefined) builty.bagType = bagType;
+    if (weightPerBag !== undefined) builty.weightPerBag = Number(weightPerBag);
+    if (numberOfBags !== undefined) builty.numberOfBags = Number(numberOfBags);
+
+    if (tareWeight !== undefined) builty.tareWeight = Number(tareWeight);
+    if (tareWeightUnit !== undefined) builty.tareWeightUnit = tareWeightUnit;
+
+    if (grossWeight !== undefined) builty.grossWeight = Number(grossWeight);
+    if (grossWeightUnit !== undefined) builty.grossWeightUnit = grossWeightUnit;
+
+    if (netWeight !== undefined) builty.netWeight = Number(netWeight);
+    if (freightRate !== undefined) builty.freightRate = Number(freightRate);
+    if (freightRateUnit !== undefined) builty.freightRateUnit = freightRateUnit;
+
+    if (fareAmount !== undefined) builty.fareAmount = Number(fareAmount);
+    if (fareAmountAdvance !== undefined) {
+      builty.fareAmountAdvance = Number(fareAmountAdvance);
+    }
+
+    if (loadKataCharge !== undefined) {
+      builty.loadKataCharge = Number(loadKataCharge);
+    }
+
+    if (loadingCharge !== undefined) {
+      builty.loadingCharge = Number(loadingCharge);
     }
 
     builty.status = "Dispatched";
