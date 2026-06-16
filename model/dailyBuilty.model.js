@@ -3,10 +3,7 @@ const { maintenanceDB } = require("../database/database");
 
 const dailyBuiltySchema = new mongoose.Schema(
   {
-    tpNo: {
-      type: String,
-      required: true,
-    },
+    tpNo: { type: String, required: true },
 
     supervisorId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -26,22 +23,19 @@ const dailyBuiltySchema = new mongoose.Schema(
       required: true,
     },
 
-    // NEW
-    driverName: {
-      type: String,
-      trim: true,
-    },
+    driverName: { type: String, trim: true },
 
-    // NEW
     vehicleId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "VehicleMaster",
     },
 
-    // NEW
-    vehicleName: {
-      type: String,
-      trim: true,
+    vehicleName: { type: String, trim: true },
+
+    consignerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
     },
 
     consignerName: {
@@ -50,22 +44,16 @@ const dailyBuiltySchema = new mongoose.Schema(
       trim: true,
     },
 
-    // NEW (consignor alias agar id bhi rakhna hai)
-    consignorId: {
+    consigneeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
     },
 
     consigneeName: {
       type: String,
       required: true,
       trim: true,
-    },
-
-    // NEW
-    consigneeId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
     },
 
     pickupLocationId: {
@@ -87,64 +75,27 @@ const dailyBuiltySchema = new mongoose.Schema(
       trim: true,
     },
 
-    grossVehicleWeight: {
-      type: Number,
-      required: true,
-    },
+    grossVehicleWeight: { type: Number, required: true },
 
-    // NEW
-    emptyWeight: {
-      type: Number,
-      default: 0,
-    },
-
-    // NEW
-    loadingWeight: {
-      type: Number,
-      default: 0,
-    },
-
-    // NEW
-    deliveryWeight: {
-      type: Number,
-      default: 0,
-    },
-
-    // NEW
-    transportRate: {
-      type: Number,
-      default: 0,
-    },
+    emptyWeight: { type: Number, required: true },
+    loadingWeight: { type: Number, required: true },
+    deliveryWeight: { type: Number, required: true },
+    transportRate: { type: Number, required: true },
 
     products: [
       {
-        // NEW
         productId: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "Product",
-        },
-
-        productName: {
-          type: String,
           required: true,
         },
-
-        quantity: {
-          type: Number,
-          required: true,
-        },
-
-        unit: {
-          type: String,
-          required: true,
-        },
+        productName: { type: String, default: "" },
+        quantity: { type: Number, default: 0 },
+        unit: { type: String, default: "" },
       },
     ],
 
-    remark: {
-      type: String,
-      default: "",
-    },
+    remark: { type: String, default: "" },
 
     status: {
       type: String,
@@ -162,22 +113,11 @@ const dailyBuiltySchema = new mongoose.Schema(
       required: true,
     },
 
-    cancelReason: {
-      type: String,
-      default: "",
-    },
+    cancelReason: { type: String, default: "" },
 
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
+    isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
 
-const DailyBuilty = maintenanceDB.model(
-  "DailyBuilty",
-  dailyBuiltySchema
-);
-
-module.exports = DailyBuilty;
+module.exports = maintenanceDB.model("DailyBuilty", dailyBuiltySchema);
