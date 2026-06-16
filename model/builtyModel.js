@@ -188,7 +188,20 @@ const builtySchema = new mongoose.Schema(
     enum: ["Pending", "Partial", "Completed"],
     default: "Pending",
   },
+  bagType: {
+  type: String,
+  trim: true,
+  },
 
+  bagWeight: {
+    type: Number,
+    min: 0,
+  },
+
+  docNo: {
+    type: String,
+    trim: true,
+  },
     cancelReason: {
       type: String,
       trim: true,

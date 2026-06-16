@@ -139,6 +139,10 @@ exports.createBuilty = async (req, res) => {
     payload.createdByRole = req.user.role;
     payload.status = "Created";
 
+    if (payload.bagWeight !== undefined && payload.bagWeight !== "") {
+      payload.bagWeight = Number(payload.bagWeight);
+    }
+
     const builty = await Builty.create(payload);
 
     let createdTrip = null;
@@ -312,6 +316,10 @@ exports.updateBuilty = async (req, res) => {
 
     if (payload.vehicleNumber) {
       payload.vehicleNumber = payload.vehicleNumber.toUpperCase();
+    }
+
+    if (payload.bagWeight !== undefined && payload.bagWeight !== "") {
+      payload.bagWeight = Number(payload.bagWeight);
     }
 
     delete payload.tpNo;
