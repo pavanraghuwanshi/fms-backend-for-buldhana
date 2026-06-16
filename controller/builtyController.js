@@ -5,6 +5,9 @@ const VehicleMaster = require("../model/maintenanceDevice.model");
 const Driver = require("../model/driverModel");
 const { notifyVendor } = require('../services/notificationService');
 
+const Trip = require("../model/tripModel");
+const Location = require("../model/location");
+
 const roleModelMap = {
   school: "School",
   branch: "Branch",
@@ -138,6 +141,43 @@ exports.createBuilty = async (req, res) => {
 
     const builty = await Builty.create(payload);
 
+    let createdTrip = null;
+
+    if (payload.driverId && payload.vehicleId) {
+      const pickupLocation = await Location.findById(payload.pickupLocationId)
+        .select("name locationName")
+        .lean();
+
+      const destinationLocation = await Location.findById(payload.destinationLocationId)
+        .select("name locationName")
+        .lean();
+
+      createdTrip = await Trip.create({
+        driverId: payload.driverId,
+        vehicleId: payload.vehicleId,
+        vehicleName: payload.vehicleNumber,
+        supervisorId: req.user.id,
+        startLocation:
+          pickupLocation?.name ||
+          pickupLocation?.locationName ||
+          payload.pickupLocationId.toString(),
+        endLocation:
+          destinationLocation?.name ||
+          destinationLocation?.locationName ||
+          payload.destinationLocationId.toString(),
+        materialType: payload.products?.[0]?.productName || "",
+        transportMode: "transport",
+        budgetAllocated: payload.advanceAmount || 0,
+        status: "in-progress",
+      });
+
+      await Driver.findByIdAndUpdate(payload.driverId, {
+        $set: {
+          currentTripId: createdTrip._id,
+        },
+      });
+    }
+
     if (payload.vendorId) {
       notifyVendor(payload.vendorId, builty).catch(err => {
         console.error("Async notification background error:", err);
@@ -161,6 +201,7 @@ exports.createBuilty = async (req, res) => {
     return res.status(201).json({
       message: "Builty created successfully",
       builty,
+      trip: createdTrip,
     });
   } catch (error) {
     return res.status(500).json({
@@ -282,9 +323,51 @@ exports.updateBuilty = async (req, res) => {
       runValidators: true,
     });
 
+    let updatedTrip = null;
+
+    if (payload.driverId && payload.vehicleId) {
+      const pickupLocation = await Location.findById(payload.pickupLocationId)
+        .select("name locationName")
+        .lean();
+
+      const destinationLocation = await Location.findById(payload.destinationLocationId)
+        .select("name locationName")
+        .lean();
+
+      updatedTrip = await Trip.findOneAndUpdate(
+        {
+          driverId: payload.driverId,
+          status: "in-progress",
+        },
+        {
+          $set: {
+            driverId: payload.driverId,
+            vehicleId: payload.vehicleId,
+            vehicleName: payload.vehicleNumber,
+            supervisorId: req.user.id,
+            startLocation:
+              pickupLocation?.name ||
+              pickupLocation?.locationName ||
+              payload.pickupLocationId.toString(),
+            endLocation:
+              destinationLocation?.name ||
+              destinationLocation?.locationName ||
+              payload.destinationLocationId.toString(),
+            materialType: payload.products?.[0]?.productName || "",
+            transportMode: "transport",
+            budgetAllocated: payload.advanceAmount || 0,
+          },
+        },
+        {
+          new: true,
+        }
+      );
+    }
+
     return res.status(200).json({
       message: "Builty updated successfully",
       builty: updatedBuilty,
+      trip: updatedTrip,
     });
   } catch (error) {
     return res.status(500).json({
@@ -294,52 +377,6 @@ exports.updateBuilty = async (req, res) => {
   }
 };
 
-exports.updateLoadingWeight = async (req, res) => {
-  try {
-    if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
-    const { loadingEmptyWeight, loadingLoadedWeight } = req.body;
-
-    if (loadingEmptyWeight === undefined || loadingLoadedWeight === undefined) {
-      return res.status(400).json({
-        message: "loadingEmptyWeight and loadingLoadedWeight are required",
-      });
-    }
-
-    const builty = await Builty.findById(req.params.id);
-
-    if (!builty) {
-      return res.status(404).json({ message: "Builty not found" });
-    }
-
-    if (builty.status !== "Created") {
-      return res.status(400).json({
-        message: "Only created builty can be dispatched",
-      });
-    }
-
-    builty.loadingEmptyWeight = Number(loadingEmptyWeight);
-    builty.loadingLoadedWeight = Number(loadingLoadedWeight);
-    builty.loadingMaterialWeight =
-      Number(loadingLoadedWeight) - Number(loadingEmptyWeight);
-
-    builty.status = "Dispatched";
-
-    await builty.save();
-
-    return res.status(200).json({
-      message: "Builty dispatched successfully",
-      builty,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Error updating loading weight",
-      error: error.message,
-    });
-  }
-};
 
 exports.dispatchBuilty = async (req, res) => {
   try {
