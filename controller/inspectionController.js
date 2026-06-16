@@ -8,20 +8,17 @@ const { compressImage } = require("../utils/helperFunctions"); // assumed utilit
 exports.addInspection = async (req, res) => {
   try {
     const { vehicleId } = req.query;
-    if (!['user', 'superadmin', 'driver'].includes(req.user.role)) return res.status(401).json({ message: 'Unauthorized Access' });
+    if (!["user", "superadmin", "driver"].includes(req.user.role))
+      return res.status(401).json({ message: "Unauthorized Access" });
 
-    // Find driver assigned to vehicle
-    const driver = await Driver.findOne({ currentVehicle: vehicleId });
-    if (!driver) return res.status(404).json({ error: 'No driver assigned to this vehicle' });
+    const driver = await Driver.findOne({ deviceId: vehicleId });
+    if (!driver)
+      return res.status(404).json({ error: "No driver assigned to this vehicle" });
 
-    // Find in-progress trip for vehicle
-    const trip = await Trip.findOne({ vehicleId, status: 'in-progress' });
-    if (!trip) return res.status(404).json({ error: 'No in-progress trip found for this vehicle' });
+    const trip = await Trip.findOne({ vehicleId, status: "in-progress" });
+    if (!trip)
+      return res.status(404).json({ error: "No in-progress trip found for this vehicle" });
 
-    // const existingInspection = await Inspection.find({ tripId: { $eq: trip._id } });
-    // if(existingInspection){
-    //   return res.status(400).json({message:"Inspection already exists for this trip"})
-    // }
     const uploadImage = async (fieldKey) => {
       const file = req.files?.[fieldKey]?.[0];
       if (!file) return null;
@@ -32,20 +29,31 @@ exports.addInspection = async (req, res) => {
       return imgDoc._id;
     };
 
-    // Define all expected inspection fields
     const inspectionFields = [
-      "engineOil", "acCollent", "sparkPlug", "airFilter", "breakFluid",
-      "transmissionFluid", "powerStairingFluid", "windShieldWasherFluid",
-      "tyrePressure", "tyreAlignment", "batteryCharge", "wiperBlades",
-      "suspensionAndStairing", "underbody", "exaustSystem",
-      "warningLights", "headLights", "indicator"
+      "engineOil",
+      "acCollent",
+      "sparkPlug",
+      "airFilter",
+      "breakFluid",
+      "transmissionFluid",
+      "powerStairingFluid",
+      "windShieldWasherFluid",
+      "tyrePressure",
+      "tyreAlignment",
+      "batteryCharge",
+      "wiperBlades",
+      "suspensionAndStairing",
+      "underbody",
+      "exaustSystem",
+      "warningLights",
+      "headLights",
+      "indicator",
     ];
 
-    // Construct inspection data dynamically
     const inspectionData = {
       vehicleId,
       DriverId: driver._id,
-      tripId: trip._id
+      tripId: trip._id,
     };
 
     for (const field of inspectionFields) {
@@ -59,14 +67,19 @@ exports.addInspection = async (req, res) => {
       }
     }
 
-    // Save inspection
     const inspection = new Inspection(inspectionData);
     await inspection.save();
 
-    return res.status(201).json({ message: 'Inspection created successfully', inspection });
+    return res.status(201).json({
+      message: "Inspection created successfully",
+      inspection,
+    });
   } catch (error) {
     console.error("Inspection error:", error.message);
-    return res.status(500).json({ error: 'Server error', details: error.message });
+    return res.status(500).json({
+      error: "Server error",
+      details: error.message,
+    });
   }
 };
 
