@@ -8,10 +8,10 @@ const expenseSchema = new mongoose.Schema(
       ref: "Driver",
       required: true,
     },
-    vehicleId: {
+    deviceId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Device",
-      required: true,
+        ref: "VehicleMaster",
+      default: null,
     },
     vehicleName: {
       type: String,
