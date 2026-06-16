@@ -86,7 +86,7 @@ exports.getAllExpenses = async (req, res) => {
         driverId: { $in: drivers.map((d) => d._id) },
       })
         .populate("driverId", "name currentVehicleName supervisor deviceId")
-        .populate("vehicleId", "vehicleNumber")
+        .populate("deviceId", "vehicleNumber")
         .select("-__v")
         .sort({ createdAt: -1 });
 
@@ -95,7 +95,7 @@ exports.getAllExpenses = async (req, res) => {
       const driverId = req.user.id;
 
       const expenses = await Vehicleexpense.find({ driverId })
-        .populate("vehicleId", "vehicleNumber")
+        .populate("deviceId", "vehicleNumber")
         .select("-__v")
         .sort({ createdAt: -1 });
 
