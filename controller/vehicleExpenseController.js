@@ -69,7 +69,7 @@ exports.getAllExpenses = async (req, res) => {
         driverId: { $in: drivers.map((d) => d._id) },
       })
         .populate("driverId", "name currentVehicleName supervisor deviceId")
-        .populate("vehicleId", "vehicleNumber")
+        .populate("deviceId", "vehicleNumber")
         .select("-__v")
         .sort({ createdAt: -1 });
 
