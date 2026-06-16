@@ -120,7 +120,6 @@ exports.getVehicleMasters = async (req, res) => {
     if (search) {
       query.$or = [
         { vehicleNumber: { $regex: search, $options: "i" } },
-        { categoryId: { $regex: search, $options: "i" } },
         { make: { $regex: search, $options: "i" } },
       ];
     }
