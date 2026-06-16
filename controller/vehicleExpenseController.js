@@ -21,7 +21,7 @@ exports.addExpense = async (req, res) => {
 
     if (!driverId) return res.status(400).json({ message: "Driver ID is required" });
     const driver = await Driver.findById(driverId).populate("deviceId","vehicleNumber");
-    if (!driver || !driver.vehicleId) return res.status(400).json({ message: "Driver not found or no assigned vehicle" });
+    if (!driver || !driver?.deviceId) return res.status(400).json({ message: "Driver not found or no assigned vehicle" });
 
     const billImg = req.files?.["billImg"]?.[0];
     let billImgId = null;
@@ -35,8 +35,8 @@ exports.addExpense = async (req, res) => {
 
     const expense = new Vehicleexpense({
       driverId,
-      vehicleId: driver.vehicleId._id,
-      vehicleName: driver.vehicleId.vehicleNumber,
+      vehicleId: driver.deviceId._id,
+      vehicleName: driver.deviceId.vehicleNumber,
       amount,
       expenseType,
       date,
@@ -60,27 +60,45 @@ exports.getAllExpenses = async (req, res) => {
   try {
     if (req.user.role === "superadmin") {
       const { supervisorId } = req.query;
-      const query = supervisorId ? { supervisor: supervisorId } : {}
+      const query = supervisorId ? { supervisor: supervisorId } : {};
+
       const drivers = await Driver.find(query);
       if (drivers.length === 0) return res.status(404).json({ message: "No driver found." });
 
       const expenses = await Vehicleexpense.find({
-        driverId: { $in: drivers },
-      }).populate("driverId", "name currentVehicleName supervisor").select("-__v").sort({ createdAt: -1 });
+        driverId: { $in: drivers.map((d) => d._id) },
+      })
+        .populate("driverId", "name currentVehicleName supervisor deviceId")
+        .populate("vehicleId", "vehicleNumber")
+        .select("-__v")
+        .sort({ createdAt: -1 });
+
       return res.status(200).json(expenses);
     } else if (req.user.role === "user") {
       const supervisorId = req.user.id;
+
       const drivers = await Driver.find({ supervisor: supervisorId });
       if (drivers.length === 0) {
         return res.status(404).json({ message: "No driver found." });
       }
+
       const expenses = await Vehicleexpense.find({
-        driverId: { $in: drivers },
-      }).populate("driverId", "name currentVehicleName supervisor").select("-__v").sort({ createdAt: -1 });
+        driverId: { $in: drivers.map((d) => d._id) },
+      })
+        .populate("driverId", "name currentVehicleName supervisor deviceId")
+        .populate("vehicleId", "vehicleNumber")
+        .select("-__v")
+        .sort({ createdAt: -1 });
+
       return res.status(200).json(expenses);
     } else if (req.user.role === "driver") {
       const driverId = req.user.id;
-      const expenses = await Vehicleexpense.find({ driverId }).select("amount description createdAt").sort({ createdAt: -1 });
+
+      const expenses = await Vehicleexpense.find({ driverId })
+        .populate("vehicleId", "vehicleNumber")
+        .select("-__v")
+        .sort({ createdAt: -1 });
+
       return res.status(200).json(expenses);
     } else {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
@@ -108,6 +126,11 @@ exports.updateExpense = async (req, res) => {
 
     if (!driverId) {
       return res.status(400).json({ message: "Driver ID is required" });
+    }
+
+    const driver = await Driver.findById(driverId).populate("deviceId", "vehicleNumber");
+    if (!driver || !driver?.deviceId) {
+      return res.status(400).json({ message: "Driver not found or no assigned vehicle" });
     }
 
     const expense = await Vehicleexpense.findById(req.params.id).populate("driverId", "currentTripId");
@@ -140,6 +163,8 @@ exports.updateExpense = async (req, res) => {
     }
 
     const updateData = {
+      vehicleId: driver.deviceId._id,
+      vehicleName: driver.deviceId.vehicleNumber,
       ...(amount !== undefined && { amount }),
       ...(expenseType !== undefined && { expenseType }),
       ...(date !== undefined && { date }),
