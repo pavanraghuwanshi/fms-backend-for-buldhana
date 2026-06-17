@@ -171,7 +171,7 @@ exports.createBuilty = async (req, res) => {
           payload.destinationLocationId.toString(),
         materialType: payload.products?.[0]?.productName || "",
         transportMode: "transport",
-        budgetAllocated: payload.advanceAmount || 0,
+        budgetAllocated: payload.vehicleExpenseAmount || 0,
         status: "in-progress",
       });
 
@@ -363,7 +363,7 @@ exports.updateBuilty = async (req, res) => {
               payload.destinationLocationId.toString(),
             materialType: payload.products?.[0]?.productName || "",
             transportMode: "transport",
-            budgetAllocated: payload.advanceAmount || 0,
+            budgetAllocated: payload.vehicleExpenseAmount || 0,
           },
         },
         {
