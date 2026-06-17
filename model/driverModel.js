@@ -88,7 +88,7 @@ const driverSchema = new mongoose.Schema(
     deviceId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "VehicleMaster",
-      unique: true,
+      default:null
     },
     supervisor: {
       type: mongoose.Schema.Types.ObjectId,
