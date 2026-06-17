@@ -520,6 +520,26 @@ exports.dispatchBuilty = async (req, res) => {
 
     builty.status = "Dispatched";
 
+        if (builty.driverId && builty.vehicleId) {
+      await Trip.findOneAndUpdate(
+        {
+          driverId: builty.driverId,
+          vehicleId: builty.vehicleId,
+          builtyId: builty._id,
+          status: "in-progress",
+        },
+        {
+          $set: {
+            driverCheckIn: true,
+            startOdometerReading: Number(startOdometerReading),
+          },
+        },
+        {
+          new: true,
+        }
+      );
+    }
+
     await builty.save();
 
     return res.status(200).json({
@@ -545,6 +565,7 @@ exports.completeBuilty = async (req, res) => {
       deliveryEmptyWeight,
       deliveryStatus,
       paymentCutAmount,
+      endOdometerReading
     } = req.body;
 
     if (deliveryLoadedWeight === undefined || deliveryEmptyWeight === undefined) {
@@ -595,6 +616,7 @@ exports.completeBuilty = async (req, res) => {
     builty.deliveryStatus = isLessDelivered ? "Less Delivered" : "Delivered";
     builty.paymentCutAmount = Number(paymentCutAmount || 0);
     builty.isLessDelivered = isLessDelivered;
+    builty.endOdometerReading = endOdometerReading
 
     builty.status = "Completed";
     builty.completedAt = new Date();
