@@ -197,7 +197,9 @@ const builtySchema = new mongoose.Schema(
     type: Number,
     min: 0,
   },
-
+  totalBagWeight:{
+    type:Number
+  },
   docNo: {
     type: String,
     trim: true,

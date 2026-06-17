@@ -323,6 +323,140 @@ exports.updateBuilty = async (req, res) => {
       payload.bagWeight = Number(payload.bagWeight);
     }
 
+    if (payload.transportRateAmount !== undefined && payload.transportRateAmount !== "") {
+      payload.transportRateAmount = Number(payload.transportRateAmount);
+    }
+
+    if (payload.shortageDeductionRate !== undefined && payload.shortageDeductionRate !== "") {
+      payload.shortageDeductionRate = Number(payload.shortageDeductionRate);
+    }
+
+    if (payload.advanceAmount !== undefined && payload.advanceAmount !== "") {
+      payload.advanceAmount = Number(payload.advanceAmount);
+    }
+
+    if (payload.advanceDieselLiters !== undefined && payload.advanceDieselLiters !== "") {
+      payload.advanceDieselLiters = Number(payload.advanceDieselLiters);
+    }
+
+    if (payload.permittedGVW !== undefined && payload.permittedGVW !== "") {
+      payload.permittedGVW = Number(payload.permittedGVW);
+    }
+
+    if (payload.tareWeight !== undefined && payload.tareWeight !== "") {
+      payload.tareWeight = Number(payload.tareWeight);
+    }
+
+    if (payload.grossWeight !== undefined && payload.grossWeight !== "") {
+      payload.grossWeight = Number(payload.grossWeight);
+    }
+
+    if (payload.discountWeight !== undefined && payload.discountWeight !== "") {
+      payload.discountWeight = Number(payload.discountWeight);
+    }
+
+    if (payload.loadingEmptyWeight !== undefined && payload.loadingEmptyWeight !== "") {
+      payload.loadingEmptyWeight = Number(payload.loadingEmptyWeight);
+    }
+
+    if (payload.loadingLoadedWeight !== undefined && payload.loadingLoadedWeight !== "") {
+      payload.loadingLoadedWeight = Number(payload.loadingLoadedWeight);
+    }
+
+    if (payload.loadingMaterialWeight !== undefined && payload.loadingMaterialWeight !== "") {
+      payload.loadingMaterialWeight = Number(payload.loadingMaterialWeight);
+    }
+
+    if (payload.deliveryLoadedWeight !== undefined && payload.deliveryLoadedWeight !== "") {
+      payload.deliveryLoadedWeight = Number(payload.deliveryLoadedWeight);
+    }
+
+    if (payload.deliveryEmptyWeight !== undefined && payload.deliveryEmptyWeight !== "") {
+      payload.deliveryEmptyWeight = Number(payload.deliveryEmptyWeight);
+    }
+
+    if (payload.deliveryMaterialWeight !== undefined && payload.deliveryMaterialWeight !== "") {
+      payload.deliveryMaterialWeight = Number(payload.deliveryMaterialWeight);
+    }
+
+    if (payload.totalBagWeight !== undefined && payload.totalBagWeight !== "") {
+      payload.totalBagWeight = Number(payload.totalBagWeight);
+    }
+
+    if (payload.paymentCutAmount !== undefined && payload.paymentCutAmount !== "") {
+      payload.paymentCutAmount = Number(payload.paymentCutAmount);
+    }
+
+    if (payload.startOdometerReading !== undefined && payload.startOdometerReading !== "") {
+      payload.startOdometerReading = Number(payload.startOdometerReading);
+    }
+
+    if (payload.endOdometerReading !== undefined && payload.endOdometerReading !== "") {
+      payload.endOdometerReading = Number(payload.endOdometerReading);
+    }
+
+    if (payload.weightPerBag !== undefined && payload.weightPerBag !== "") {
+      payload.weightPerBag = Number(payload.weightPerBag);
+    }
+
+    if (payload.numberOfBags !== undefined && payload.numberOfBags !== "") {
+      payload.numberOfBags = Number(payload.numberOfBags);
+    }
+
+    if (payload.netWeight !== undefined && payload.netWeight !== "") {
+      payload.netWeight = Number(payload.netWeight);
+    }
+
+    if (payload.freightRate !== undefined && payload.freightRate !== "") {
+      payload.freightRate = Number(payload.freightRate);
+    }
+
+    if (payload.fareAmount !== undefined && payload.fareAmount !== "") {
+      payload.fareAmount = Number(payload.fareAmount);
+    }
+
+    if (payload.fareAmountAdvance !== undefined && payload.fareAmountAdvance !== "") {
+      payload.fareAmountAdvance = Number(payload.fareAmountAdvance);
+    }
+
+    if (payload.loadKataCharge !== undefined && payload.loadKataCharge !== "") {
+      payload.loadKataCharge = Number(payload.loadKataCharge);
+    }
+
+    if (payload.loadingCharge !== undefined && payload.loadingCharge !== "") {
+      payload.loadingCharge = Number(payload.loadingCharge);
+    }
+
+    if (payload.grossVehicleWeight !== undefined && payload.grossVehicleWeight !== "") {
+      payload.grossVehicleWeight = Number(payload.grossVehicleWeight);
+    }
+
+    if (payload.quantity !== undefined && payload.quantity !== "") {
+      payload.quantity = Number(payload.quantity);
+    }
+
+    if (payload.products && Array.isArray(payload.products)) {
+      payload.products = payload.products.map((product) => {
+        return {
+          productName: product.productName,
+          quantity:
+            product.quantity !== undefined && product.quantity !== ""
+              ? Number(product.quantity)
+              : product.quantity,
+          unit: product.unit,
+          bagSize:
+            product.bagSize !== undefined && product.bagSize !== ""
+              ? Number(product.bagSize)
+              : product.bagSize,
+          totalBags:
+            product.totalBags !== undefined && product.totalBags !== ""
+              ? Number(product.totalBags)
+              : product.totalBags,
+          remarks: product.remarks,
+        };
+      });
+    }
+
     delete payload.tpNo;
     delete payload.createdBy;
     delete payload.createdByRole;
