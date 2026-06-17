@@ -25,6 +25,7 @@ exports.createTrip = async (req, res) => {
       currentVehicle: payload.vehicleId,
       currentVehicleName: payload.vehicleName,
       currentTripId: trip._id,
+      deviceId:payload.vehicleId
     });
 
     return res.status(201).json(trip);
@@ -45,15 +46,36 @@ exports.getAllTrips = async (req, res) => {
       const query = supervisorId ? { supervisorId } : {};
 
       trips = await Trip.find(query)
-        .populate("driverId", "name")
+        .populate({
+          path: "driverId",
+          select: "name deviceId",
+          populate: {
+            path: "deviceId",
+            select: "vehicleNumber",
+          },
+        })
         .sort({ createdAt: -1 });
     } else if (req.user.role === "user") {
       trips = await Trip.find({ supervisorId: req.user.id })
-        .populate("driverId", "name")
+       .populate({
+          path: "driverId",
+          select: "name deviceId",
+          populate: {
+            path: "deviceId",
+            select: "vehicleNumber",
+          },
+        })
         .sort({ createdAt: -1 });
     } else if (req.user.role === "driver") {
       trips = await Trip.find({ driverId: req.user.id })
-        .populate("driverId", "name")
+       .populate({
+        path: "driverId",
+        select: "name deviceId",
+        populate: {
+          path: "deviceId",
+          select: "vehicleNumber",
+        },
+      })
         .sort({ createdAt: -1 });
     } else {
       return res.status(403).json({
