@@ -431,6 +431,18 @@ exports.updateBuilty = async (req, res) => {
       payload.grossVehicleWeight = Number(payload.grossVehicleWeight);
     }
 
+    if (payload.vehicleExpenseAmount !== undefined && payload.vehicleExpenseAmount !== "") {
+      payload.vehicleExpenseAmount = Number(payload.vehicleExpenseAmount);
+    }
+
+    if (payload.driverCommissionPercentage !== undefined && payload.driverCommissionPercentage !== "") {
+      payload.driverCommissionPercentage = Number(payload.driverCommissionPercentage);
+    }
+
+    if (payload.driverCommissionAmount !== undefined && payload.driverCommissionAmount !== "") {
+      payload.driverCommissionAmount = Number(payload.driverCommissionAmount);
+    }
+
     if (payload.quantity !== undefined && payload.quantity !== "") {
       payload.quantity = Number(payload.quantity);
     }

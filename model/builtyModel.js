@@ -74,6 +74,8 @@ const builtySchema = new mongoose.Schema(
     shortageDeductionRate: { type: Number, default: 0 },
     description:{type:String},
     vendorType: {type:String},
+    
+    // booking mode is not used
     bookingMode: {
       type: String,
       enum: ["transporter", "self"],
@@ -190,16 +192,13 @@ const builtySchema = new mongoose.Schema(
   },
   bagType: {
   type: String,
-  trim: true,
+  enum:["Plastic","Jute"],
   },
-
   bagWeight: {
     type: Number,
     min: 0,
   },
-  totalBagWeight:{
-    type:Number
-  },
+
   docNo: {
     type: String,
     trim: true,
@@ -258,10 +257,6 @@ const builtySchema = new mongoose.Schema(
     },
 
     startOdometerReading: {
-      type: Number,
-      default: 0,
-    },
-    endOdometerReading: {
       type: Number,
       default: 0,
     },
@@ -324,11 +319,24 @@ const builtySchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-
+    vehicleExpenseAmount:{
+      type:Number,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
     },
-
+    driverCommissionType: {
+      type: String,
+      enum: ["none", "percentage", "fixed"],
+      default: "none",
+    },
+    driverCommissionPercentage:{
+      type:Number
+    },
+    driverCommissionAmount: {
+      type: Number,
+      default: 0,
+    },
     createdByRole: {
       type: String,
     },
