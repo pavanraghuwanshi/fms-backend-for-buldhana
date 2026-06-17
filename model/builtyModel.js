@@ -322,7 +322,15 @@ const builtySchema = new mongoose.Schema(
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
     },
-
+    driverCommissionType: {
+      type: String,
+      enum: ["none", "percentage", "fixed"],
+      default: "none",
+    },
+    driverCommissionAmount: {
+      type: Number,
+      default: 0,
+    },
     createdByRole: {
       type: String,
     },
