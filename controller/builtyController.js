@@ -652,6 +652,21 @@ exports.cancelBuilty = async (req, res) => {
 
     await builty.save();
 
+    if (builty.vehicleId) {
+      await VehicleMaster.findByIdAndUpdate(builty.vehicleId, {
+        isAssigned: false,
+      });
+    }
+
+    if (builty.driverId) {
+      await Driver.findByIdAndUpdate(builty.driverId, {
+        $set: {
+          isAssigned: false,
+          deviceId: null,
+        },
+      });
+    }
+
     return res.status(200).json({
       message: "Builty cancelled successfully",
       builty,
