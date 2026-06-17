@@ -45,6 +45,7 @@ exports.addExpense = async (req, res) => {
         return res.status(400).json({ message: "Only image or PDF files are allowed" });
       }
     }
+    const trip = await Trip.findById(driver.currentTripId);
 
     const newExpense = new DriverExpense({
       driverId,
@@ -58,7 +59,8 @@ exports.addExpense = async (req, res) => {
       billImg: billImgId,
       paymentMode,
       lat,
-      long
+      long,
+      builtyId: trip?.builtyId || null
     });
 
     await newExpense.save();

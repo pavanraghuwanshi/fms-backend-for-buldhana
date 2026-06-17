@@ -20,7 +20,7 @@ exports.addExpense = async (req, res) => {
     else if (req.user.role === "user") driverId = req.body.driverId;
 
     if (!driverId) return res.status(400).json({ message: "Driver ID is required" });
-    const driver = await Driver.findById(driverId).populate("deviceId","vehicleNumber");
+    const driver = await Driver.findById(driverId).populate("deviceId", "vehicleNumber");
     if (!driver || !driver?.deviceId) return res.status(400).json({ message: "Driver not found or no assigned vehicle" });
 
     const billImg = req.files?.["billImg"]?.[0];
@@ -32,7 +32,7 @@ exports.addExpense = async (req, res) => {
       await imgDoc.save();
       billImgId = imgDoc._id;
     }
-
+    const trip = await Trip.findById(driver.currentTripId);
     const expense = new Vehicleexpense({
       driverId,
       vehicleId: driver.deviceId._id,
@@ -46,7 +46,8 @@ exports.addExpense = async (req, res) => {
       paymentMode,
       location,
       lat,
-      long
+      long,
+      builtyId: trip?.builtyId || null
     });
     await expense.save();
     await Trip.findByIdAndUpdate(driver.currentTripId, { $inc: { spentAmount: amount } });

@@ -161,6 +161,7 @@ exports.createBuilty = async (req, res) => {
         vehicleId: payload.vehicleId,
         vehicleName: payload.vehicleNumber,
         supervisorId: req.user.id,
+        builtyId: builty._id,
         startLocation:
           pickupLocation?.name ||
           pickupLocation?.locationName ||

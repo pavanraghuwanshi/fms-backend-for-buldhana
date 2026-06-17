@@ -22,6 +22,11 @@ const tripSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    builtyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Builty",
+      default: null,
+    },
     startLocation: {
       type: String,
       required: [true, "Start location is required"],

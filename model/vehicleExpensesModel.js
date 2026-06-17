@@ -10,7 +10,12 @@ const expenseSchema = new mongoose.Schema(
     },
     deviceId: {
       type: mongoose.Schema.Types.ObjectId,
-        ref: "VehicleMaster",
+      ref: "VehicleMaster",
+      default: null,
+    },
+    builtyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Builty",
       default: null,
     },
     vehicleName: {
@@ -46,13 +51,13 @@ const expenseSchema = new mongoose.Schema(
     paymentMode: {
       type: String,
     },
-    location:{
-      type:String
+    location: {
+      type: String
     },
-    lat:{
+    lat: {
       type: Number
     },
-    long:{
+    long: {
       type: Number
     }
   },

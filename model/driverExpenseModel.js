@@ -13,6 +13,11 @@ const ExpenseSchema = new mongoose.Schema(
       ref: "Device",
       required: [true, "You have not been assigned a vehicle"],
     },
+    builtyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Builty",
+      default: null,
+    },
     vehicleName: {
       type: String,
       required: true,
@@ -46,10 +51,10 @@ const ExpenseSchema = new mongoose.Schema(
     paymentMode: {
       type: String,
     },
-    lat:{
+    lat: {
       type: Number
     },
-    long:{
+    long: {
       type: Number
     }
   },
