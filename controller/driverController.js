@@ -605,3 +605,63 @@ exports.getDriverDropdown = async (req, res) => {
     });
   }
 };
+
+exports.getDriverDropdownall = async (req, res) => {
+  try {
+    const { role, supervisor, supervisorId: userSupervisorId, id: userId } = req.user;
+
+    if (!["superadmin", "user", "worker", "vendor"].includes(role)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const { supervisorId, search = "", page = 1, limit = 20 } = req.query;
+
+    const perPage = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const currentPage = Math.max(Number(page) || 1, 1);
+    const skip = (currentPage - 1) * perPage;
+
+    const query = {};
+
+    if (role === "superadmin" && supervisorId) {
+      query.supervisor = supervisorId;
+    } else if (role === "worker") {
+      query.supervisor = supervisor;
+    } else if (role === "vendor") {
+      query.supervisor = userSupervisorId;
+    } else if (role === "user") {
+      query.supervisor = userId;
+    }
+
+    if (search.trim()) {
+      const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.$or = [
+        { name: { $regex: escaped, $options: "i" } },
+        { contactNumber: { $regex: escaped, $options: "i" } },
+      ];
+    }
+
+    const [drivers, total] = await Promise.all([
+      Driver.find(query)
+        .select("_id name")
+        .sort({ name: 1 })
+        .skip(skip)
+        .limit(perPage)
+        .lean(),
+      Driver.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      message: "Driver list fetched successfully",
+      pagination: {
+        total,
+        page: currentPage,
+        limit: perPage,
+        totalPages: Math.ceil(total / perPage),
+      },
+      drivers,
+    });
+  } catch (error) {
+    console.error("Error in getDriverDropdownall:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};

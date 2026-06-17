@@ -7,7 +7,8 @@ const {
   getVehicleMasterById,
   updateVehicleMaster,
   deleteVehicleMaster,
-  getVehicleMasterDropdown
+  getVehicleMasterDropdown,
+  getVehicleMasterDropdownall
 } = require("../controller/maintenanceDeviceController");
 
 const { authenticateToken } = require("../middleware/authMiddleware");
@@ -15,6 +16,8 @@ const { authenticateToken } = require("../middleware/authMiddleware");
 router.post("/", authenticateToken, createVehicleMaster);
 router.get("/", authenticateToken, getVehicleMasters);
 router.get("/dropdown", authenticateToken, getVehicleMasterDropdown);
+router.get("/dropdownall", authenticateToken, getVehicleMasterDropdownall);
+
 router.get("/:id", authenticateToken, getVehicleMasterById);
 router.put("/:id", authenticateToken, updateVehicleMaster);
 router.delete("/:id", authenticateToken, deleteVehicleMaster);
