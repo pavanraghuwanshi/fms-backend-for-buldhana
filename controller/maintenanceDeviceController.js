@@ -430,3 +430,47 @@ exports.getVehicleMasterDropdownall = async (req, res) => {
     return res.status(500).json({ message: "Error fetching vehicle dropdown", error: error.message });
   }
 };
+
+exports.updateVehicleStatus = async (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+    const { isAssigned } = req.body; // Expecting true or false
+
+    if (!["superadmin", "user", "worker"].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
+
+    if (typeof isAssigned !== 'boolean') {
+      return res.status(400).json({ success: false, message: "isAssigned must be a boolean (true/false)" });
+    }
+
+    const query = { _id: vehicleId };
+    
+    if (req.user.role !== "superadmin") {
+      query.supervisorId = req.user.role === "user" ? req.user.id : req.user.supervisor;
+    }
+
+    const vehicle = await VehicleMaster.findOneAndUpdate(
+      query,
+      { $set: { isAssigned } },
+      { new: true, runValidators: true }
+    );
+
+    if (!vehicle) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Vehicle not found or you do not have permission to update it" 
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Vehicle status updated to ${isAssigned ? 'Assigned' : 'Available'}`,
+      data: vehicle
+    });
+
+  } catch (error) {
+    console.error("Update Vehicle Status Error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};

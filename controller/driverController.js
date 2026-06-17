@@ -635,8 +635,8 @@ exports.getDriverDropdownall = async (req, res) => {
     if (search.trim()) {
       const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { name: { $regex: escaped, $options: "i" } },
-        { contactNumber: { $regex: escaped, $options: "i" } },
+        { name: { $regex: escaped, $options: "i" } }
+       
       ];
     }
 
@@ -662,6 +662,6 @@ exports.getDriverDropdownall = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in getDriverDropdownall:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
