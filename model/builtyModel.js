@@ -318,7 +318,9 @@ const builtySchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-
+    vehicleExpenseAmount:{
+      type:Number,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
     },
@@ -326,6 +328,9 @@ const builtySchema = new mongoose.Schema(
       type: String,
       enum: ["none", "percentage", "fixed"],
       default: "none",
+    },
+    driverCommissionPercentage:{
+      type:Number
     },
     driverCommissionAmount: {
       type: Number,
