@@ -74,6 +74,8 @@ const builtySchema = new mongoose.Schema(
     shortageDeductionRate: { type: Number, default: 0 },
     description:{type:String},
     vendorType: {type:String},
+    
+    // booking mode is not used
     bookingMode: {
       type: String,
       enum: ["transporter", "self"],
@@ -190,9 +192,8 @@ const builtySchema = new mongoose.Schema(
   },
   bagType: {
   type: String,
-  trim: true,
+  enum:["Plastic","Jute"],
   },
-
   bagWeight: {
     type: Number,
     min: 0,
