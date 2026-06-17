@@ -825,6 +825,21 @@ exports.cancelBuilty = async (req, res) => {
 
     await builty.save();
 
+    const trip = await Trip.findOneAndUpdate(
+      {
+        builtyId: builty._id,
+        status: "in-progress",
+      },
+      {
+        $set: {
+          status: "cancelled",
+        },
+      },
+      {
+        new: true,
+      }
+    );
+
     if (builty.vehicleId) {
       await VehicleMaster.findByIdAndUpdate(builty.vehicleId, {
         isAssigned: false,
@@ -836,6 +851,7 @@ exports.cancelBuilty = async (req, res) => {
         $set: {
           isAssigned: false,
           deviceId: null,
+          currentTripId: null,
         },
       });
     }
@@ -843,6 +859,7 @@ exports.cancelBuilty = async (req, res) => {
     return res.status(200).json({
       message: "Builty cancelled successfully",
       builty,
+      trip,
     });
   } catch (error) {
     return res.status(500).json({
