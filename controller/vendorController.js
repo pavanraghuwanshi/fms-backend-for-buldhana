@@ -1,5 +1,8 @@
 const Vendor = require("../model/vendor");
-
+const Builty = require("../model/builtyModel");
+const BuiltyCounter = require("../model/builtyCounterModel");
+const VehicleMaster = require("../model/maintenanceDevice.model");
+const Driver = require("../model/driverModel");
 const roleModelMap = {
   school: "School",
   branch: "Branch",
@@ -401,5 +404,60 @@ exports.updateFcmToken = async (req, res) => {
   } catch (error) {
     console.error("FCM Update Error:", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+
+// for tp list for vendor
+exports.getVendorBuiltys = async (req, res) => {
+  try {
+    if (req.user.role !== "vendor") {
+      return res.status(403).json({ message: "Access denied." });
+    }
+
+    // 1. Sanitize/Validate inputs
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 10)); // Limit to 100 max per page
+    const { search, status } = req.query;
+
+    const query = { vendorId: req.user.id };
+    if (status) query.status = status;
+    if (search) {
+
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.$or = [
+        { tpNo: { $regex: escapedSearch, $options: "i" } },
+        { vehicleNumber: { $regex: escapedSearch, $options: "i" } },
+      ];
+    }
+
+    const builtys = await Builty.find(query)
+      .populate("driverId", "name")
+      .select("_id vehicleNumber description driverId") 
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+
+    const formattedBuiltys = builtys.map((builty) => ({
+      builtyId: builty._id,
+      driverName: builty.driverId?.name || "N/A",
+      vehicleNumber: builty.vehicleNumber,
+      description: builty.description
+    }));
+
+    const total = await Builty.countDocuments(query);
+
+    return res.status(200).json({
+      message: "Vendor builtys fetched successfully",
+      total,
+      page,
+      limit,
+      builtys: formattedBuiltys,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal server error",
+    });
   }
 };

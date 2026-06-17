@@ -14,6 +14,7 @@ const roleModelMap = {
 
 const applyDailyBuiltyHierarchy = (req, payload) => {
   const role = req.user.role;
+
   const roleType = req.user.roleType;
 
   if (role === "driver") {
