@@ -70,7 +70,7 @@ const builtySchema = new mongoose.Schema(
       required: true,
     },
     transportRateAmount: { type: Number, default: 0 },
-    transportRateType: { type: String, enum: ["fixed", "per_ton"] },
+    transportRateType: { type: String, enum: ["fixed", "per_ton","per_quintal"] },
     shortageDeductionRate: { type: Number, default: 0 },
     description:{type:String},
     vendorType: {type:String},
@@ -188,7 +188,20 @@ const builtySchema = new mongoose.Schema(
     enum: ["Pending", "Partial", "Completed"],
     default: "Pending",
   },
+  bagType: {
+  type: String,
+  trim: true,
+  },
 
+  bagWeight: {
+    type: Number,
+    min: 0,
+  },
+
+  docNo: {
+    type: String,
+    trim: true,
+  },
     cancelReason: {
       type: String,
       trim: true,
@@ -238,6 +251,69 @@ const builtySchema = new mongoose.Schema(
       default: null,
     },
 
+    dispatchDate: {
+      type: Date,
+    },
+
+    startOdometerReading: {
+      type: Number,
+      default: 0,
+    },
+
+    weightPerBag: {
+      type: Number,
+      default: 0,
+    },
+
+    numberOfBags: {
+      type: Number,
+      default: 0,
+    },
+
+    tareWeightUnit: {
+      type: String,
+      enum: ["KG", "Qtl", "MT"],
+    },
+
+    grossWeightUnit: {
+      type: String,
+      enum: ["KG", "Qtl", "MT"],
+    },
+
+    netWeight: {
+      type: Number,
+      default: 0,
+    },
+
+    freightRate: {
+      type: Number,
+      default: 0,
+    },
+
+    freightRateUnit: {
+      type: String,
+      enum: ["KG", "Qtl", "MT", "Bag"],
+    },
+
+    fareAmount: {
+      type: Number,
+      default: 0,
+    },
+
+    fareAmountAdvance: {
+      type: Number,
+      default: 0,
+    },
+
+    loadKataCharge: {
+      type: Number,
+      default: 0,
+    },
+
+    loadingCharge: {
+      type: Number,
+      default: 0,
+    },
     isLessDelivered: {
       type: Boolean,
       default: false,
