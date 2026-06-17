@@ -711,7 +711,9 @@ exports.completeBuilty = async (req, res) => {
       deliveryEmptyWeight,
       deliveryStatus,
       paymentCutAmount,
-      endOdometerReading
+      endOdometerReading,
+      unLoadingCharge,
+      unLoadKataCharge
     } = req.body;
 
     if (deliveryLoadedWeight === undefined || deliveryEmptyWeight === undefined) {
@@ -763,6 +765,8 @@ exports.completeBuilty = async (req, res) => {
     builty.paymentCutAmount = Number(paymentCutAmount || 0);
     builty.isLessDelivered = isLessDelivered;
     builty.endOdometerReading = endOdometerReading
+    builty.unLoadingCharge = unLoadingCharge,
+    builty.unLoadKataCharge = unLoadKataCharge
 
     builty.status = "Completed";
     builty.completedAt = new Date();

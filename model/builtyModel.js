@@ -311,6 +311,15 @@ const builtySchema = new mongoose.Schema(
       default: 0,
     },
 
+    unLoadingCharge: {
+      type: Number,
+      default: 0,
+    },
+    unLoadKataCharge: {
+      type: Number,
+      default: 0,
+    },
+
     loadingCharge: {
       type: Number,
       default: 0,
