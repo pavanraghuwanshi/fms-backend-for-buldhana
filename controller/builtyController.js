@@ -172,7 +172,7 @@ exports.createBuilty = async (req, res) => {
           payload.destinationLocationId.toString(),
         materialType: payload.products?.[0]?.productName || "",
         transportMode: "transport",
-        budgetAllocated: payload.advanceAmount || 0,
+        budgetAllocated: payload.vehicleExpenseAmount || 0,
         status: "in-progress",
       });
 
@@ -364,7 +364,7 @@ exports.updateBuilty = async (req, res) => {
               payload.destinationLocationId.toString(),
             materialType: payload.products?.[0]?.productName || "",
             transportMode: "transport",
-            budgetAllocated: payload.advanceAmount || 0,
+            budgetAllocated: payload.vehicleExpenseAmount || 0,
           },
         },
         {
@@ -652,6 +652,21 @@ exports.cancelBuilty = async (req, res) => {
     builty.cancelledAt = new Date();
 
     await builty.save();
+
+    if (builty.vehicleId) {
+      await VehicleMaster.findByIdAndUpdate(builty.vehicleId, {
+        isAssigned: false,
+      });
+    }
+
+    if (builty.driverId) {
+      await Driver.findByIdAndUpdate(builty.driverId, {
+        $set: {
+          isAssigned: false,
+          deviceId: null,
+        },
+      });
+    }
 
     return res.status(200).json({
       message: "Builty cancelled successfully",
