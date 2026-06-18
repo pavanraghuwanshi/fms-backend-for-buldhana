@@ -109,6 +109,7 @@ exports.getAllInspections = async (req, res) => {
 
     const inspections = await Inspection.find(filter)
       .populate("DriverId", "name supervisor")
+      .populate("deviceId","vehicleName")
       .populate("tripId", "startLocation endLocation status")
       .sort({ createdAt: -1 })
       .lean();
