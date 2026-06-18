@@ -5,7 +5,7 @@ const inspectionSchema = new mongoose.Schema(
      {
           vehicleId: {
                type: mongoose.Schema.Types.ObjectId,
-               ref: "Device",
+               ref: "VehicleMaster",
                required: [true, "Vehicle Id is Required"]
           },
           DriverId: {

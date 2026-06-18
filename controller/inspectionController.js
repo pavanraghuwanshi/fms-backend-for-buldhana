@@ -109,7 +109,7 @@ exports.getAllInspections = async (req, res) => {
 
     const inspections = await Inspection.find(filter)
       .populate("DriverId", "name supervisor")
-      .populate("deviceId","vehicleName")
+      .populate("vehicleId","vehicleNumber")
       .populate("tripId", "startLocation endLocation status")
       .sort({ createdAt: -1 })
       .lean();
@@ -121,25 +121,25 @@ exports.getAllInspections = async (req, res) => {
     const uniqueVehicleIds = [...new Set(vehicleIds)];
 
     // Fetch vehicle names from the Device model in the main DB
-    const vehicles = await Device.find({ _id: { $in: uniqueVehicleIds } })
-      .select(" name uniqueId category")
-      .lean();
+    // const vehicles = await Device.find({ _id: { $in: uniqueVehicleIds } })
+    //   .select(" name uniqueId category")
+    //   .lean();
 
-    const vehicleMap = {};
-    vehicles.forEach(v => {
-      vehicleMap[v._id.toString()] = {
-        name: v.name,
-        category: v.category
-      };
-    });
+    // const vehicleMap = {};
+    // vehicles.forEach(v => {
+    //   vehicleMap[v._id.toString()] = {
+    //     name: v.name,
+    //     category: v.category
+    //   };
+    // });
 
     // Append vehicle data manually
-    const enrichedInspections = inspections.map(ins => ({
-      ...ins,
-      vehicleDetails: vehicleMap[ins.vehicleId?.toString()] || null
-    }));
+    // const enrichedInspections = inspections.map(ins => ({
+    //   ...ins,
+    //   vehicleDetails: vehicleMap[ins.vehicleId?.toString()] || null
+    // }));
 
-    return res.status(200).json({ success: true, data: enrichedInspections });
+    return res.status(200).json({ success: true, data: inspections });
   } catch (error) {
     console.error("Get inspections error:", error);
     return res.status(500).json({ error: "Server error", details: error.message });
