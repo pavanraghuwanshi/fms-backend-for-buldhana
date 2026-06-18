@@ -540,17 +540,21 @@ exports.getProductsForDropdown = async (req, res) => {
   try {
     let { page = 1, limit = 10, search = "" } = req.query;
 
-    page = parseInt(page);
-    limit = parseInt(limit);
+    page = Math.max(parseInt(page) || 1, 1);
+    limit = Math.max(parseInt(limit) || 10, 1);
 
-    let filter = {};
+    const filter = {};
 
-    if (req.user.role !== "superadmin") {
-      filter.createdBy = req.user.userId;
+    const loggedInUserId = req.user.id || req.user._id || req.user.userId;
+
+    if (req.user.role === "driver") {
+      filter.createdBy = req.user.supervisor;
+    } else if (req.user.role !== "superadmin") {
+      filter.createdBy = loggedInUserId;
     }
 
-    if (search) {
-      filter.name = { $regex: search, $options: "i" };
+    if (search && search.trim()) {
+      filter.name = { $regex: search.trim(), $options: "i" };
     }
 
     const total = await ProductList.countDocuments(filter);
@@ -561,16 +565,15 @@ exports.getProductsForDropdown = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(limit);
 
-    res.status(200).json({
+    return res.status(200).json({
       page,
       limit,
       total,
       totalPages: Math.ceil(total / limit),
       data,
     });
-
   } catch (err) {
-    res.status(500).json({
+    return res.status(500).json({
       msg: "Error fetching products dropdown with pagination",
       error: err.message,
     });
