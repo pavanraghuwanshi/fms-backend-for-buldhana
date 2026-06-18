@@ -119,9 +119,9 @@ exports.createBuilty = async (req, res) => {
     if (payload.bookingMode === "commissionAgent" && !payload.commissionAgentId) {
       return res.status(400).json({ message: "commissionAgentId is required" });
     }
-    if (payload.vendorId && (payload.advanceMode === "fuel" || payload.advanceMode === "cash_fuel")) {
-      return res.status(400).json({ message: "vendorId should not be provided" });
-    }
+    // if (payload.vendorId && (payload.advanceMode === "fuel" || payload.advanceMode === "cash_fuel")) {
+    //   return res.status(400).json({ message: "vendorId should not be provided" });
+    // }
 
     const counter = await BuiltyCounter.findOneAndUpdate(
       {
