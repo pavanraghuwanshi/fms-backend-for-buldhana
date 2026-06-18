@@ -801,7 +801,7 @@ exports.completeBuilty = async (req, res) => {
 
 exports.cancelBuilty = async (req, res) => {
   try {
-    if (!["superadmin", "user", "worker"].includes(req.user.role)) {
+    if (!["superadmin", "user", "worker","driver"].includes(req.user.role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
