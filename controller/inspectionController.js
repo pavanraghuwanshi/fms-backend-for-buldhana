@@ -199,6 +199,7 @@ exports.getInspectionByVehicleId = async (req, res) => {
 
     const inspections = await Inspection.find(filter)
       .populate("DriverId", "name")
+      .populate("vehicleId","vehicleNumber")
       .populate("tripId", "startLocation endLocation status")
       .sort({ createdAt: -1 })
       .lean();
@@ -206,13 +207,13 @@ exports.getInspectionByVehicleId = async (req, res) => {
     if (!inspections.length) return res.status(404).json({ message: "No inspections found for this vehicle" });
 
     // Fetch the vehicle details
-    const vehicle = await Device.findById(vehicleId).select("name uniqueId").lean();
-    const enrichedInspections = inspections.map(ins => ({
-      ...ins,
-      vehicleDetails: vehicle ? { name: vehicle.name } : null
-    }));
+    // const vehicle = await Device.findById(vehicleId).select("name uniqueId").lean();
+    // const enrichedInspections = inspections.map(ins => ({
+    //   ...ins,
+    //   vehicleDetails: vehicle ? { name: vehicle.name } : null
+    // }));
 
-    return res.status(200).json({ success: true, data: enrichedInspections });
+    return res.status(200).json({ success: true, data: inspections });
   } catch (error) {
     console.error("Get inspections by vehicle error:", error);
     return res.status(500).json({ error: "Server error", details: error.message });
