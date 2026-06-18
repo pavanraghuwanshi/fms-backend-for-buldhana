@@ -478,6 +478,53 @@ exports.updateBuilty = async (req, res) => {
       runValidators: true,
     });
 
+        if (
+      builty.vehicleId &&
+      payload.vehicleId &&
+      String(builty.vehicleId) !== String(payload.vehicleId)
+    ) {
+      await VehicleMaster.findByIdAndUpdate(builty.vehicleId, {
+        isAssigned: false,
+      });
+
+      await VehicleMaster.findByIdAndUpdate(payload.vehicleId, {
+        isAssigned: true,
+      });
+    }
+
+    if (!builty.vehicleId && payload.vehicleId) {
+      await VehicleMaster.findByIdAndUpdate(payload.vehicleId, {
+        isAssigned: true,
+      });
+    }
+
+    if (
+      builty.driverId &&
+      payload.driverId &&
+      String(builty.driverId) !== String(payload.driverId)
+    ) {
+      await Driver.findByIdAndUpdate(builty.driverId, {
+        $set: {
+          isAssigned: false,
+          deviceId: null,
+        },
+      });
+
+      await Driver.findByIdAndUpdate(payload.driverId, {
+        $set: {
+          isAssigned: true,
+        },
+      });
+    }
+
+    if (!builty.driverId && payload.driverId) {
+      await Driver.findByIdAndUpdate(payload.driverId, {
+        $set: {
+          isAssigned: true,
+        },
+      });
+    }
+
     let updatedTrip = null;
 
     if (payload.driverId && payload.vehicleId) {
