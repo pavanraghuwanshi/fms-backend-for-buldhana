@@ -135,9 +135,11 @@ exports.getVehicleMasters = async (req, res) => {
 
     return res.status(200).json({
       message: "Vehicles fetched successfully",
-      total,
       page: Number(page),
       limit: Number(limit),
+      total,
+      totalPages: Math.ceil(total / Number(limit)),
+      count: vehicles.length,
       vehicles,
     });
   } catch (error) {
