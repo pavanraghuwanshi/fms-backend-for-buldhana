@@ -478,7 +478,7 @@ exports.updateBuilty = async (req, res) => {
       runValidators: true,
     });
 
-        if (
+    if (
       builty.vehicleId &&
       payload.vehicleId &&
       String(builty.vehicleId) !== String(payload.vehicleId)
@@ -513,6 +513,7 @@ exports.updateBuilty = async (req, res) => {
       await Driver.findByIdAndUpdate(payload.driverId, {
         $set: {
           isAssigned: true,
+          deviceId: payload.vehicleId,
         },
       });
     }
@@ -521,6 +522,21 @@ exports.updateBuilty = async (req, res) => {
       await Driver.findByIdAndUpdate(payload.driverId, {
         $set: {
           isAssigned: true,
+          deviceId: payload.vehicleId,
+        },
+      });
+    }
+
+    if (
+      builty.driverId &&
+      payload.driverId &&
+      String(builty.driverId) === String(payload.driverId) &&
+      payload.vehicleId &&
+      String(builty.vehicleId) !== String(payload.vehicleId)
+    ) {
+      await Driver.findByIdAndUpdate(payload.driverId, {
+        $set: {
+          deviceId: payload.vehicleId,
         },
       });
     }
