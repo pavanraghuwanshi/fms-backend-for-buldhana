@@ -215,9 +215,6 @@ const builtySchema = new mongoose.Schema(
     cancelledAt: {
       type: Date,
     },
-    date:{
-      type:Date
-    },
     supervisorId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
