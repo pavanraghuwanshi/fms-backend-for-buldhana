@@ -1,6 +1,6 @@
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const mongoose = require('mongoose');
-
+const Driver = require("../model/driverModel");
 
 exports.createVehicleMaster = async (req, res) => {
   try {
@@ -436,7 +436,7 @@ exports.getVehicleMasterDropdownall = async (req, res) => {
 exports.updateVehicleStatus = async (req, res) => {
   try {
     const { vehicleId } = req.params;
-    const { isAssigned, forceUpdate = false  } = req.body; 
+    const { isAssigned, forceUpdate = false } = req.body; 
 
     if (!mongoose.Types.ObjectId.isValid(vehicleId)) {
       return res.status(400).json({ success: false, message: "Invalid Vehicle ID format" });
@@ -449,6 +449,7 @@ exports.updateVehicleStatus = async (req, res) => {
     if (typeof isAssigned !== 'boolean') {
       return res.status(400).json({ success: false, message: "isAssigned must be a boolean (true/false)" });
     }
+    
     const query = { _id: vehicleId };
 
     if (req.user.role !== "superadmin") {
@@ -478,9 +479,15 @@ exports.updateVehicleStatus = async (req, res) => {
       });
     }
 
-    // If it reaches here, either isAssigned is false, OR (isAssigned is true AND forceUpdate is true)
+    // Update the vehicle
     vehicle.isAssigned = isAssigned;
     await vehicle.save(); 
+
+    if (isAssigned === false) {
+      console.log("entered in helper function");
+      await unassignDriverFromVehicle(vehicle._id);
+    }
+
     return res.status(200).json({
       success: true,
       message: `Vehicle status successfully updated to ${isAssigned ? 'Assigned' : 'Available'}`,
@@ -490,5 +497,26 @@ exports.updateVehicleStatus = async (req, res) => {
   } catch (error) {
     console.error("Update Vehicle Status Error:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+const unassignDriverFromVehicle = async (vehicleId) => {
+  try {
+console.log("entered in helper function step 3");
+    await Driver.findOneAndUpdate(
+      { deviceId: vehicleId }, 
+      { 
+        $set: { 
+          deviceId: null, 
+          isAssigned: false,
+          currentVehicle: null,
+          currentVehicleName: null
+        } 
+      },
+      { new: true } // Returns the updated document
+    );
+  } catch (error) {
+    console.error("Helper Error - unassignDriverFromVehicle:", error);
+    throw new Error("Failed to unassign driver from vehicle");
   }
 };
