@@ -159,6 +159,10 @@ exports.getAllCustomers = async (req, res) => {
 
 exports.getCustomerDropdown = async (req, res) => {
   try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
     const filter = buildFilter(req);
 
     if (req.query.zoneId) {
@@ -172,13 +176,23 @@ exports.getCustomerDropdown = async (req, res) => {
       ];
     }
 
-    const customers = await Customer.find(filter)
-      .select("customerName mobileNumber zoneId")
-      .populate("zoneId", "zoneName")
-      .sort({ customerName: 1 });
+    const [customers, total] = await Promise.all([
+      Customer.find(filter)
+        .select("customerName mobileNumber zoneId")
+        .populate("zoneId", "zoneName")
+        .sort({ customerName: 1 })
+        .skip(skip)
+        .limit(limit),
+
+      Customer.countDocuments(filter),
+    ]);
 
     return res.status(200).json({
       message: "Customer dropdown fetched successfully",
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
       customers,
     });
   } catch (error) {
