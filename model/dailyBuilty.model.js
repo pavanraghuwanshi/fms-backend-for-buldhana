@@ -11,6 +11,7 @@ const dailyBuiltyProductSchema = new mongoose.Schema(
     productName: { type: String, default: "", trim: true },
     productWeight: { type: Number, default: 0 },
     bags: { type: Number, default: 0 },
+    bagSize: {type: Number, default : 0 }
   },
   { _id: false }
 );
@@ -57,6 +58,7 @@ const dailyBuiltySchema = new mongoose.Schema(
     driverName: { type: String, required: true, trim: true },
 
     totalBags: { type: Number, required: true },
+    totalBagsWeight: { type: Number, },
 
     pickupLocation: { type: String, required: true, trim: true },
 
