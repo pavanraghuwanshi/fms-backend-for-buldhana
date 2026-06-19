@@ -1,9 +1,23 @@
 const { default: mongoose } = require("mongoose");
 const { maintenanceDB } = require("../database/database");
 
+const dailyBuiltyProductSchema = new mongoose.Schema(
+  {
+    productName: { type: String, default: "", trim: true },
+    productWeight: { type: Number, default: 0 },
+    bags: { type: Number, default: 0 },
+    bagSize: {type: Number, default : 0 }
+  },
+  { _id: false }
+);
+
 const dailyBuiltySchema = new mongoose.Schema(
   {
     tpNo: { type: String, required: true },
+
+    date: { type: Date, required: true },
+
+    docNo: { type: String, required: true, trim: true },
 
     supervisorId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -17,54 +31,9 @@ const dailyBuiltySchema = new mongoose.Schema(
       enum: ["School", "Branch", "BranchGroup"],
     },
 
-    driverId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Driver",
-      required: true,
-    },
-
-    driverName: { type: String, trim: true },
-
     vehicleId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "VehicleMaster",
-    },
-
-    vehicleName: { type: String, trim: true },
-
-    consignerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-
-    consignerName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    consigneeId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-
-    consigneeName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    pickupLocationId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Location",
-      required: true,
-    },
-
-    destinationLocationId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Location",
       required: true,
     },
 
@@ -75,27 +44,62 @@ const dailyBuiltySchema = new mongoose.Schema(
       trim: true,
     },
 
-    grossVehicleWeight: { type: Number, required: true },
+    driverId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Driver",
+      required: true,
+    },
 
-    emptyWeight: { type: Number, required: true },
-    loadingWeight: { type: Number, required: true },
-    deliveryWeight: { type: Number, required: true },
-    transportRate: { type: Number, required: true },
+    driverName: { type: String, required: true, trim: true },
 
-    products: [
-      {
-        productId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "Product",
-          required: true,
-        },
-        productName: { type: String, default: "" },
-        quantity: { type: Number, default: 0 },
-        unit: { type: String, default: "" },
-      },
-    ],
+    totalBags: { type: Number, required: true },
+    totalBagsWeight: { type: Number, },
 
-    remark: { type: String, default: "" },
+    pickupLocation: { type: String, required: true, trim: true },
+
+    pickupLocationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      required: true,
+    },
+
+    destinationLocation: { type: String, required: true, trim: true },
+
+    destinationLocationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      required: true,
+    },
+
+    products: {
+      type: [dailyBuiltyProductSchema],
+      required: true,
+      default: [],
+    },
+
+    startOdometerReading: { type: Number, required: true },
+
+    zoneId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Zone",
+      required: true,
+    },
+
+    zoneName: { type: String, required: true, trim: true },
+
+    customerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Customer",
+      required: true,
+    },
+
+    customerName: { type: String, required: true, trim: true },
+
+    tripId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Trip",
+      default: null,
+    },
 
     status: {
       type: String,
@@ -115,7 +119,6 @@ const dailyBuiltySchema = new mongoose.Schema(
 
     cancelReason: { type: String, default: "" },
 
-    isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
