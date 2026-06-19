@@ -8,7 +8,7 @@ router.post("/", authenticateToken, createDailyBuilty);
 router.get("/", authenticateToken, getAllDailyBuilty);
 router.get("/:id", authenticateToken, getDailyBuiltyById);
 router.put("/:id", authenticateToken, updateDailyBuilty);
-router.patch("complete/:id", authenticateToken, completeDailyBuilty);
+router.patch("/complete/:id", authenticateToken, completeDailyBuilty);
 router.patch("/cancel/:id", authenticateToken, cancelDailyBuilty);
 router.delete("/:id", authenticateToken, deleteDailyBuilty);
 module.exports = router;
