@@ -4,6 +4,7 @@ const BuiltyCounter = require("../model/builtyCounterModel");
 const DailyBuilty = require("../model/dailyBuilty.model");
 const mongoose = require("mongoose");
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+const Trip = require("../model/tripModel");
 
 
 const roleModelMap = {
@@ -99,6 +100,8 @@ const getAssignedVehicleDetails = async (driverId) => {
   };
 };
 
+
+
 exports.createDailyBuilty = async (req, res) => {
   try {
     if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
@@ -107,78 +110,201 @@ exports.createDailyBuilty = async (req, res) => {
 
     const payload = applyDailyBuiltyHierarchy(req, { ...req.body });
 
-    if (payload.driveriId && !payload.driverId) payload.driverId = payload.driveriId;
-    if (payload.consignorId && !payload.consignerId) payload.consignerId = payload.consignorId;
-    if (payload.consgneeId && !payload.consigneeId) payload.consigneeId = payload.consgneeId;
-    if (payload.consignor && !payload.consignerName) payload.consignerName = payload.consignor;
+    const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
-    if (payload.productId && (!payload.products || payload.products.length === 0)) {
-      payload.products = [{ productId: payload.productId }];
+    if (req.user.role === "driver") {
+      payload.driverId = req.user.id;
+
+      if (!payload.supervisorId) {
+        payload.supervisorId = req.user.supervisor;
+      }
+
+      if (!payload.supervisorModel) {
+        payload.supervisorModel =
+          req.user.supervisorModel ||
+          req.user.supervisorType ||
+          req.user.supervisorRole ||
+          "School";
+      }
+
+      const driver = await Driver.findById(payload.driverId);
+
+      if (!driver) {
+        return res.status(404).json({ message: "Driver not found" });
+      }
+
+      if (!driver.deviceId) {
+        return res.status(400).json({ message: "Vehicle is not assigned to this driver" });
+      }
+
+      const vehicle = await VehicleMaster.findById(driver.deviceId);
+
+      if (!vehicle) {
+        return res.status(400).json({ message: "Assigned vehicle not found" });
+      }
+
+      await VehicleMaster.findByIdAndUpdate(driver.deviceId, {
+        isAssigned: true,
+      });
+
+      payload.vehicleId = vehicle._id;
+      payload.vehicleNumber = vehicle.vehicleNumber;
+      payload.vehicleName = vehicle.vehicleNumber || vehicle.name || vehicle.vehicleName;
+
+      if (!payload.driverName) {
+        payload.driverName = driver.name;
+      }
     }
 
-    const isValidObjectId = (id) => mongosoe.Types.ObjectId.isValid(id);
+    if (req.user.role !== "driver") {
+      if (!payload.driverId || !isValidObjectId(payload.driverId)) {
+        return res.status(400).json({ message: "Valid driverId is required" });
+      }
 
-    if (req.user.role !== "driver" && !payload.driverId) {
-      return res.status(400).json({ message: "driverId is required" });
+      if (!payload.vehicleId || !isValidObjectId(payload.vehicleId)) {
+        return res.status(400).json({ message: "Valid vehicleId is required" });
+      }
+
+      const driver = await Driver.findById(payload.driverId);
+
+      if (!driver) {
+        return res.status(404).json({ message: "Driver not found" });
+      }
+
+      if (
+        driver.deviceId &&
+        String(driver.deviceId) !== String(payload.vehicleId)
+      ) {
+        await VehicleMaster.findByIdAndUpdate(driver.deviceId, {
+          isAssigned: false,
+        });
+      }
+
+      const vehicle = await VehicleMaster.findById(payload.vehicleId);
+
+      if (!vehicle) {
+        return res.status(400).json({ message: "Vehicle not found" });
+      }
+
+      await VehicleMaster.findByIdAndUpdate(payload.vehicleId, {
+        isAssigned: true,
+      });
+
+      driver.deviceId = payload.vehicleId;
+      await driver.save();
+
+      if (!payload.driverName) {
+        payload.driverName = driver.name;
+      }
+
+      if (!payload.vehicleNumber) {
+        payload.vehicleNumber = vehicle.vehicleNumber;
+      }
+
+      payload.vehicleName =
+        payload.vehicleName ||
+        vehicle.vehicleNumber ||
+        vehicle.name ||
+        vehicle.vehicleName;
     }
 
-    if (!payload.supervisorId) return res.status(400).json({ message: "supervisorId is required" });
-    if (!payload.supervisorModel) return res.status(400).json({ message: "supervisorModel is required" });
+    if (!payload.supervisorId) {
+      return res.status(400).json({ message: "supervisorId is required" });
+    }
+
+    if (!payload.supervisorModel) {
+      return res.status(400).json({ message: "supervisorModel is required" });
+    }
+
+    if (!payload.date) {
+      return res.status(400).json({ message: "date is required" });
+    }
+
+    if (!payload.docNo) {
+      return res.status(400).json({ message: "docNo is required" });
+    }
+
+    if (!payload.vehicleId || !isValidObjectId(payload.vehicleId)) {
+      return res.status(400).json({ message: "Valid vehicleId is required" });
+    }
+
+    if (!payload.vehicleNumber) {
+      return res.status(400).json({ message: "vehicleNumber is required" });
+    }
+
+    if (!payload.vehicleName) {
+      return res.status(400).json({ message: "vehicleName is required" });
+    }
 
     if (!payload.driverId || !isValidObjectId(payload.driverId)) {
       return res.status(400).json({ message: "Valid driverId is required" });
     }
 
-    if (!payload.consignerId || !isValidObjectId(payload.consignerId)) {
-      return res.status(400).json({ message: "Valid consignerId is required" });
+    if (!payload.driverName) {
+      return res.status(400).json({ message: "driverName is required" });
     }
 
-    if (!payload.consigneeId || !isValidObjectId(payload.consigneeId)) {
-      return res.status(400).json({ message: "Valid consigneeId is required" });
+    if (!payload.totalBags && payload.totalBags !== 0) {
+      return res.status(400).json({ message: "totalBags is required" });
     }
 
-    if (!payload.consignerName) {
-      return res.status(400).json({ message: "consignerName is required" });
-    }
-
-    if (!payload.consigneeName) {
-      return res.status(400).json({ message: "consigneeName is required" });
+    if (!payload.pickupLocation) {
+      return res.status(400).json({ message: "pickupLocation is required" });
     }
 
     if (!payload.pickupLocationId || !isValidObjectId(payload.pickupLocationId)) {
       return res.status(400).json({ message: "Valid pickupLocationId is required" });
     }
 
+    if (!payload.destinationLocation) {
+      return res.status(400).json({ message: "destinationLocation is required" });
+    }
+
     if (!payload.destinationLocationId || !isValidObjectId(payload.destinationLocationId)) {
       return res.status(400).json({ message: "Valid destinationLocationId is required" });
     }
 
-    if (!payload.grossVehicleWeight) return res.status(400).json({ message: "grossVehicleWeight is required" });
-    if (!payload.emptyWeight) return res.status(400).json({ message: "emptyWeight is required" });
-    if (!payload.deliveryWeight) return res.status(400).json({ message: "deliveryWeight is required" });
-    if (!payload.loadingWeight) return res.status(400).json({ message: "loadingWeight is required" });
-    if (!payload.transportRate) return res.status(400).json({ message: "transportRate is required" });
-
     if (!payload.products || payload.products.length === 0) {
-      return res.status(400).json({ message: "products/productId are required" });
+      return res.status(400).json({ message: "products are required" });
     }
 
     for (const item of payload.products) {
       if (!item.productId || !isValidObjectId(item.productId)) {
         return res.status(400).json({ message: "Valid productId is required" });
       }
+
+      if (!item.productName) {
+        return res.status(400).json({ message: "productName is required" });
+      }
+
+      if (!item.productWeight && item.productWeight !== 0) {
+        return res.status(400).json({ message: "productWeight is required" });
+      }
+
+      if (!item.bags && item.bags !== 0) {
+        return res.status(400).json({ message: "bags is required" });
+      }
     }
 
-    const assignedVehicle = await getAssignedVehicleDetails(payload.driverId);
-
-    if (assignedVehicle.error) {
-      return res.status(400).json({ message: assignedVehicle.error });
+    if (!payload.startOdometerReading && payload.startOdometerReading !== 0) {
+      return res.status(400).json({ message: "startOdometerReading is required" });
     }
 
-    payload.driverName = assignedVehicle.driverName;
-    payload.vehicleId = assignedVehicle.vehicleId;
-    payload.vehicleName = assignedVehicle.vehicleName;
-    payload.vehicleNumber = assignedVehicle.vehicleNumber.toUpperCase();
+    if (!payload.zoneId || !isValidObjectId(payload.zoneId)) {
+      return res.status(400).json({ message: "Valid zoneId is required" });
+    }
+
+    if (!payload.zoneName) {
+      return res.status(400).json({ message: "zoneName is required" });
+    }
+
+    if (!payload.customerId || !isValidObjectId(payload.customerId)) {
+      return res.status(400).json({ message: "Valid customerId is required" });
+    }
+
+    if (!payload.customerName) {
+      return res.status(400).json({ message: "customerName is required" });
+    }
 
     const counter = await BuiltyCounter.findOneAndUpdate(
       {
@@ -191,11 +317,33 @@ exports.createDailyBuilty = async (req, res) => {
     );
 
     payload.tpNo = `DTP-${String(counter.seq).padStart(4, "0")}`;
+    payload.vehicleNumber = payload.vehicleNumber.toUpperCase();
     payload.createdBy = req.user.id;
     payload.createdByRole = req.user.role;
     payload.status = "Created";
 
     const dailyBuilty = await DailyBuilty.create(payload);
+
+    const trip = await Trip.create({
+      driverId: dailyBuilty.driverId,
+      vehicleId: dailyBuilty.vehicleId,
+      vehicleName: dailyBuilty.vehicleName || dailyBuilty.vehicleNumber,
+      supervisorId: dailyBuilty.supervisorId,
+      builtyId: dailyBuilty._id,
+      startLocation: dailyBuilty.pickupLocation,
+      endLocation: dailyBuilty.destinationLocation,
+      materialType: dailyBuilty.products
+        .map((item) => item.productName)
+        .join(", "),
+      date: dailyBuilty.date,
+      status: "in-progress",
+      startOdometerReading: dailyBuilty.startOdometerReading,
+      transportMode: "transport",
+      clientName: dailyBuilty.customerName,
+    });
+
+    dailyBuilty.tripId = trip._id;
+    await dailyBuilty.save();
 
     return res.status(201).json({
       message: "Daily builty created successfully",
@@ -205,6 +353,23 @@ exports.createDailyBuilty = async (req, res) => {
     return res.status(500).json({
       message: "Error creating daily builty",
       error: error.message,
+    });
+  }
+};
+
+const releaseDailyBuiltyAssignment = async (dailyBuilty) => {
+  if (dailyBuilty.driverId) {
+    await Driver.findByIdAndUpdate(dailyBuilty.driverId, {
+      $set: {
+        isAssigned: false,
+        deviceId: null,
+      },
+    });
+  }
+
+  if (dailyBuilty.vehicleId) {
+    await VehicleMaster.findByIdAndUpdate(dailyBuilty.vehicleId, {
+      isAssigned: false,
     });
   }
 };
@@ -221,7 +386,6 @@ exports.getAllDailyBuilty = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const filter = buildDailyBuiltyFilter(req);
-    filter.isActive = true;
 
     if (req.query.status) filter.status = req.query.status;
 
@@ -232,25 +396,25 @@ exports.getAllDailyBuilty = async (req, res) => {
       filter.driverId = req.query.driverId;
     }
 
-    if (req.query.consignerId) {
-      if (!isValidObjectId(req.query.consignerId)) {
-        return res.status(400).json({ message: "Invalid consignerId" });
-      }
-      filter.consignerId = req.query.consignerId;
-    }
-
-    if (req.query.consigneeId) {
-      if (!isValidObjectId(req.query.consigneeId)) {
-        return res.status(400).json({ message: "Invalid consigneeId" });
-      }
-      filter.consigneeId = req.query.consigneeId;
-    }
-
     if (req.query.vehicleId) {
       if (!isValidObjectId(req.query.vehicleId)) {
         return res.status(400).json({ message: "Invalid vehicleId" });
       }
       filter.vehicleId = req.query.vehicleId;
+    }
+
+    if (req.query.customerId) {
+      if (!isValidObjectId(req.query.customerId)) {
+        return res.status(400).json({ message: "Invalid customerId" });
+      }
+      filter.customerId = req.query.customerId;
+    }
+
+    if (req.query.zoneId) {
+      if (!isValidObjectId(req.query.zoneId)) {
+        return res.status(400).json({ message: "Invalid zoneId" });
+      }
+      filter.zoneId = req.query.zoneId;
     }
 
     if (req.query.fromDate || req.query.toDate) {
@@ -270,11 +434,15 @@ exports.getAllDailyBuilty = async (req, res) => {
     if (req.query.search) {
       filter.$or = [
         { tpNo: { $regex: req.query.search, $options: "i" } },
+        { docNo: { $regex: req.query.search, $options: "i" } },
         { vehicleNumber: { $regex: req.query.search, $options: "i" } },
         { vehicleName: { $regex: req.query.search, $options: "i" } },
         { driverName: { $regex: req.query.search, $options: "i" } },
-        { consignerName: { $regex: req.query.search, $options: "i" } },
-        { consigneeName: { $regex: req.query.search, $options: "i" } },
+        { pickupLocation: { $regex: req.query.search, $options: "i" } },
+        { destinationLocation: { $regex: req.query.search, $options: "i" } },
+        { zoneName: { $regex: req.query.search, $options: "i" } },
+        { customerName: { $regex: req.query.search, $options: "i" } },
+        { "products.productName": { $regex: req.query.search, $options: "i" } },
       ];
     }
 
@@ -282,8 +450,6 @@ exports.getAllDailyBuilty = async (req, res) => {
       DailyBuilty.find(filter)
         .populate("driverId", "name contactNumber deviceId")
         .populate("vehicleId", "vehicleNumber make grossVehicleWeight")
-        .populate("consignerId", "name contactNumber")
-        .populate("consigneeId", "name contactNumber")
         .populate("pickupLocationId", "name")
         .populate("destinationLocationId", "name")
         .populate("products.productId", "productName name")
@@ -321,13 +487,10 @@ exports.getDailyBuiltyById = async (req, res) => {
 
     const filter = buildDailyBuiltyFilter(req);
     filter._id = req.params.id;
-    filter.isActive = true;
 
     const dailyBuilty = await DailyBuilty.findOne(filter)
       .populate("driverId", "name contactNumber deviceId")
       .populate("vehicleId", "vehicleNumber make grossVehicleWeight")
-      .populate("consignerId", "name contactNumber")
-      .populate("consigneeId", "name contactNumber")
       .populate("pickupLocationId", "name")
       .populate("destinationLocationId", "name")
       .populate("products.productId", "productName name");
@@ -361,40 +524,23 @@ exports.updateDailyBuilty = async (req, res) => {
     const filter = buildDailyBuiltyFilter(req);
     filter._id = req.params.id;
     filter.status = "Created";
-    filter.isActive = true;
+
+    const dailyBuilty = await DailyBuilty.findOne(filter);
+
+    if (!dailyBuilty) {
+      return res.status(404).json({
+        message: "Daily builty not found or cannot update after completed/cancelled",
+      });
+    }
 
     const updateData = { ...req.body };
 
-    if (updateData.driveriId && !updateData.driverId) {
-      updateData.driverId = updateData.driveriId;
-    }
-
-    if (updateData.consignorId && !updateData.consignerId) {
-      updateData.consignerId = updateData.consignorId;
-    }
-
-    if (updateData.consgneeId && !updateData.consigneeId) {
-      updateData.consigneeId = updateData.consgneeId;
-    }
-
-    if (updateData.consignor && !updateData.consignerName) {
-      updateData.consignerName = updateData.consignor;
-    }
-
-    if (updateData.productId && (!updateData.products || updateData.products.length === 0)) {
-      updateData.products = [{ productId: updateData.productId }];
+    if (updateData.vehicleId && !isValidObjectId(updateData.vehicleId)) {
+      return res.status(400).json({ message: "Invalid vehicleId" });
     }
 
     if (updateData.driverId && !isValidObjectId(updateData.driverId)) {
       return res.status(400).json({ message: "Invalid driverId" });
-    }
-
-    if (updateData.consignerId && !isValidObjectId(updateData.consignerId)) {
-      return res.status(400).json({ message: "Invalid consignerId" });
-    }
-
-    if (updateData.consigneeId && !isValidObjectId(updateData.consigneeId)) {
-      return res.status(400).json({ message: "Invalid consigneeId" });
     }
 
     if (updateData.pickupLocationId && !isValidObjectId(updateData.pickupLocationId)) {
@@ -405,6 +551,14 @@ exports.updateDailyBuilty = async (req, res) => {
       return res.status(400).json({ message: "Invalid destinationLocationId" });
     }
 
+    if (updateData.zoneId && !isValidObjectId(updateData.zoneId)) {
+      return res.status(400).json({ message: "Invalid zoneId" });
+    }
+
+    if (updateData.customerId && !isValidObjectId(updateData.customerId)) {
+      return res.status(400).json({ message: "Invalid customerId" });
+    }
+
     if (updateData.products && updateData.products.length > 0) {
       for (const item of updateData.products) {
         if (!item.productId || !isValidObjectId(item.productId)) {
@@ -413,47 +567,102 @@ exports.updateDailyBuilty = async (req, res) => {
       }
     }
 
-    delete updateData.driveriId;
-    delete updateData.consignorId;
-    delete updateData.consgneeId;
-    delete updateData.consignor;
-
     delete updateData.tpNo;
     delete updateData.supervisorId;
     delete updateData.supervisorModel;
     delete updateData.createdBy;
     delete updateData.createdByRole;
     delete updateData.status;
-    delete updateData.vehicleNumber;
-    delete updateData.vehicleName;
-    delete updateData.vehicleId;
-    delete updateData.driverName;
-    delete updateData.isActive;
+    delete updateData.tripId;
 
     if (req.user.role === "driver") {
       delete updateData.driverId;
+      delete updateData.vehicleId;
+      delete updateData.vehicleNumber;
+      delete updateData.vehicleName;
+      delete updateData.driverName;
     }
 
-    if (updateData.driverId) {
-      const assignedVehicle = await getAssignedVehicleDetails(updateData.driverId);
+    if (req.user.role !== "driver") {
+      const finalDriverId = updateData.driverId || dailyBuilty.driverId;
+      const finalVehicleId = updateData.vehicleId || dailyBuilty.vehicleId;
 
-      if (assignedVehicle.error) {
-        return res.status(400).json({ message: assignedVehicle.error });
+      if (updateData.driverId || updateData.vehicleId) {
+        const driver = await Driver.findById(finalDriverId);
+
+        if (!driver) {
+          return res.status(404).json({ message: "Driver not found" });
+        }
+
+        const vehicle = await VehicleMaster.findById(finalVehicleId);
+
+        if (!vehicle) {
+          return res.status(400).json({ message: "Vehicle not found" });
+        }
+
+        if (
+          dailyBuilty.driverId &&
+          String(dailyBuilty.driverId) !== String(finalDriverId)
+        ) {
+          await Driver.findByIdAndUpdate(dailyBuilty.driverId, {
+            $set: {
+              isAssigned: false,
+              deviceId: null,
+            },
+          });
+        }
+
+        if (
+          dailyBuilty.vehicleId &&
+          String(dailyBuilty.vehicleId) !== String(finalVehicleId)
+        ) {
+          await VehicleMaster.findByIdAndUpdate(dailyBuilty.vehicleId, {
+            isAssigned: false,
+          });
+        }
+
+        await Driver.findByIdAndUpdate(finalDriverId, {
+          $set: {
+            isAssigned: true,
+            deviceId: finalVehicleId,
+          },
+        });
+
+        await VehicleMaster.findByIdAndUpdate(finalVehicleId, {
+          isAssigned: true,
+        });
+
+        updateData.driverId = finalDriverId;
+        updateData.vehicleId = finalVehicleId;
+        updateData.driverName = updateData.driverName || driver.name;
+        updateData.vehicleNumber = updateData.vehicleNumber || vehicle.vehicleNumber;
+        updateData.vehicleName =
+          updateData.vehicleName ||
+          vehicle.vehicleNumber ||
+          vehicle.name ||
+          vehicle.vehicleName;
       }
-
-      updateData.driverName = assignedVehicle.driverName;
-      updateData.vehicleId = assignedVehicle.vehicleId;
-      updateData.vehicleName = assignedVehicle.vehicleName;
-      updateData.vehicleNumber = assignedVehicle.vehicleNumber.toUpperCase();
     }
 
-    const dailyBuilty = await DailyBuilty.findOneAndUpdate(filter, updateData, {
-      new: true,
-    });
+    if (updateData.vehicleNumber) {
+      updateData.vehicleNumber = updateData.vehicleNumber.toUpperCase();
+    }
 
-    if (!dailyBuilty) {
-      return res.status(404).json({
-        message: "Daily builty not found or cannot update after completed/cancelled",
+    Object.assign(dailyBuilty, updateData);
+    await dailyBuilty.save();
+
+    if (dailyBuilty.tripId) {
+      await Trip.findByIdAndUpdate(dailyBuilty.tripId, {
+        driverId: dailyBuilty.driverId,
+        vehicleId: dailyBuilty.vehicleId,
+        vehicleName: dailyBuilty.vehicleName || dailyBuilty.vehicleNumber,
+        supervisorId: dailyBuilty.supervisorId,
+        startLocation: dailyBuilty.pickupLocation,
+        endLocation: dailyBuilty.destinationLocation,
+        materialType: dailyBuilty.products.map((item) => item.productName).join(", "),
+        date: dailyBuilty.date,
+        startOdometerReading: dailyBuilty.startOdometerReading,
+        clientName: dailyBuilty.customerName,
       });
     }
 
@@ -482,17 +691,23 @@ exports.completeDailyBuilty = async (req, res) => {
     const filter = buildDailyBuiltyFilter(req);
     filter._id = req.params.id;
     filter.status = "Created";
-    filter.isActive = true;
 
-    const dailyBuilty = await DailyBuilty.findOneAndUpdate(
-      filter,
-      { status: "Completed" },
-      { new: true }
-    );
+    const dailyBuilty = await DailyBuilty.findOne(filter);
 
     if (!dailyBuilty) {
       return res.status(404).json({
         message: "Daily builty not found or already completed/cancelled",
+      });
+    }
+
+    dailyBuilty.status = "Completed";
+    await dailyBuilty.save();
+
+    await releaseDailyBuiltyAssignment(dailyBuilty);
+
+    if (dailyBuilty.tripId) {
+      await Trip.findByIdAndUpdate(dailyBuilty.tripId, {
+        status: "completed",
       });
     }
 
@@ -521,20 +736,24 @@ exports.cancelDailyBuilty = async (req, res) => {
     const filter = buildDailyBuiltyFilter(req);
     filter._id = req.params.id;
     filter.status = "Created";
-    filter.isActive = true;
 
-    const dailyBuilty = await DailyBuilty.findOneAndUpdate(
-      filter,
-      {
-        status: "Cancelled",
-        cancelReason: req.body.cancelReason || "",
-      },
-      { new: true }
-    );
+    const dailyBuilty = await DailyBuilty.findOne(filter);
 
     if (!dailyBuilty) {
       return res.status(404).json({
         message: "Daily builty not found or already completed/cancelled",
+      });
+    }
+
+    dailyBuilty.status = "Cancelled";
+    dailyBuilty.cancelReason = req.body.cancelReason || "";
+    await dailyBuilty.save();
+
+    await releaseDailyBuiltyAssignment(dailyBuilty);
+
+    if (dailyBuilty.tripId) {
+      await Trip.findByIdAndUpdate(dailyBuilty.tripId, {
+        status: "cancelled",
       });
     }
 
@@ -562,17 +781,20 @@ exports.deleteDailyBuilty = async (req, res) => {
 
     const filter = buildDailyBuiltyFilter(req);
     filter._id = req.params.id;
-    filter.isActive = true;
 
-    const dailyBuilty = await DailyBuilty.findOneAndUpdate(
-      filter,
-      { isActive: false },
-      { new: true }
-    );
+    const dailyBuilty = await DailyBuilty.findOne(filter);
 
     if (!dailyBuilty) {
       return res.status(404).json({ message: "Daily builty not found" });
     }
+
+    await releaseDailyBuiltyAssignment(dailyBuilty);
+
+    if (dailyBuilty.tripId) {
+      await Trip.findByIdAndDelete(dailyBuilty.tripId);
+    }
+
+    await DailyBuilty.findByIdAndDelete(dailyBuilty._id);
 
     return res.status(200).json({
       message: "Daily builty deleted successfully",
