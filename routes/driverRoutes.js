@@ -9,7 +9,6 @@ router.post('/create', authenticateToken, upload.fields([
     { name: 'licenseImage', maxCount: 1 },
     { name: 'aadharImage', maxCount: 1 },
 ]), createDriver);
-
 router.get('/all', authenticateToken, getAllDrivers);
 router.get('/get-driver-profile', authenticateToken, getDriverProfile);
 router.get('/get/:id', authenticateToken, getDriverById);
