@@ -3,11 +3,6 @@ const { maintenanceDB } = require("../database/database");
 
 const dailyBuiltyProductSchema = new mongoose.Schema(
   {
-    productId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
-      required: true,
-    },
     productName: { type: String, default: "", trim: true },
     productWeight: { type: Number, default: 0 },
     bags: { type: Number, default: 0 },

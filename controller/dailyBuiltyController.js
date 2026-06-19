@@ -13,6 +13,10 @@ const roleModelMap = {
   branchGroup: "BranchGroup",
 };
 
+const getSupervisorModel = (req) => {
+  return roleModelMap[req.user.roleType] || req.user.supervisorModel;
+};
+
 const applyDailyBuiltyHierarchy = (req, payload) => {
   const role = req.user.role;
 
@@ -27,7 +31,7 @@ const applyDailyBuiltyHierarchy = (req, payload) => {
 
   if (role === "user") {
     payload.supervisorId = req.user.id;
-    payload.supervisorModel = roleModelMap[roleType];
+    payload.supervisorModel = getSupervisorModel(req);
   }
 
   if (role === "worker") {
@@ -44,7 +48,8 @@ const buildDailyBuiltyFilter = (req) => {
   const role = req.user.role;
   const roleType = req.user.roleType;
 
-  const filter = { isActive: true };
+  const filter = {
+  };
 
   if (role === "driver") {
     filter.driverId = req.user.id;
@@ -52,7 +57,7 @@ const buildDailyBuiltyFilter = (req) => {
 
   if (role === "user") {
     filter.supervisorId = req.user.id;
-    filter.supervisorModel = roleModelMap[roleType];
+    filter.supervisorModel = getSupervisorModel(req);
   }
 
   if (role === "worker") {
@@ -377,6 +382,7 @@ const releaseDailyBuiltyAssignment = async (dailyBuilty) => {
 
 exports.getAllDailyBuilty = async (req, res) => {
   try {
+
     if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -452,7 +458,6 @@ exports.getAllDailyBuilty = async (req, res) => {
         .populate("vehicleId", "vehicleNumber make grossVehicleWeight")
         .populate("pickupLocationId", "name")
         .populate("destinationLocationId", "name")
-        .populate("products.productId", "productName name")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
@@ -493,7 +498,6 @@ exports.getDailyBuiltyById = async (req, res) => {
       .populate("vehicleId", "vehicleNumber make grossVehicleWeight")
       .populate("pickupLocationId", "name")
       .populate("destinationLocationId", "name")
-      .populate("products.productId", "productName name");
 
     if (!dailyBuilty) {
       return res.status(404).json({ message: "Daily builty not found" });
