@@ -1,6 +1,6 @@
 const VehicleMaster = require("../model/maintenanceDevice.model");
-
-
+const mongoose = require('mongoose');
+const Driver = require("../model/driverModel");
 
 exports.createVehicleMaster = async (req, res) => {
   try {
@@ -295,10 +295,10 @@ exports.getVehicleMasterDropdown = async (req, res) => {
       query.supervisorId = req.user.id;
     } else if (role === "worker") {
       query.supervisorId = req.user.supervisor;
-    } else if(role === "vendor"){
+    } else if (role === "vendor") {
       query.supervisorId = req.user.supervisorId;
- 
-    }else if (supervisorId) {
+
+    } else if (supervisorId) {
       query.supervisorId = supervisorId;
     }
 
@@ -436,8 +436,12 @@ exports.getVehicleMasterDropdownall = async (req, res) => {
 exports.updateVehicleStatus = async (req, res) => {
   try {
     const { vehicleId } = req.params;
-    const { isAssigned } = req.body; // Expecting true or false
+    const { isAssigned, forceUpdate = false } = req.body; 
 
+    if (!mongoose.Types.ObjectId.isValid(vehicleId)) {
+      return res.status(400).json({ success: false, message: "Invalid Vehicle ID format" });
+    }
+    
     if (!["superadmin", "user", "worker"].includes(req.user.role)) {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
@@ -445,34 +449,74 @@ exports.updateVehicleStatus = async (req, res) => {
     if (typeof isAssigned !== 'boolean') {
       return res.status(400).json({ success: false, message: "isAssigned must be a boolean (true/false)" });
     }
-
-    const query = { _id: vehicleId };
     
+    const query = { _id: vehicleId };
+
     if (req.user.role !== "superadmin") {
       query.supervisorId = req.user.role === "user" ? req.user.id : req.user.supervisor;
     }
 
-    const vehicle = await VehicleMaster.findOneAndUpdate(
-      query,
-      { $set: { isAssigned } },
-      { new: true, runValidators: true }
-    );
+    const vehicle = await VehicleMaster.findOne(query);
 
     if (!vehicle) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Vehicle not found or you do not have permission to update it" 
+      return res.status(404).json({
+        success: false,
+        message: "Vehicle not found or you do not have permission to update it"
       });
+    }
+
+    if (isAssigned === false && vehicle.isAssigned === false) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "This vehicle is already unassigned. It is not assigned to anyone." 
+      });
+    }
+
+    if (isAssigned === false && forceUpdate === false) {
+      return res.status(400).json({
+        success: false,
+        message: "Are you sure? then send yes..."
+      });
+    }
+
+    // Update the vehicle
+    vehicle.isAssigned = isAssigned;
+    await vehicle.save(); 
+
+    if (isAssigned === false) {
+      console.log("entered in helper function");
+      await unassignDriverFromVehicle(vehicle._id);
     }
 
     return res.status(200).json({
       success: true,
-      message: `Vehicle status updated to ${isAssigned ? 'Assigned' : 'Available'}`,
+      message: `Vehicle status successfully updated to ${isAssigned ? 'Assigned' : 'Available'}`,
       data: vehicle
     });
 
   } catch (error) {
     console.error("Update Vehicle Status Error:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+const unassignDriverFromVehicle = async (vehicleId) => {
+  try {
+
+    await Driver.findOneAndUpdate(
+      { deviceId: vehicleId }, 
+      { 
+        $set: { 
+          deviceId: null, 
+          isAssigned: false,
+          currentVehicle: null,
+          currentVehicleName: null
+        } 
+      },
+      { new: true } // Returns the updated document
+    );
+  } catch (error) {
+    console.error("Helper Error - unassignDriverFromVehicle:", error);
+    throw new Error("Failed to unassign driver from vehicle");
   }
 };
