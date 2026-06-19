@@ -502,7 +502,7 @@ exports.updateVehicleStatus = async (req, res) => {
 
 const unassignDriverFromVehicle = async (vehicleId) => {
   try {
-console.log("entered in helper function step 3");
+
     await Driver.findOneAndUpdate(
       { deviceId: vehicleId }, 
       { 
