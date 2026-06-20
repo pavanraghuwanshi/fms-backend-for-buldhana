@@ -41,7 +41,9 @@ exports.getNumberData = async (req, res) => {
 
     if (req.user.role === "user") {
       if (req.user.roleType === "school") {
-        vehicleQuery.schoolId = req.user.id;
+        vehicleQuery.supervisorId = req.user.id;
+        vehicleQuery.supervisorModel = "School";
+
         driverQuery.supervisor = req.user.id;
         tripQuery.supervisorId = req.user.id;
 
@@ -53,7 +55,9 @@ exports.getNumberData = async (req, res) => {
       }
 
       if (req.user.roleType === "branch") {
-        vehicleQuery.branchId = req.user.id;
+        vehicleQuery.supervisorId = req.user.id;
+        vehicleQuery.supervisorModel = "Branch";
+
         driverQuery.supervisor = req.user.id;
         tripQuery.supervisorId = req.user.id;
 
@@ -65,7 +69,9 @@ exports.getNumberData = async (req, res) => {
       }
 
       if (req.user.roleType === "branchGroup") {
-        vehicleQuery.branchId = { $in: req.user.AssignedBranch || [] };
+        vehicleQuery.supervisorId = req.user.id;
+        vehicleQuery.supervisorModel = "BranchGroup";
+
         driverQuery.supervisor = req.user.id;
         tripQuery.supervisorId = req.user.id;
 
@@ -98,7 +104,7 @@ exports.getNumberData = async (req, res) => {
         .select("-profileImage -licenseImage -aadharImage")
         .lean(),
 
-      VehicleMaster.find(vehicleQuery).select("_id deviceId").lean(),
+      VehicleMaster.find(vehicleQuery).select("_id").lean(),
     ]);
 
     const vehicleIds = vehicleData.map((v) => v._id.toString());
@@ -246,22 +252,22 @@ exports.getNumberData = async (req, res) => {
       }
     }
 
-    const availableDrivers = driverData.filter((d) => !d.currentVehicle).length;
-    const unavailableDrivers = driverData.filter((d) => d.currentVehicle).length;
+    const availableDrivers = driverData.filter((d) => !d.deviceId).length;
+    const unavailableDrivers = driverData.filter((d) => d.deviceId).length;
     const totalDrivers = driverData.length;
 
     const totalVehicles = vehicleData.length;
 
-    const assignedDeviceIds = driverData
+    const assignedVehicleIds = driverData
       .filter((d) => d.deviceId)
       .map((d) => d.deviceId.toString());
 
     const availableVehicles = vehicleData.filter(
-      (v) => !v.deviceId || !assignedDeviceIds.includes(v.deviceId.toString())
+      (v) => !assignedVehicleIds.includes(v._id.toString())
     ).length;
 
-    const unavailableVehicles = vehicleData.filter(
-      (v) => v.deviceId && assignedDeviceIds.includes(v.deviceId.toString())
+    const unavailableVehicles = vehicleData.filter((v) =>
+      assignedVehicleIds.includes(v._id.toString())
     ).length;
 
     const totalVehicleExpenses = vehicleExpenseData.reduce(
@@ -283,7 +289,7 @@ exports.getNumberData = async (req, res) => {
     }).length;
 
     const driversLiveOnWork = driverData.filter(
-      (d) => d.currentVehicle && d.currentTripId
+      (d) => d.deviceId && d.currentTripId
     ).length;
 
     const driverLocations = attendanceData.filter(
@@ -364,24 +370,27 @@ exports.getAvailableUnavailableVehicles = async (req, res) => {
     let driverFilter = {};
 
     if (roleType === "school") {
-      vehicleFilter.schoolId = id;
+      vehicleFilter.supervisorId = id;
+      vehicleFilter.supervisorModel = "School";
       driverFilter.supervisor = id;
     }
 
     if (roleType === "branch") {
-      vehicleFilter.branchId = id;
+      vehicleFilter.supervisorId = id;
+      vehicleFilter.supervisorModel = "Branch";
       driverFilter.supervisor = id;
     }
 
     if (roleType === "branchGroup") {
-      vehicleFilter.branchId = { $in: AssignedBranch };
+      vehicleFilter.supervisorId = id;
+      vehicleFilter.supervisorModel = "BranchGroup";
       driverFilter.supervisor = id;
     }
 
     const [vehicles, drivers] = await Promise.all([
-      VehicleMaster.find(vehicleFilter, "vehicleNumber category model deviceId schoolId branchId")
-        .populate("schoolId", "schoolName")
-        .populate("branchId", "branchName")
+      VehicleMaster.find(vehicleFilter, "vehicleNumber categoryId make isAssigned grossVehicleWeight transporterId supervisorId supervisorModel")
+        .populate("categoryId")
+        .populate("transporterId")
         .lean(),
 
       Driver.find(driverFilter, "deviceId name").lean(),
@@ -397,9 +406,7 @@ exports.getAvailableUnavailableVehicles = async (req, res) => {
     const unavailableVehicles = [];
 
     for (const vehicle of vehicles) {
-      const driverName = vehicle.deviceId
-        ? assignedDeviceMap.get(vehicle.deviceId.toString())
-        : null;
+      const driverName = assignedDeviceMap.get(vehicle._id.toString());
 
       if (driverName) {
         unavailableVehicles.push({ ...vehicle, driverName });
