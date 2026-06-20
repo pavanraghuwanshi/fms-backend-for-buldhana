@@ -9,6 +9,8 @@ const OdometerSchema = require("../model/serviceOdometerModel");
 const User = require("../model/userModel");
 const Builty = require("../model/builtyModel");
 const DailyBuilty = require("../model/dailyBuilty.model");
+const VehicleMaster = require("../model/maintenanceDevice.model");
+
 
 exports.getNumberData = async (req, res) => {
   try {
