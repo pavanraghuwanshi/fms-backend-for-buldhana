@@ -26,7 +26,12 @@ const customerSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
-
+    pickupLocation:{
+      type:String
+    },
+    dropLocation:{
+      type:String
+    },
     gstNumber: {
       type: String,
       default: "",
