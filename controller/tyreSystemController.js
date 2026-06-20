@@ -411,7 +411,7 @@ exports.getTiresByVehicleId = async (req, res) => {
                _id: item._id,
                vehicleName: vehicle.vehicleNumber || null,
                make: vehicle.make || null,
-               deviceId: vehicle.deviceId || null,
+               deviceId: vehicle._id || null,
                category: item.category,
                position: item.position,
                tyreSerialNumber: item.tyreSerialNumber,
