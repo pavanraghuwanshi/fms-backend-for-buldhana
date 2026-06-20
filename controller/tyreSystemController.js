@@ -15,10 +15,17 @@ exports.addTire = async (req, res) => {
 
           let driver = null;
           if (req.user.role === "driver") {
-               driver = await Driver.findById(req.user.id).select("currentVehicle currentVehicleName currentTripId").lean();
-               if (!driver || !driver.currentVehicle || driver.currentVehicle.toString() !== vehicleId) return res.status(400).json({ message: "Vehicle not assigned to this driver" });
+          driver = await Driver.findById(req.user.id).select("deviceId").lean();
+
+          if (!driver || !driver.deviceId || String(driver.deviceId) !== String(vehicleId)) {
+          return res.status(400).json({
+               message: "Vehicle not assigned to this driver",
+          });
+          }
           } else {
-               driver = await Driver.findOne({ currentVehicle: vehicleId }).select("currentVehicleName currentTripId").lean();
+          driver = await Driver.findOne({ deviceId: vehicleId })
+          .select("currentTripId")
+          .lean();
           }
 
           const billImg = req.files?.["billImg"]?.[0];
@@ -90,8 +97,8 @@ exports.getAllTires = async (req, res) => {
                }
 
                const vehicleIds = drivers
-                    .filter((d) => d.currentVehicle)
-                    .map((d) => d.currentVehicle);
+                    .filter((d) => d.deviceId)
+                    .map((d) => d.deviceId);
 
                tires = await Tire.find({ vehicleId: { $in: vehicleIds } })
                     .select("-__v")
@@ -99,11 +106,11 @@ exports.getAllTires = async (req, res) => {
 
           } else if (req.user.role === "driver") {
                const driver = await Driver.findById(req.user.id);
-               if (!driver || !driver.currentVehicle) {
+               if (!driver || !driver.deviceId) {
                     return res.status(400).json({ message: "Driver not found or no assigned vehicle" });
                }
 
-               tires = await Tire.find({ vehicleId: driver.currentVehicle })
+               tires = await Tire.find({ vehicleId: driver.deviceId })
                     .select("-__v")
                     .sort({ createdAt: -1 });
 
@@ -111,7 +118,6 @@ exports.getAllTires = async (req, res) => {
                return res.status(403).json({ success: false, message: "Unauthorized access" });
           }
 
-          // Manual population: fetch all required Device info in one query
           const deviceIds = [...new Set(tires.map(t => t.vehicleId?.toString()))];
           const devices = await Device.find({ _id: { $in: deviceIds } }).select("name");
           console.log("this is devices", devices);
@@ -169,7 +175,7 @@ exports.updateTire = async (req, res) => {
 
           if (req.user.role === "driver") {
                const driver = await Driver.findById(req.user.id);
-               if (!driver || !driver.currentVehicle || driver.currentVehicle.toString() !== tire.vehicleId.toString()) {
+               if (!driver || !driver.deviceId || String(driver.deviceId) !== String(tire.vehicleId)) {
                     return res.status(403).json({ message: "Unauthorized: Tire does not belong to the driver's vehicle" });
                }
           }
@@ -213,7 +219,6 @@ exports.updateTire = async (req, res) => {
                return res.status(404).json({ success: false, message: "Tire not found" });
           }
 
-          // 🧾 Update or create expense
           const descriptionText = `Tire purchase: ${brandName || existingTire.brandName}, Serial: ${tyreSerialNumber || existingTire.tyreSerialNumber}, Position: ${position || existingTire.position}`;
 
           const expense = await Vehicleexpense.findOne({
@@ -221,7 +226,7 @@ exports.updateTire = async (req, res) => {
           });
 
           const vehicleName = (
-               await Driver.findOne({ currentVehicle: tire.vehicleId })
+               await Driver.findOne({ deviceId: tire.vehicleId })
           )?.currentVehicleName || "Unknown";
 
           const expenseUpdateData = {
@@ -243,9 +248,12 @@ exports.updateTire = async (req, res) => {
                await Vehicleexpense.findByIdAndUpdate(expense._id, expenseUpdateData);
           }
 
-          // 💰 Update trip expense
           if (amount) {
-               const driver = await Driver.findById(req.user.id);
+               const driver =
+                    req.user.role === "driver"
+                         ? await Driver.findById(req.user.id)
+                         : await Driver.findOne({ deviceId: tire.vehicleId });
+
                if (driver?.currentTripId) {
                     const amountDiff = amount - existingTire.amount;
                     if (amountDiff !== 0) {
@@ -284,20 +292,17 @@ exports.deleteTire = async (req, res) => {
                return res.status(404).json({ success: false, message: "Tire not found" });
           }
 
-          // Driver role: ensure tire belongs to their current vehicle
           if (req.user.role === "driver") {
                const driver = await Driver.findById(req.user.id);
-               if (!driver || !driver.currentVehicle || driver.currentVehicle.toString() !== tire.vehicleId.toString()) {
+               if (!driver || !driver.deviceId || String(driver.deviceId) !== String(tire.vehicleId)) {
                     return res.status(403).json({ message: "Unauthorized: Tire does not belong to the driver's vehicle" });
                }
           }
 
-          // Delete bill image if exists
           if (tire.billImg) {
                await VehicleExpenseImage.findByIdAndDelete(tire.billImg);
           }
 
-          // Delete related vehicle expense
           const descriptionText = `Tire purchase: ${tire.brandName}, Serial: ${tire.tyreSerialNumber}, Position: ${tire.position}`;
           await Vehicleexpense.deleteOne({
                expenseType: "tyreWheel",
@@ -305,17 +310,17 @@ exports.deleteTire = async (req, res) => {
                description: descriptionText,
           });
 
-          // Update driver's current trip (if driver role)
-          if (req.user.role === "driver") {
-               const driver = await Driver.findById(req.user.id);
-               if (driver && driver.currentTripId) {
-                    await Trip.findByIdAndUpdate(driver.currentTripId, {
-                         $inc: { spentAmount: -tire.amount },
-                    });
-               }
+          const driver =
+               req.user.role === "driver"
+                    ? await Driver.findById(req.user.id)
+                    : await Driver.findOne({ deviceId: tire.vehicleId });
+
+          if (driver && driver.currentTripId) {
+               await Trip.findByIdAndUpdate(driver.currentTripId, {
+                    $inc: { spentAmount: -tire.amount },
+               });
           }
 
-          // Delete the tire
           await Tire.findByIdAndDelete(tireId);
 
           return res.json({ success: true, message: "Tire deleted successfully" });
@@ -332,6 +337,16 @@ exports.deleteTire = async (req, res) => {
 exports.getTiresByVehicleId = async (req, res) => {
      try {
           const vehicleId = req.params.id;
+
+          if (req.user.role === "driver") {
+               const driver = await Driver.findById(req.user.id).select("deviceId").lean();
+
+               if (!driver || !driver.deviceId || String(driver.deviceId) !== String(vehicleId)) {
+                    return res.status(403).json({
+                         message: "Unauthorized: Tire does not belong to the driver's vehicle",
+                    });
+               }
+          }
 
           const tires = await Tire.find({ vehicleId })
                .select("-__v")
