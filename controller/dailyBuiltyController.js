@@ -711,8 +711,7 @@ exports.completeDailyBuilty = async (req, res) => {
     }
 
     dailyBuilty.endOdometerReading = Number(endOdometerReading);
-    dailyBuilty.totalKm =
-      Number(endOdometerReading) - Number(dailyBuilty.startOdometerReading || 0);
+    dailyBuilty.totalKm = Number(endOdometerReading) - Number(dailyBuilty.startOdometerReading || 0);
 
     dailyBuilty.status = "Completed";
     await dailyBuilty.save();
