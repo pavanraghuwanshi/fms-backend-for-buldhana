@@ -96,7 +96,7 @@ exports.getNumberData = async (req, res) => {
         .select("-profileImage -licenseImage -aadharImage")
         .lean(),
 
-      Device.find(vehicleQuery).select("_id").lean(),
+      VehicleMaster.find(vehicleQuery).select("_id deviceId").lean(),
     ]);
 
     const vehicleIds = vehicleData.map((v) => v._id.toString());
@@ -250,16 +250,16 @@ exports.getNumberData = async (req, res) => {
 
     const totalVehicles = vehicleData.length;
 
-    const assignedVehicleIds = driverData
-      .filter((d) => d.currentVehicle)
-      .map((d) => d.currentVehicle.toString());
+    const assignedDeviceIds = driverData
+      .filter((d) => d.deviceId)
+      .map((d) => d.deviceId.toString());
 
     const availableVehicles = vehicleData.filter(
-      (v) => !assignedVehicleIds.includes(v._id.toString())
+      (v) => !v.deviceId || !assignedDeviceIds.includes(v.deviceId.toString())
     ).length;
 
-    const unavailableVehicles = vehicleData.filter((v) =>
-      assignedVehicleIds.includes(v._id.toString())
+    const unavailableVehicles = vehicleData.filter(
+      (v) => v.deviceId && assignedDeviceIds.includes(v.deviceId.toString())
     ).length;
 
     const totalVehicleExpenses = vehicleExpenseData.reduce(
@@ -358,26 +358,26 @@ exports.getAvailableUnavailableVehicles = async (req, res) => {
   try {
     const { roleType, id, AssignedBranch = [] } = req.user;
 
-    let deviceFilter = {};
+    let vehicleFilter = {};
     let driverFilter = {};
 
     if (roleType === "school") {
-      deviceFilter.schoolId = id;
+      vehicleFilter.schoolId = id;
       driverFilter.supervisor = id;
     }
 
     if (roleType === "branch") {
-      deviceFilter.branchId = id;
+      vehicleFilter.branchId = id;
       driverFilter.supervisor = id;
     }
 
     if (roleType === "branchGroup") {
-      deviceFilter.branchId = { $in: AssignedBranch };
+      vehicleFilter.branchId = { $in: AssignedBranch };
       driverFilter.supervisor = id;
     }
 
-    const [devices, drivers] = await Promise.all([
-      Device.find(deviceFilter, "name category model users")
+    const [vehicles, drivers] = await Promise.all([
+      VehicleMaster.find(vehicleFilter, "vehicleNumber category model deviceId schoolId branchId")
         .populate("schoolId", "schoolName")
         .populate("branchId", "branchName")
         .lean(),
@@ -394,13 +394,15 @@ exports.getAvailableUnavailableVehicles = async (req, res) => {
     const availableVehicles = [];
     const unavailableVehicles = [];
 
-    for (const device of devices) {
-      const driverName = assignedDeviceMap.get(device._id.toString());
+    for (const vehicle of vehicles) {
+      const driverName = vehicle.deviceId
+        ? assignedDeviceMap.get(vehicle.deviceId.toString())
+        : null;
 
       if (driverName) {
-        unavailableVehicles.push({ ...device, driverName });
+        unavailableVehicles.push({ ...vehicle, driverName });
       } else {
-        availableVehicles.push(device);
+        availableVehicles.push(vehicle);
       }
     }
 
