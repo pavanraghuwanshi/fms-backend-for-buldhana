@@ -380,7 +380,6 @@ exports.getTiresByVehicleId = async (req, res) => {
 
           const vehicle = await VehicleMaster.findById(vehicleId)
                .select("vehicleNumber make deviceId")
-               .populate("deviceId", "name");
 
           if (!vehicle) {
                return res.status(404).json({ message: "Vehicle not found" });
