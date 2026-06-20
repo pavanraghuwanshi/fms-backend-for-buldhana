@@ -60,19 +60,9 @@ const dailyBuiltySchema = new mongoose.Schema(
 
     pickupLocation: { type: String, required: true, trim: true },
 
-    pickupLocationId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Location",
-      required: true,
-    },
 
-    destinationLocation: { type: String, required: true, trim: true },
+    dropLocation: { type: String, required: true, trim: true },
 
-    destinationLocationId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Location",
-      required: true,
-    },
 
     products: {
       type: [dailyBuiltyProductSchema],
