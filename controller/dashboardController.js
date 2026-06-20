@@ -259,46 +259,41 @@ exports.getAvailableUnavailableVehicles = async (req, res) => {
     let deviceFilter = {};
     let driverFilter = {};
 
-    // 🔥 ROLE BASED FILTER (same as getDevices)
     if (roleType === "school") {
       deviceFilter.schoolId = id;
-       driverFilter.supervisor = id;
+      driverFilter.supervisor = id;
     }
 
     if (roleType === "branch") {
       deviceFilter.branchId = id;
-       driverFilter.supervisor = id;
+      driverFilter.supervisor = id;
     }
 
     if (roleType === "branchGroup") {
       deviceFilter.branchId = { $in: AssignedBranch };
-       driverFilter.supervisor = id;
+      driverFilter.supervisor = id;
     }
 
-    // superadmin → no filter
-
     const [devices, drivers] = await Promise.all([
-      Device.find(deviceFilter, 'name category model users')
-        .populate('schoolId', 'schoolName')
-        .populate('branchId', 'branchName')
+      Device.find(deviceFilter, "name category model users")
+        .populate("schoolId", "schoolName")
+        .populate("branchId", "branchName")
         .lean(),
 
-      Driver.find(driverFilter, 'currentVehicle name')
-        .lean()
+      Driver.find(driverFilter, "deviceId name").lean(),
     ]);
 
-    // 🚀 MAP VEHICLE → DRIVER
-    const assignedVehicleMap = new Map(
+    const assignedDeviceMap = new Map(
       drivers
-        .filter(d => d.currentVehicle)
-        .map(d => [d.currentVehicle.toString(), d.name || 'Unknown'])
+        .filter((d) => d.deviceId)
+        .map((d) => [d.deviceId.toString(), d.name || "Unknown"])
     );
 
     const availableVehicles = [];
     const unavailableVehicles = [];
 
     for (const device of devices) {
-      const driverName = assignedVehicleMap.get(device._id.toString());
+      const driverName = assignedDeviceMap.get(device._id.toString());
 
       if (driverName) {
         unavailableVehicles.push({ ...device, driverName });
@@ -309,13 +304,12 @@ exports.getAvailableUnavailableVehicles = async (req, res) => {
 
     return res.status(200).json({
       availableVehicles,
-      unavailableVehicles
+      unavailableVehicles,
     });
-
   } catch (error) {
-    console.error('Error in getAvailableUnavailableVehicles:', error);
+    console.error("Error in getAvailableUnavailableVehicles:", error);
     return res.status(500).json({
-      message: 'Internal server error',
+      message: "Internal server error",
       error: error.message,
     });
   }
