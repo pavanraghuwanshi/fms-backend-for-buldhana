@@ -692,6 +692,12 @@ exports.completeDailyBuilty = async (req, res) => {
       return res.status(400).json({ message: "Invalid daily builty id" });
     }
 
+    const { endOdometerReading } = req.body;
+
+    if (endOdometerReading === undefined || endOdometerReading === "") {
+      return res.status(400).json({ message: "endOdometerReading is required" });
+    }
+
     const filter = buildDailyBuiltyFilter(req);
     filter._id = req.params.id;
     filter.status = "Created";
@@ -703,6 +709,10 @@ exports.completeDailyBuilty = async (req, res) => {
         message: "Daily builty not found or already completed/cancelled",
       });
     }
+
+    dailyBuilty.endOdometerReading = Number(endOdometerReading);
+    dailyBuilty.totalKm =
+      Number(endOdometerReading) - Number(dailyBuilty.startOdometerReading || 0);
 
     dailyBuilty.status = "Completed";
     await dailyBuilty.save();

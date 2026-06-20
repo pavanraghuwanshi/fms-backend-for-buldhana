@@ -49,7 +49,10 @@ const dailyBuiltySchema = new mongoose.Schema(
       ref: "Driver",
       required: true,
     },
-
+    totalKm: {
+      type: Number,
+      default: 0,
+    },
     driverName: { type: String, required: true, trim: true },
 
     totalBags: { type: Number, required: true },
