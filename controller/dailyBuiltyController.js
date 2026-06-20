@@ -447,7 +447,7 @@ exports.getAllDailyBuilty = async (req, res) => {
         { vehicleName: { $regex: req.query.search, $options: "i" } },
         { driverName: { $regex: req.query.search, $options: "i" } },
         { pickupLocation: { $regex: req.query.search, $options: "i" } },
-        { destinationLocation: { $regex: req.query.search, $options: "i" } },
+        { dropLocation: { $regex: req.query.search, $options: "i" } },
         { zoneName: { $regex: req.query.search, $options: "i" } },
         { customerName: { $regex: req.query.search, $options: "i" } },
         { "products.productName": { $regex: req.query.search, $options: "i" } },
@@ -458,8 +458,6 @@ exports.getAllDailyBuilty = async (req, res) => {
       DailyBuilty.find(filter)
         .populate("driverId", "name contactNumber deviceId")
         .populate("vehicleId", "vehicleNumber make grossVehicleWeight")
-        .populate("pickupLocationId", "name")
-        .populate("destinationLocationId", "name")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
@@ -498,8 +496,6 @@ exports.getDailyBuiltyById = async (req, res) => {
     const dailyBuilty = await DailyBuilty.findOne(filter)
       .populate("driverId", "name contactNumber deviceId")
       .populate("vehicleId", "vehicleNumber make grossVehicleWeight")
-      .populate("pickupLocationId", "name")
-      .populate("destinationLocationId", "name")
 
     if (!dailyBuilty) {
       return res.status(404).json({ message: "Daily builty not found" });

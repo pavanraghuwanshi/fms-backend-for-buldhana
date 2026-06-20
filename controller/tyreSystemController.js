@@ -6,6 +6,7 @@ const TyreBillImage = require("../model/tyreBillImage.js");
 const Vehicleexpense = require("../model/vehicleExpensesModel.js");
 const Device = require("../model/deviceModel.js");
 const VehicleExpenseImage = require("../model/vehicleExpenseImageModel.js");
+const VehicleMaster = require("../model/maintenanceDevice.model.js");
 
 exports.addTire = async (req, res) => {
      try {
@@ -91,48 +92,87 @@ exports.getAllTires = async (req, res) => {
                tires = await Tire.find().select("-__v").sort({ createdAt: -1 });
 
           } else if (req.user.role === "user") {
-               const drivers = await Driver.find({ supervisor: req.user.id });
+               const drivers = await Driver.find({ supervisor: req.user.id }).select("deviceId");
+
                if (drivers.length === 0) {
                     return res.status(404).json({ message: "No drivers found." });
                }
 
-               const vehicleIds = drivers
+               const deviceIds = drivers
                     .filter((d) => d.deviceId)
                     .map((d) => d.deviceId);
+
+               const vehicles = await VehicleMaster.find({
+                    deviceId: { $in: deviceIds },
+               }).select("_id");
+
+               const vehicleIds = vehicles.map((v) => v._id);
 
                tires = await Tire.find({ vehicleId: { $in: vehicleIds } })
                     .select("-__v")
                     .sort({ createdAt: -1 });
 
           } else if (req.user.role === "driver") {
-               const driver = await Driver.findById(req.user.id);
+               const driver = await Driver.findById(req.user.id).select("deviceId").lean();
+
                if (!driver || !driver.deviceId) {
-                    return res.status(400).json({ message: "Driver not found or no assigned vehicle" });
+                    return res.status(400).json({
+                         message: "Driver not found or no assigned vehicle",
+                    });
                }
 
-               tires = await Tire.find({ vehicleId: driver.deviceId })
+               const vehicle = await VehicleMaster.findOne({
+                    deviceId: driver.deviceId,
+               }).select("_id");
+
+               if (!vehicle) {
+                    return res.status(400).json({
+                         message: "No vehicle mapped with this driver",
+                    });
+               }
+
+               tires = await Tire.find({ vehicleId: vehicle._id })
                     .select("-__v")
                     .sort({ createdAt: -1 });
 
           } else {
-               return res.status(403).json({ success: false, message: "Unauthorized access" });
+               return res.status(403).json({
+                    success: false,
+                    message: "Unauthorized access",
+               });
           }
 
-          const deviceIds = [...new Set(tires.map(t => t.vehicleId?.toString()))];
-          const devices = await Device.find({ _id: { $in: deviceIds } }).select("name");
-          console.log("this is devices", devices);
+          const tireVehicleIds = [
+               ...new Set(tires.map((t) => t.vehicleId?.toString()).filter(Boolean)),
+          ];
 
-          const deviceMap = {};
-          devices.forEach(device => {
-               deviceMap[device._id] = device.name;
+          const vehicles = await VehicleMaster.find({
+               _id: { $in: tireVehicleIds },
+          })
+               .select("vehicleNumber make deviceId")
+               .populate("deviceId", "name");
+
+          const vehicleMap = {};
+
+          vehicles.forEach((vehicle) => {
+               vehicleMap[vehicle._id.toString()] = {
+                    vehicleNumber: vehicle.vehicleNumber,
+                    make: vehicle.make,
+                    deviceId: vehicle.deviceId,
+               };
           });
 
-          const enrichedTires = tires.map(tire => ({
+          const enrichedTires = tires.map((tire) => ({
                ...tire.toObject(),
                vehicleId: {
                     _id: tire.vehicleId,
-                    vehicleName: deviceMap[tire.vehicleId?.toString()] || null
-               }
+                    vehicleNumber:
+                         vehicleMap[tire.vehicleId?.toString()]?.vehicleNumber || null,
+                    make:
+                         vehicleMap[tire.vehicleId?.toString()]?.make || null,
+                    deviceId:
+                         vehicleMap[tire.vehicleId?.toString()]?.deviceId || null,
+               },
           }));
 
           return res.status(200).json(enrichedTires);
@@ -338,10 +378,22 @@ exports.getTiresByVehicleId = async (req, res) => {
      try {
           const vehicleId = req.params.id;
 
+          const vehicle = await VehicleMaster.findById(vehicleId)
+               .select("vehicleNumber make deviceId")
+               .populate("deviceId", "name");
+
+          if (!vehicle) {
+               return res.status(404).json({ message: "Vehicle not found" });
+          }
+
           if (req.user.role === "driver") {
                const driver = await Driver.findById(req.user.id).select("deviceId").lean();
 
-               if (!driver || !driver.deviceId || String(driver.deviceId) !== String(vehicleId)) {
+               if (
+                    !driver ||
+                    !driver.deviceId ||
+                    String(driver.deviceId) !== String(vehicle.deviceId?._id || vehicle.deviceId)
+               ) {
                     return res.status(403).json({
                          message: "Unauthorized: Tire does not belong to the driver's vehicle",
                     });
@@ -356,13 +408,11 @@ exports.getTiresByVehicleId = async (req, res) => {
                return res.status(404).json({ message: "No tires found for this vehicle" });
           }
 
-          const device = await Device.findById(vehicleId).select("name");
-
-          const vehicleName = device ? device.name : null;
-
           const formattedTires = tires.map((item) => ({
                _id: item._id,
-               vehicleName: vehicleName,
+               vehicleName: vehicle.vehicleNumber || null,
+               make: vehicle.make || null,
+               deviceId: vehicle.deviceId || null,
                category: item.category,
                position: item.position,
                tyreSerialNumber: item.tyreSerialNumber,
