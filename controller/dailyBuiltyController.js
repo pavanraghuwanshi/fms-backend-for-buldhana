@@ -554,13 +554,13 @@ exports.updateDailyBuilty = async (req, res) => {
       return res.status(400).json({ message: "Invalid customerId" });
     }
 
-    if (updateData.products && updateData.products.length > 0) {
-      for (const item of updateData.products) {
-        if (!item.productId || !isValidObjectId(item.productId)) {
-          return res.status(400).json({ message: "Invalid productId" });
-        }
-      }
-    }
+    // if (updateData.products && updateData.products.length > 0) {
+    //   for (const item of updateData.products) {
+    //     if (!item.productId || !isValidObjectId(item.productId)) {
+    //       return res.status(400).json({ message: "Invalid productId" });
+    //     }
+    //   }
+    // }
 
     delete updateData.tpNo;
     delete updateData.supervisorId;
@@ -736,7 +736,7 @@ exports.completeDailyBuilty = async (req, res) => {
     dailyBuilty.status = "Completed";
     await dailyBuilty.save();
 
-    await releaseDailyBuiltyAssignment(dailyBuilty);
+    // await releaseDailyBuiltyAssignment(dailyBuilty);
 
     if (dailyBuilty.tripId) {
       await Trip.findByIdAndUpdate(dailyBuilty.tripId, {
@@ -782,7 +782,7 @@ exports.cancelDailyBuilty = async (req, res) => {
     dailyBuilty.cancelReason = req.body.cancelReason || "";
     await dailyBuilty.save();
 
-    await releaseDailyBuiltyAssignment(dailyBuilty);
+    // await releaseDailyBuiltyAssignment(dailyBuilty);
 
     if (dailyBuilty.tripId) {
       await Trip.findByIdAndUpdate(dailyBuilty.tripId, {
@@ -821,7 +821,7 @@ exports.deleteDailyBuilty = async (req, res) => {
       return res.status(404).json({ message: "Daily builty not found" });
     }
 
-    await releaseDailyBuiltyAssignment(dailyBuilty);
+    // await releaseDailyBuiltyAssignment(dailyBuilty);
 
     if (dailyBuilty.tripId) {
       await Trip.findByIdAndDelete(dailyBuilty.tripId);
