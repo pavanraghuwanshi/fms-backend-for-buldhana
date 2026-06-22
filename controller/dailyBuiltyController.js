@@ -258,23 +258,23 @@ exports.createDailyBuilty = async (req, res) => {
       return res.status(400).json({ message: "products are required" });
     }
 
-    for (const item of payload.products) {
-      if (!item.productId || !isValidObjectId(item.productId)) {
-        return res.status(400).json({ message: "Valid productId is required" });
-      }
+    // for (const item of payload.products) {
+    //   if (!item.productId || !isValidObjectId(item.productId)) {
+    //     return res.status(400).json({ message: "Valid productId is required" });
+    //   }
 
-      if (!item.productName) {
-        return res.status(400).json({ message: "productName is required" });
-      }
+    //   if (!item.productName) {
+    //     return res.status(400).json({ message: "productName is required" });
+    //   }
 
-      if (!item.productWeight && item.productWeight !== 0) {
-        return res.status(400).json({ message: "productWeight is required" });
-      }
+    //   if (!item.productWeight && item.productWeight !== 0) {
+    //     return res.status(400).json({ message: "productWeight is required" });
+    //   }
 
-      if (!item.bags && item.bags !== 0) {
-        return res.status(400).json({ message: "bags is required" });
-      }
-    }
+    //   if (!item.bags && item.bags !== 0) {
+    //     return res.status(400).json({ message: "bags is required" });
+    //   }
+    // }
 
     if (!payload.startOdometerReading && payload.startOdometerReading !== 0) {
       return res.status(400).json({ message: "startOdometerReading is required" });
@@ -313,6 +313,20 @@ exports.createDailyBuilty = async (req, res) => {
     if (!payload.dropLocation) {
       return res.status(400).json({ message: "dropLocation is required" });
     }
+
+      const existingDailyBuilty = await DailyBuilty.findOne({
+        driverId: payload.driverId,
+        vehicleId: payload.vehicleId,
+        supervisorId: payload.supervisorId,
+        status: "Created",
+      });
+
+      if (existingDailyBuilty) {
+        return res.status(400).json({
+          message:
+            "Previous daily builty is not completed. Please complete or cancel it before creating a new one.",
+        });
+      }
 
     const counter = await BuiltyCounter.findOneAndUpdate(
       {
