@@ -90,7 +90,7 @@ const handleVendorLogin = async (req, res) => {
       message: "Vendor login successful",
       token,
       role: "vendor",
-   
+      vendor,
     });
 
   } catch (error) {
