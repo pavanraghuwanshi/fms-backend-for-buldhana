@@ -93,7 +93,9 @@ const builtySchema = new mongoose.Schema(
       ref: "CommissionAgent",
       default: null,
     },
-
+    commissionAgentAmount:{
+      type:Number
+    },
     vehicleId: {
       type: mongoose.Schema.Types.ObjectId,
         ref: "VehicleMaster",

@@ -7,65 +7,92 @@ const Attendance = require("../model/attendanceModel");
 const Driver = require("../model/driverModel");
 const OdometerSchema = require("../model/serviceOdometerModel");
 const User = require("../model/userModel");
-const GodownLorryReceipt = require("../model/GodownLorryReceiptModel");
+const Builty = require("../model/builtyModel");
+const DailyBuilty = require("../model/dailyBuilty.model");
+const VehicleMaster = require("../model/maintenanceDevice.model");
+
 
 exports.getNumberData = async (req, res) => {
   try {
-    const {
-      roleType,
-      role,
-      id,
-      AssignedBranch = []
-    } = req.user;
+    const { roleType, role, id, AssignedBranch = [] } = req.user;
 
     const userRole = roleType || role;
-
     const allowedRoles = ["superadmin", "school", "branch", "branchGroup"];
 
     if (!allowedRoles.includes(userRole)) {
       return res.status(401).json({
-        message: "Unauthorized Access"
+        message: "Unauthorized Access",
       });
     }
 
     let driverQuery = {};
     let vehicleQuery = {};
     let tripQuery = {};
+    let builtyQuery = {};
+    let dailyBuiltyQuery = {};
 
-    const { schoolId, branchId } = req.query;
-
-    // ---------------- DATE FILTER ----------------
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
     const endOfToday = new Date();
     endOfToday.setHours(23, 59, 59, 999);
 
-
     // ---------------- ROLE BASED FILTER ----------------
 
     if (req.user.role === "user") {
       if (req.user.roleType === "school") {
-        vehicleQuery.schoolId = req.user.id;
+        vehicleQuery.supervisorId = req.user.id;
+        vehicleQuery.supervisorModel = "School";
+
         driverQuery.supervisor = req.user.id;
         tripQuery.supervisorId = req.user.id;
+
+        builtyQuery.supervisorId = req.user.id;
+        builtyQuery.supervisorModel = "School";
+
+        dailyBuiltyQuery.supervisorId = req.user.id;
+        dailyBuiltyQuery.supervisorModel = "School";
       }
 
       if (req.user.roleType === "branch") {
-        vehicleQuery.branchId = req.user.id;
+        vehicleQuery.supervisorId = req.user.id;
+        vehicleQuery.supervisorModel = "Branch";
+
         driverQuery.supervisor = req.user.id;
         tripQuery.supervisorId = req.user.id;
+
+        builtyQuery.supervisorId = req.user.id;
+        builtyQuery.supervisorModel = "Branch";
+
+        dailyBuiltyQuery.supervisorId = req.user.id;
+        dailyBuiltyQuery.supervisorModel = "Branch";
       }
 
       if (req.user.roleType === "branchGroup") {
-        vehicleQuery.branchId =  { $in: req.user.AssignedBranch || [] };
-        driverQuery.supervisor = req.user.id  ;
+        vehicleQuery.supervisorId = req.user.id;
+        vehicleQuery.supervisorModel = "BranchGroup";
+
+        driverQuery.supervisor = req.user.id;
         tripQuery.supervisorId = req.user.id;
+
+        builtyQuery.supervisorId = req.user.id;
+        builtyQuery.supervisorModel = "BranchGroup";
+
+        dailyBuiltyQuery.supervisorId = req.user.id;
+        dailyBuiltyQuery.supervisorModel = "BranchGroup";
       }
     }
 
     if (req.user.role === "worker") {
       tripQuery.workerId = req.user.id;
+      builtyQuery.workerId = req.user.id;
+      dailyBuiltyQuery.createdBy = req.user.id;
+    }
+
+    if (req.user.role === "driver") {
+      tripQuery.driverId = req.user.id;
+      builtyQuery.driverId = req.user.id;
+      dailyBuiltyQuery.driverId = req.user.id;
     }
 
     const now = new Date();
@@ -77,32 +104,73 @@ exports.getNumberData = async (req, res) => {
         .select("-profileImage -licenseImage -aadharImage")
         .lean(),
 
-      Device.find(vehicleQuery)
-        .select("_id")
-        .lean()
+      VehicleMaster.find(vehicleQuery).select("_id").lean(),
     ]);
 
-    const vehicleIds = vehicleData.map(v => v._id.toString());
-    const driverIds = driverData.map(d => d._id.toString());
+    const vehicleIds = vehicleData.map((v) => v._id.toString());
+    const driverIds = driverData.map((d) => d._id.toString());
 
-    // ------------------------------------------------------------------
-    // FETCH DATA WITH PAGINATION
-    // ------------------------------------------------------------------
-    const lorryReceiptQuery = {
-      isDeleted: { $ne: true },
-      issuedBy: { $nin: ["Rack", "Road"] },
-      ...tripQuery
+    // ---------------- TRANSPORT PASS FROM BUILTY ----------------
+
+    const transportPassQuery = {
+      ...builtyQuery,
+      status: { $ne: "Cancelled" },
     };
 
-    const [totalGodownLorryReceiptCount, todayGodownLorryReceiptCount] = await Promise.all([
-      GodownLorryReceipt.countDocuments(lorryReceiptQuery),
-      GodownLorryReceipt.countDocuments({
-        ...lorryReceiptQuery,
-        createdAt: {
-          $gte: startOfToday,
-          $lte: endOfToday
-        }
-      })
+    const dailyBuiltyBaseQuery = {
+      ...dailyBuiltyQuery,
+    };
+
+    const [
+      totalTransportPassCount,
+      todayTransportPassCount,
+      completedTransportPassCount,
+      cancelledTransportPassCount,
+
+      totalDailyBuiltyCount,
+      todayDailyBuiltyCount,
+      createdDailyBuiltyCount,
+      completedDailyBuiltyCount,
+      cancelledDailyBuiltyCount,
+    ] = await Promise.all([
+      Builty.countDocuments(transportPassQuery),
+
+      Builty.countDocuments({
+        ...transportPassQuery,
+        createdAt: { $gte: startOfToday, $lte: endOfToday },
+      }),
+
+      Builty.countDocuments({
+        ...builtyQuery,
+        status: "Completed",
+      }),
+
+      Builty.countDocuments({
+        ...builtyQuery,
+        status: "Cancelled",
+      }),
+
+      DailyBuilty.countDocuments(dailyBuiltyBaseQuery),
+
+      DailyBuilty.countDocuments({
+        ...dailyBuiltyBaseQuery,
+        createdAt: { $gte: startOfToday, $lte: endOfToday },
+      }),
+
+      DailyBuilty.countDocuments({
+        ...dailyBuiltyBaseQuery,
+        status: "Created",
+      }),
+
+      DailyBuilty.countDocuments({
+        ...dailyBuiltyBaseQuery,
+        status: "Completed",
+      }),
+
+      DailyBuilty.countDocuments({
+        ...dailyBuiltyBaseQuery,
+        status: "Cancelled",
+      }),
     ]);
 
     const [
@@ -111,45 +179,69 @@ exports.getNumberData = async (req, res) => {
       tripData,
       documentData,
       attendanceData,
-      odometerData
+      odometerData,
     ] = await Promise.all([
       VehicleExpenses.find({
         vehicleId: { $in: vehicleIds },
-        date: { $gte: startOfToday, $lte: endOfToday }
-      }).select("amount").lean(),
+        date: { $gte: startOfToday, $lte: endOfToday },
+      })
+        .select("amount")
+        .lean(),
 
       DriverExpense.find({
         driverId: { $in: driverIds },
-        date: { $gte: startOfToday, $lte: endOfToday }
-      }).select("amount").lean(),
-
-      Trip.find(tripQuery)
-        .select("_id")
+        date: { $gte: startOfToday, $lte: endOfToday },
+      })
+        .select("amount")
         .lean(),
+
+      Trip.find(tripQuery).select("_id").lean(),
 
       VehicleDocument.find({
         vehicleId: { $in: vehicleIds },
         $or: [
-          { "documents.Insurance.expiryDate": { $gte: now, $lte: oneMonthFromNow } },
-          { "documents.rc.expiryDate": { $gte: now, $lte: oneMonthFromNow } },
-          { "documents.puc.expiryDate": { $gte: now, $lte: oneMonthFromNow } },
-          { "documents.fitnessCertificate.expiryDate": { $gte: now, $lte: oneMonthFromNow } }
-        ]
+          {
+            "documents.Insurance.expiryDate": {
+              $gte: now,
+              $lte: oneMonthFromNow,
+            },
+          },
+          {
+            "documents.rc.expiryDate": {
+              $gte: now,
+              $lte: oneMonthFromNow,
+            },
+          },
+          {
+            "documents.puc.expiryDate": {
+              $gte: now,
+              $lte: oneMonthFromNow,
+            },
+          },
+          {
+            "documents.fitnessCertificate.expiryDate": {
+              $gte: now,
+              $lte: oneMonthFromNow,
+            },
+          },
+        ],
       })
-        .select("-documents.Insurance.image -documents.rc.image -documents.puc.image -documents.fitnessCertificate.image -createdAt -updatedAt -__v -_id -vehicleId -vehicleName")
+        .select(
+          "-documents.Insurance.image -documents.rc.image -documents.puc.image -documents.fitnessCertificate.image -createdAt -updatedAt -__v -_id -vehicleId -vehicleName"
+        )
         .lean(),
 
       Attendance.find({
         driverId: { $in: driverIds },
         createdAt: {
           $gte: startOfToday,
-          $lte: endOfToday
-        }
+          $lte: endOfToday,
+        },
       }).lean(),
 
       OdometerSchema.find({
-        vehicleId: { $in: vehicleIds }
-      }).lean()
+        vehicleId: { $in: vehicleIds },
+      }).lean(),
     ]);
 
     let totalCountOfExpiringDocuments = 0;
@@ -160,22 +252,22 @@ exports.getNumberData = async (req, res) => {
       }
     }
 
-    const availableDrivers = driverData.filter(d => !d.currentVehicle).length;
-    const unavailableDrivers = driverData.filter(d => d.currentVehicle).length;
+    const availableDrivers = driverData.filter((d) => !d.deviceId).length;
+    const unavailableDrivers = driverData.filter((d) => d.deviceId).length;
     const totalDrivers = driverData.length;
 
     const totalVehicles = vehicleData.length;
 
     const assignedVehicleIds = driverData
-      .filter(d => d.currentVehicle)
-      .map(d => d.currentVehicle.toString());
+      .filter((d) => d.deviceId)
+      .map((d) => d.deviceId.toString());
 
     const availableVehicles = vehicleData.filter(
-      v => !assignedVehicleIds.includes(v._id.toString())
+      (v) => !assignedVehicleIds.includes(v._id.toString())
     ).length;
 
-    const unavailableVehicles = vehicleData.filter(
-      v => assignedVehicleIds.includes(v._id.toString())
+    const unavailableVehicles = vehicleData.filter((v) =>
+      assignedVehicleIds.includes(v._id.toString())
     ).length;
 
     const totalVehicleExpenses = vehicleExpenseData.reduce(
@@ -190,17 +282,18 @@ exports.getNumberData = async (req, res) => {
 
     const totalExpenses = totalVehicleExpenses + totalDriverExpenses;
 
-    const vehiclesUnderMaintenance = odometerData.filter(o => {
-      const diff = Number(o.nextServiceDue || 0) - Number(o.currentOdometer || 0);
+    const vehiclesUnderMaintenance = odometerData.filter((o) => {
+      const diff =
+        Number(o.nextServiceDue || 0) - Number(o.currentOdometer || 0);
       return diff <= 100;
     }).length;
 
     const driversLiveOnWork = driverData.filter(
-      d => d.currentVehicle && d.currentTripId
+      (d) => d.deviceId && d.currentTripId
     ).length;
 
     const driverLocations = attendanceData.filter(
-      a => a.status === "Present"
+      (a) => a.status === "Present"
     );
 
     return res.status(200).json({
@@ -212,18 +305,34 @@ exports.getNumberData = async (req, res) => {
         availableVehicles,
         unavailableVehicles,
         totalVehicles,
-        totalGodownLorryReceiptCount,
-        todayGodownLorryReceiptCount,
+
+        totalGodownLorryReceiptCount: totalTransportPassCount,
+        todayGodownLorryReceiptCount: todayTransportPassCount,
+
+        transportPass: {
+          total: totalTransportPassCount,
+          today: todayTransportPassCount,
+          completed: completedTransportPassCount,
+          cancelled: cancelledTransportPassCount,
+        },
+
+        dailyBuilty: {
+          total: totalDailyBuiltyCount,
+          today: todayDailyBuiltyCount,
+          created: createdDailyBuiltyCount,
+          completed: completedDailyBuiltyCount,
+          cancelled: cancelledDailyBuiltyCount,
+        },
 
         expenses: {
           vehicleExpenses: totalVehicleExpenses,
           driverExpenses: totalDriverExpenses,
-          total: totalExpenses
+          total: totalExpenses,
         },
         vehiclesUnderMaintenance,
         driversLiveOnWork,
         documentAlerts: totalCountOfExpiringDocuments,
-        driverLocations: driverLocations.length
+        driverLocations: driverLocations.length,
       },
       metadata: {
         timestamp: new Date(),
@@ -234,18 +343,19 @@ exports.getNumberData = async (req, res) => {
           vehicleExpenses: vehicleExpenseData.length,
           driverExpenses: driverExpenseData.length,
           documentsExpiring: totalCountOfExpiringDocuments,
-          attendanceEntries: attendanceData.length
-        }
-      }
+          attendanceEntries: attendanceData.length,
+          transportPass: totalTransportPassCount,
+          dailyBuilty: totalDailyBuiltyCount,
+        },
+      },
     });
-
   } catch (error) {
     console.error("Error in getNumberData:", error);
 
     return res.status(500).json({
       message: "Internal server error",
       error: error.message,
-      stack: process.env.NODE_ENV === "development" ? error.stack : undefined
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 };
@@ -256,66 +366,63 @@ exports.getAvailableUnavailableVehicles = async (req, res) => {
   try {
     const { roleType, id, AssignedBranch = [] } = req.user;
 
-    let deviceFilter = {};
+    let vehicleFilter = {};
     let driverFilter = {};
 
-    // 🔥 ROLE BASED FILTER (same as getDevices)
     if (roleType === "school") {
-      deviceFilter.schoolId = id;
-       driverFilter.supervisor = id;
+      vehicleFilter.supervisorId = id;
+      vehicleFilter.supervisorModel = "School";
+      driverFilter.supervisor = id;
     }
 
     if (roleType === "branch") {
-      deviceFilter.branchId = id;
-       driverFilter.supervisor = id;
+      vehicleFilter.supervisorId = id;
+      vehicleFilter.supervisorModel = "Branch";
+      driverFilter.supervisor = id;
     }
 
     if (roleType === "branchGroup") {
-      deviceFilter.branchId = { $in: AssignedBranch };
-       driverFilter.supervisor = id;
+      vehicleFilter.supervisorId = id;
+      vehicleFilter.supervisorModel = "BranchGroup";
+      driverFilter.supervisor = id;
     }
 
-    // superadmin → no filter
-
-    const [devices, drivers] = await Promise.all([
-      Device.find(deviceFilter, 'name category model users')
-        .populate('schoolId', 'schoolName')
-        .populate('branchId', 'branchName')
+    const [vehicles, drivers] = await Promise.all([
+      VehicleMaster.find(vehicleFilter, "vehicleNumber categoryId make isAssigned grossVehicleWeight transporterId supervisorId supervisorModel")
+        .populate("categoryId")
+        .populate("transporterId")
         .lean(),
 
-      Driver.find(driverFilter, 'currentVehicle name')
-        .lean()
+      Driver.find(driverFilter, "deviceId name").lean(),
     ]);
 
-    // 🚀 MAP VEHICLE → DRIVER
-    const assignedVehicleMap = new Map(
+    const assignedDeviceMap = new Map(
       drivers
-        .filter(d => d.currentVehicle)
-        .map(d => [d.currentVehicle.toString(), d.name || 'Unknown'])
+        .filter((d) => d.deviceId)
+        .map((d) => [d.deviceId.toString(), d.name || "Unknown"])
     );
 
     const availableVehicles = [];
     const unavailableVehicles = [];
 
-    for (const device of devices) {
-      const driverName = assignedVehicleMap.get(device._id.toString());
+    for (const vehicle of vehicles) {
+      const driverName = assignedDeviceMap.get(vehicle._id.toString());
 
       if (driverName) {
-        unavailableVehicles.push({ ...device, driverName });
+        unavailableVehicles.push({ ...vehicle, driverName });
       } else {
-        availableVehicles.push(device);
+        availableVehicles.push(vehicle);
       }
     }
 
     return res.status(200).json({
       availableVehicles,
-      unavailableVehicles
+      unavailableVehicles,
     });
-
   } catch (error) {
-    console.error('Error in getAvailableUnavailableVehicles:', error);
+    console.error("Error in getAvailableUnavailableVehicles:", error);
     return res.status(500).json({
-      message: 'Internal server error',
+      message: "Internal server error",
       error: error.message,
     });
   }
