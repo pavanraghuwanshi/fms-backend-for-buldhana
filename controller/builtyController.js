@@ -7,11 +7,60 @@ const { notifyVendor } = require('../services/notificationService');
 
 const Trip = require("../model/tripModel");
 const Location = require("../model/location");
+const Vehicleexpense = require("../model/vehicleExpensesModel");
 
 const roleModelMap = {
   school: "School",
   branch: "Branch",
   branchGroup: "BranchGroup",
+};
+
+const createAutoBuiltyExpenses = async ({ payload, builty, trip }) => {
+  const expenses = [];
+
+  const commonData = {
+    driverId: payload.driverId || null,
+    vehicleId: payload.vehicleId || null,
+    vehicleName: payload.vehicleNumber || "",
+    date: new Date(),
+    paymentMode: payload.advanceMode || "",
+    location: "",
+    lat: "",
+    long: "",
+    builtyId: builty._id,
+  };
+
+  if (Number(payload.loadingCharge) > 0) {
+    expenses.push({
+      ...commonData,
+      amount: Number(payload.loadingCharge),
+      expenseType: "Loading Charge",
+      vendor: "",
+      description: "Auto added from builty loadingCharge",
+    });
+  }
+
+  if (Number(payload.loadKataCharge) > 0) {
+    expenses.push({
+      ...commonData,
+      amount: Number(payload.loadKataCharge),
+      expenseType: "Load Kata Charge",
+      vendor: "",
+      description: "Auto added from builty loadKataCharge",
+    });
+  }
+
+  if (expenses.length > 0) {
+    await Vehicleexpense.insertMany(expenses);
+
+    const totalAmount = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    if (trip?._id) {
+      await Trip.findByIdAndUpdate(trip._id, {
+        $inc: { spentAmount: totalAmount },
+      });
+    }
+  }
 };
 
 const applyHierarchy = (req, payload) => {
@@ -182,6 +231,12 @@ exports.createBuilty = async (req, res) => {
         },
       });
     }
+
+      await createAutoBuiltyExpenses({
+      payload,
+      builty,
+      trip: createdTrip,
+    });
 
     if (payload.vendorId) {
       notifyVendor(payload.vendorId, builty).catch(err => {
