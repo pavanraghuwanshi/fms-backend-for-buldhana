@@ -5,6 +5,7 @@ const DailyBuilty = require("../model/dailyBuilty.model");
 const mongoose = require("mongoose");
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 const Trip = require("../model/tripModel");
+const Customer = require("../model/customerModel")
 
 
 const roleModelMap = {
