@@ -567,12 +567,17 @@ exports.getDriverDropdown = async (req, res) => {
       query.supervisor = req.user.id;
     }
 
-    if (search.trim()) {
-      query.$or = [
-        { name: { $regex: search.trim(), $options: "i" } },
-        { contactNumber: { $regex: search.trim(), $options: "i" } },
-      ];
+  if (search.trim()) {
+    query.$or = [
+      { name: { $regex: search.trim(), $options: "i" } }
+    ];
+
+    if (/^\d+$/.test(search.trim())) {
+      query.$or.push({
+        contactNumber: Number(search.trim())
+      });
     }
+  }
 
     const [drivers, total] = await Promise.all([
       Driver.find(query)
