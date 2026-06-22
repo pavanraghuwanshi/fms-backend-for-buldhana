@@ -9,11 +9,7 @@ const getSupervisorData = async (req, allowDriver = false) => {
   if (role === "user") {
     return {
       supervisorId: id,
-      supervisorModel:
-        req.user.supervisorModel ||
-        req.user.supervisorType ||
-        req.user.supervisorRole ||
-        (roleType === "branch" ? "Branch" : roleType === "branchGroup" ? "BranchGroup" : "School"),
+      supervisorModel: (roleType === "branch" ? "Branch" : roleType === "branchGroup" ? "BranchGroup" : "School"),
     };
   }
 
