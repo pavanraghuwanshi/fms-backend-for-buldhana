@@ -226,9 +226,6 @@ exports.createDailyBuilty = async (req, res) => {
       return res.status(400).json({ message: "date is required" });
     }
 
-    if (!payload.docNo) {
-      return res.status(400).json({ message: "docNo is required" });
-    }
 
     if (!payload.vehicleId || !isValidObjectId(payload.vehicleId)) {
       return res.status(400).json({ message: "Valid vehicleId is required" });

@@ -71,6 +71,7 @@ const dailyBuiltySchema = new mongoose.Schema(
     },
 
     startOdometerReading: { type: Number, required: true },
+    endOdometerReading: { type: Number, required: true },
 
     zoneId: {
       type: mongoose.Schema.Types.ObjectId,
