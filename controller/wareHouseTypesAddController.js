@@ -545,16 +545,17 @@ exports.getProductsForDropdown = async (req, res) => {
 
     const filter = {};
 
-    const loggedInUserId = req.user.id || req.user._id || req.user.userId;
-
-    if (req.user.role === "driver") {
-      filter.createdBy = req.user.supervisor;
-    } else if (req.user.role !== "superadmin") {
-      filter.createdBy = loggedInUserId;
+    if (req.user.role === "user") {
+      filter.userId = req.user.id;
+    } else if (req.user.role === "driver") {
+      filter.userId = req.user.supervisor;
     }
 
-    if (search && search.trim()) {
-      filter.name = { $regex: search.trim(), $options: "i" };
+    if (search?.trim()) {
+      filter.name = {
+        $regex: search.trim(),
+        $options: "i",
+      };
     }
 
     const total = await ProductList.countDocuments(filter);

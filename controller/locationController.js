@@ -240,7 +240,7 @@ exports.deleteLocation = async (req, res) => {
 // DROPDOWN
 exports.getLocationDropdown = async (req, res) => {
   try {
-    if (!["superadmin", "user", "worker"].includes(req.user.role)) {
+    if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -250,7 +250,10 @@ exports.getLocationDropdown = async (req, res) => {
 
     if (req.user.role === "user") {
       query.supervisorId = req.user.id;
-    } else if (req.user.role === "worker") {
+    } else if (
+      req.user.role === "worker" ||
+      req.user.role === "driver"
+    ) {
       query.supervisorId = req.user.supervisor;
     } else if (supervisorId) {
       query.supervisorId = supervisorId;

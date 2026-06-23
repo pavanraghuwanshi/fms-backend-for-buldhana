@@ -49,6 +49,7 @@ const workerRoleRoute = require("./workerRoleRoute");
 const dailyBuiltyRoute = require("./dailyBuiltyRoute")
 const zoneRoute = require("./zoneRoute")
 const customerRoute = require("./customerRoute")
+const dailyBuiltyProductRoute = require("./dailyBuiltyProductRoute")
 
 router.use("/worker-role", workerRoleRoute);
 router.use("/drivers", driverRoutes);
@@ -97,6 +98,7 @@ router.use("/customer", customerRoute);
 router.use("/builty-invoice", builtyInvoiceRoute);
 router.use("/location", locationRoute);
 router.use("/vendor", vendorRoute);
+router.use("/daily-builty-product",dailyBuiltyProductRoute)
 router.use("/vendor-logs", vendorLogRoutes);
 
 

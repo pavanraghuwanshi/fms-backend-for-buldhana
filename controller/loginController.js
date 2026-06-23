@@ -38,6 +38,7 @@ const handleDriverLogin = async (req, res) => {
     return res.status(200).json({
       message: "Login successful",
       token,
+      role: "driver"
     });
   } catch (error) {
     console.error(error);
@@ -88,6 +89,7 @@ const handleVendorLogin = async (req, res) => {
     return res.status(200).json({
       message: "Vendor login successful",
       token,
+      role: "vendor",
       vendor,
     });
 

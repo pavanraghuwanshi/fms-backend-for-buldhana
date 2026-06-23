@@ -7,11 +7,127 @@ const { notifyVendor } = require('../services/notificationService');
 
 const Trip = require("../model/tripModel");
 const Location = require("../model/location");
+const Vehicleexpense = require("../model/vehicleExpensesModel");
 
 const roleModelMap = {
   school: "School",
   branch: "Branch",
   branchGroup: "BranchGroup",
+};
+
+const upsertBuiltyExpense = async ({
+  builty,
+  trip,
+  expenseType,
+  amount,
+  description,
+}) => {
+  if (amount === undefined) return;
+
+  const finalAmount = Number(amount || 0);
+
+  const filter = {
+    builtyId: builty._id,
+    expenseType,
+  };
+
+  const oldExpense = await Vehicleexpense.findOne(filter);
+
+  if (finalAmount <= 0) {
+    if (oldExpense) {
+      if (trip?._id) {
+        await Trip.findByIdAndUpdate(trip._id, {
+          $inc: { spentAmount: -Number(oldExpense.amount || 0) },
+        });
+      }
+
+      await Vehicleexpense.deleteOne(filter);
+    }
+
+    return;
+  }
+
+  if (oldExpense) {
+    const diff = finalAmount - Number(oldExpense.amount || 0);
+
+    await Vehicleexpense.findByIdAndUpdate(oldExpense._id, {
+      $set: {
+        amount: finalAmount,
+        description,
+        date: new Date(),
+      },
+    });
+
+    if (trip?._id && diff !== 0) {
+      await Trip.findByIdAndUpdate(trip._id, {
+        $inc: { spentAmount: diff },
+      });
+    }
+
+    return;
+  }
+
+  await Vehicleexpense.create({
+    driverId: builty.driverId || null,
+    vehicleId: builty.vehicleId || null,
+    vehicleName: builty.vehicleNumber || "",
+    amount: finalAmount,
+    expenseType,
+    date: new Date(),
+    vendor: "",
+    description,
+    paymentMode: "Cash",
+    location: "",
+    lat: "",
+    long: "",
+    builtyId: builty._id,
+  });
+
+  if (trip?._id) {
+    await Trip.findByIdAndUpdate(trip._id, {
+      $inc: { spentAmount: finalAmount },
+    });
+  }
+};
+
+const syncBuiltyAutoExpenses = async ({ builty, body, allowedTypes }) => {
+  const trip = await Trip.findOne({ builtyId: builty._id });
+
+  if (allowedTypes.includes("loading")) {
+    await upsertBuiltyExpense({
+      builty,
+      trip,
+      expenseType: "Loading Charge",
+      amount: body.loadingCharge,
+      description: "Auto expense from builty loadingCharge",
+    });
+
+    await upsertBuiltyExpense({
+      builty,
+      trip,
+      expenseType: "Load Kata Charge",
+      amount: body.loadKataCharge,
+      description: "Auto expense from builty loadKataCharge",
+    });
+  }
+
+  if (allowedTypes.includes("unloading")) {
+    await upsertBuiltyExpense({
+      builty,
+      trip,
+      expenseType: "Unloading Charge",
+      amount: body.unLoadingCharge,
+      description: "Auto expense from builty unLoadingCharge",
+    });
+
+    await upsertBuiltyExpense({
+      builty,
+      trip,
+      expenseType: "Unloading Kata Charge",
+      amount: body.unloadingKataCharge,
+      description: "Auto expense from builty unloadingKataCharge",
+    });
+  }
 };
 
 const applyHierarchy = (req, payload) => {
@@ -182,6 +298,12 @@ exports.createBuilty = async (req, res) => {
         },
       });
     }
+
+    await syncBuiltyAutoExpenses({
+      builty,
+      body: payload,
+      allowedTypes: ["loading"],
+    });
 
     if (payload.vendorId) {
       notifyVendor(payload.vendorId, builty).catch(err => {
@@ -751,6 +873,12 @@ exports.dispatchBuilty = async (req, res) => {
 
     await builty.save();
 
+    await syncBuiltyAutoExpenses({
+      builty,
+      body: req.body,
+      allowedTypes: ["loading"],
+    });
+
     return res.status(200).json({
       message: "Builty dispatched successfully",
       builty,
@@ -835,6 +963,11 @@ exports.completeBuilty = async (req, res) => {
     builty.completedAt = new Date();
 
     await builty.save();
+    await syncBuiltyAutoExpenses({
+      builty,
+      body: req.body,
+      allowedTypes: ["unloading"],
+    });
 
     if (builty.vehicleId) {
       await VehicleMaster.findByIdAndUpdate(builty.vehicleId, {
