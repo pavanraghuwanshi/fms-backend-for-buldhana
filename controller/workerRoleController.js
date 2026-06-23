@@ -208,14 +208,19 @@ const PERMISSION_TEMPLATE = {
         rail: { create: false, read: false, update: false, delete: false },
         road: { create: false, read: false, update: false, delete: false }
     },
+    dailyPass:{
+        builty: {create: false, read: false, update: false, delete: false}
+    },
     transportPass: {
         receipt: { create: false, read: false, update: false, delete: false },
-        builty: { create: false, read: false, update: false, delete: false }
+        builty: { create: false, read: false, update: false, delete: false },
+        dailyPassbuilty: { create: false, read: false, update: false, delete: false },
     },
     warehouse: {
         product: { create: false, read: false, update: false, delete: false },
         railHead: { create: false, read: false, update: false, delete: false },
-        inventory: { create: false, read: false, update: false, delete: false }
+        inventory: { create: false, read: false, update: false, delete: false },
+        dailyproduct: { create: false, read: false, update: false, delete: false },
     },
     tickets: {
         raise: { create: false, read: false, update: false, delete: false },

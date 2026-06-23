@@ -52,14 +52,19 @@ const WorkerRoleSchema = new mongoose.Schema({
       rail: createCrudPermissions(),
       road: createCrudPermissions()
     },
+    dailyPass: {
+      builty: createCrudPermissions()
+    },
     transportPass: {
       receipt: createCrudPermissions(),
-      builty: createCrudPermissions()
+      builty: createCrudPermissions(),
+      dailyPassbuilty: createCrudPermissions()
     },
     warehouse: {
       product: createCrudPermissions(),
       railHead: createCrudPermissions(),
-      inventory: createCrudPermissions()
+      inventory: createCrudPermissions(),
+      dailyproduct: createCrudPermissions()
     },
     tickets: {
       raise: createCrudPermissions(),

@@ -44,6 +44,7 @@ const sendWhatsappInvoiceRoute = require("./sendWhatappInvoiceRoute");
 const builtyInvoiceRoute = require("./builtyInvoiceRoute");
 const locationRoute = require("./locationRoutes");
 const vendorRoute = require("./vendorRoutes");
+const vendorLogRoutes = require("./vendorLogRoutes");
 const workerRoleRoute = require("./workerRoleRoute");
 const dailyBuiltyRoute = require("./dailyBuiltyRoute")
 const zoneRoute = require("./zoneRoute")
@@ -96,12 +97,11 @@ router.use("/customer", customerRoute);
 router.use("/builty-invoice", builtyInvoiceRoute);
 router.use("/location", locationRoute);
 router.use("/vendor", vendorRoute);
-
+router.use("/vendor-logs", vendorLogRoutes);
 
 
 
 router.use("/send-whatsapp-invoice", sendWhatsappInvoiceRoute);
-
 
 
 module.exports = router;

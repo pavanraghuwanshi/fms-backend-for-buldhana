@@ -1,4 +1,4 @@
-const VendorLog = require("../models/VendorLog");
+const VendorLog = require("../model/vendorLog");
 const path = require("path");
 const fs = require("fs");
 
