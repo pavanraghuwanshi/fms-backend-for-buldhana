@@ -337,6 +337,12 @@ exports.createDailyBuilty = async (req, res) => {
 
     payload.tpNo = `DTP-${String(counter.seq).padStart(4, "0")}`;
     payload.vehicleNumber = payload.vehicleNumber.toUpperCase();
+
+    payload.laborRate = Number(payload.laborRate || 0);
+    payload.driverRate = Number(payload.driverRate || 0);
+    payload.totalLaborAmount = Number(payload.totalLaborAmount || 0);
+    payload.totalDriverAmount = Number(payload.totalDriverAmount || 0);
+
     payload.createdBy = req.user.id;
     payload.createdByRole = req.user.role;
     payload.status = "Created";
@@ -723,7 +729,13 @@ exports.completeDailyBuilty = async (req, res) => {
       return res.status(400).json({ message: "Invalid daily builty id" });
     }
 
-    const { endOdometerReading } = req.body;
+    const {
+      endOdometerReading,
+      laborRate,
+      driverRate,
+      totalLaborAmount,
+      totalDriverAmount,
+    } = req.body;
 
     if (endOdometerReading === undefined || endOdometerReading === "") {
       return res.status(400).json({ message: "endOdometerReading is required" });
@@ -744,10 +756,24 @@ exports.completeDailyBuilty = async (req, res) => {
     dailyBuilty.endOdometerReading = Number(endOdometerReading);
     dailyBuilty.totalKm = Number(endOdometerReading) - Number(dailyBuilty.startOdometerReading || 0);
 
+    if (laborRate !== undefined) {
+      dailyBuilty.laborRate = Number(laborRate || 0);
+    }
+
+    if (driverRate !== undefined) {
+      dailyBuilty.driverRate = Number(driverRate || 0);
+    }
+
+    if (totalLaborAmount !== undefined) {
+      dailyBuilty.totalLaborAmount = Number(totalLaborAmount || 0);
+    }
+
+    if (totalDriverAmount !== undefined) {
+      dailyBuilty.totalDriverAmount = Number(totalDriverAmount || 0);
+    }
+
     dailyBuilty.status = "Completed";
     await dailyBuilty.save();
-
-    // await releaseDailyBuiltyAssignment(dailyBuilty);
 
     if (dailyBuilty.tripId) {
       await Trip.findByIdAndUpdate(dailyBuilty.tripId, {
