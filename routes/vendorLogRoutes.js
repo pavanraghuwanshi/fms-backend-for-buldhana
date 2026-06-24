@@ -7,6 +7,8 @@ const upload = require("../middleware/upload");
 router.use(authenticateToken);
 
 
+
+
 // routes/vendorLogRoutes.js
 router.post("/", upload.fields([
   { name: "billImgPath", maxCount: 1 },

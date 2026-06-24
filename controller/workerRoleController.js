@@ -208,7 +208,7 @@ const PERMISSION_TEMPLATE = {
         rail: { create: false, read: false, update: false, delete: false },
         road: { create: false, read: false, update: false, delete: false }
     },
-    dailyPass:{
+    dailyPass: {
         builty: {create: false, read: false, update: false, delete: false}
     },
     transportPass: {

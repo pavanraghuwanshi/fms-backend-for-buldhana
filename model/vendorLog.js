@@ -16,7 +16,12 @@ const vendorLogSchema = new mongoose.Schema(
             index: true,
             default: null,
         },
-     
+        tripId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Trip",
+            index: true,
+            default: null,
+        },
         builtyId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Builty",
@@ -57,7 +62,7 @@ const vendorLogSchema = new mongoose.Schema(
 
         status: {
             type: String,
-            enum: ["Pending", "Approved"], 
+            enum: ["Pending", "Approved"],
             default: "Pending",
             index: true,
         },
