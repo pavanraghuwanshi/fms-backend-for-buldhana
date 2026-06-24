@@ -83,7 +83,7 @@ const dailyBuiltySchema = new mongoose.Schema(
       required: true,
     },
 
-    zoneName: { type: String, required: true, trim: true },
+    zoneName: { type: String, trim: true },
 
     customerId: {
       type: mongoose.Schema.Types.ObjectId,

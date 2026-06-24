@@ -281,10 +281,6 @@ exports.createDailyBuilty = async (req, res) => {
       return res.status(400).json({ message: "Valid zoneId is required" });
     }
 
-    if (!payload.zoneName) {
-      return res.status(400).json({ message: "zoneName is required" });
-    }
-
     if (!payload.customerId || !isValidObjectId(payload.customerId)) {
       return res.status(400).json({ message: "Valid customerId is required" });
     }
@@ -466,7 +462,6 @@ exports.getAllDailyBuilty = async (req, res) => {
         { driverName: { $regex: req.query.search, $options: "i" } },
         { pickupLocation: { $regex: req.query.search, $options: "i" } },
         { dropLocation: { $regex: req.query.search, $options: "i" } },
-        { zoneName: { $regex: req.query.search, $options: "i" } },
         { customerName: { $regex: req.query.search, $options: "i" } },
         { "products.productName": { $regex: req.query.search, $options: "i" } },
       ];
