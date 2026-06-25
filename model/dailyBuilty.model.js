@@ -17,7 +17,7 @@ const dailyBuiltySchema = new mongoose.Schema(
 
     date: { type: Date, required: true },
 
-    docNo: { type: String, required: true, trim: true },
+    docNo: { type: String, trim: true },
 
     supervisorId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -49,6 +49,10 @@ const dailyBuiltySchema = new mongoose.Schema(
       ref: "Driver",
       required: true,
     },
+    laborRate: {type:Number},
+    driverRate:  {type:Number},
+    totalLaborAmount:  {type:Number},
+    totalDriverAmount:  {type:Number},
     totalKm: {
       type: Number,
       default: 0,
@@ -79,7 +83,7 @@ const dailyBuiltySchema = new mongoose.Schema(
       required: true,
     },
 
-    zoneName: { type: String, required: true, trim: true },
+    zoneName: { type: String, trim: true },
 
     customerId: {
       type: mongoose.Schema.Types.ObjectId,

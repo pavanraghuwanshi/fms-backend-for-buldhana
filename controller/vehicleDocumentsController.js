@@ -354,7 +354,7 @@ exports.getVehicleExpiryDocuments = async (req, res) => {
         let deviceQuery = {};
         if (userId) deviceQuery.users = userId;
 
-        const vehicles = await Device.find(deviceQuery).select('_id users').lean();
+        const vehicles = await VehicleMaster.find(deviceQuery).select('_id').lean();
         const vehicleIds = vehicles.map(vehicle => vehicle._id);
 
         // Calculate date 30 days from now

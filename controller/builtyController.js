@@ -1021,6 +1021,17 @@ exports.cancelBuilty = async (req, res) => {
 
     await builty.save();
 
+    await builty.save();
+
+    await syncBuiltyAutoExpenses({
+      builty,
+      body: {
+        loadingCharge: 0,
+        loadKataCharge: 0,
+      },
+      allowedTypes: ["loading"],
+    });
+
     const trip = await Trip.findOneAndUpdate(
       {
         builtyId: builty._id,
