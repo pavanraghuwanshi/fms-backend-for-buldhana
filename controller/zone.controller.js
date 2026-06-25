@@ -51,6 +51,12 @@ const buildFilter = (req) => {
     if (req.query.supervisorModel) filter.supervisorModel = req.query.supervisorModel;
   }
 
+    if (role === "driver") {
+    filter.supervisorId = req.user.supervisor;
+    filter.supervisorModel =
+      roleModelMap[roleType] || req.user.supervisorModel;
+  }
+
   return filter;
 };
 
