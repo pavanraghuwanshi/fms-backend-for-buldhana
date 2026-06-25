@@ -1,9 +1,9 @@
 const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
-const VendorLog = require("../model/vendorLog"); 
+const VendorLog = require("../model/vendorLog");
 const Driver = require("../model/driverModel");
-const VehicleMaster = require("../model/maintenanceDevice.model"); 
+const VehicleMaster = require("../model/maintenanceDevice.model");
 
 const UPLOAD_BASE_URL = "/uploads/vendorlogs";
 
@@ -11,14 +11,14 @@ const determineSupervisorId = (user, body) => {
   if (!user) {
     return null;
   }
-  
+
   const { role, id, supervisor, supervisorId: userSupervisorId } = user;
 
   if (role === "superadmin" && body.supervisorId) return body.supervisorId;
   if (role === "worker") return supervisor;
   if (role === "vendor") return userSupervisorId;
-  
-  return id; 
+
+  return id;
 };
 
 const validateForeignKeys = async (driverId, vehicleId, session) => {
@@ -26,7 +26,7 @@ const validateForeignKeys = async (driverId, vehicleId, session) => {
     // FIXED: Throws an error instead of using 'res', which is undefined in this scope
     throw new Error("Vehicle id is required...");
   }
-  
+
   if (driverId) {
     const driverExists = await Driver.findById(driverId).session(session);
     if (!driverExists) throw new Error("The provided driverId does not exist.");
@@ -49,7 +49,7 @@ const processFilePaths = (files, logData) => {
 
   if (files.billImgPath) logData.billImgPath = getSingleFilePath(files.billImgPath);
   if (files.vehicleImgPath) logData.vehicleImgPath = getSingleFilePath(files.vehicleImgPath);
-  
+
   if (files.profileImgPaths) {
     logData.profileImgPaths = files.profileImgPaths.map(
       (file) => `${UPLOAD_BASE_URL}/${file.filename}`
@@ -63,7 +63,7 @@ const rollbackUploadedFiles = (files) => {
 
   if (files.billImgPath && files.billImgPath.length > 0) filesToDelete.push(files.billImgPath.path);
   if (files.vehicleImgPath && files.vehicleImgPath.length > 0) filesToDelete.push(files.vehicleImgPath.path);
-  
+
   if (files.profileImgPaths && files.profileImgPaths.length > 0) {
     files.profileImgPaths.forEach(file => filesToDelete.push(file.path));
   }
@@ -100,7 +100,7 @@ const handleApiError = (error, res) => {
 exports.createLog = async (req, res) => {
   try {
     const finalSupervisorId = determineSupervisorId(req.user, req.body);
-    
+
     if (!req.body.vendorId) {
       req.body.vendorId = req.user.id;
     }
@@ -117,7 +117,7 @@ exports.createLog = async (req, res) => {
     const logData = { ...req.body, supervisorId: finalSupervisorId };
     processFilePaths(req.files, logData);
 
-    const log = await VendorLog.create(logData); 
+    const log = await VendorLog.create(logData);
 
     return res.status(201).json({
       success: true,
@@ -179,7 +179,7 @@ exports.getAllLogs = async (req, res) => {
       total,
       page: pageNumber,
       limit: limitNumber,
-      builtys: logs, 
+      builtys: logs,
     });
 
   } catch (error) {
@@ -218,7 +218,7 @@ exports.deleteLog = async (req, res) => {
 
 exports.updateLogStatus = async (req, res) => {
   try {
-    const logId = req.params.id; 
+    const logId = req.params.id;
     const { status } = req.body;
 
     if (!req.user || req.user.role !== "user") {
@@ -241,6 +241,12 @@ exports.updateLogStatus = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Log not found.",
+      });
+    }
+    if (log.status === "Approved") {
+      return res.status(400).json({
+        success: false,
+        message: "This log is already approved and cannot be updated.",
       });
     }
 

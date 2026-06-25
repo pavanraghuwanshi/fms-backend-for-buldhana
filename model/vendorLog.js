@@ -60,6 +60,10 @@ const vendorLogSchema = new mongoose.Schema(
             default: null,
         },
 
+        amount:{
+         type: Number, default: 0 
+        },
+
         status: {
             type: String,
             enum: ["Pending", "Approved"],
