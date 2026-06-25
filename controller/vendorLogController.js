@@ -132,7 +132,6 @@ exports.createLog = async (req, res) => {
 };
 
 
-
 exports.getAllLogs = async (req, res) => {
   try {
     const { page = 1, limit = 20, status, search } = req.query;
@@ -190,18 +189,105 @@ exports.getAllLogs = async (req, res) => {
     });
   }
 };
-// Update
+
 exports.updateLog = async (req, res) => {
   try {
-    const log = await VendorLog.findOneAndUpdate(
-      { _id: req.params.id, supervisorId: req.user.id },
-      req.body,
-      { new: true, runValidators: true }
-    );
-    if (!log) return res.status(404).json({ message: "Log not found" });
-    res.status(200).json({ success: true, data: log });
+    const logId = req.params.id;
+
+    // 1. Fetch the existing log
+    const existingLog = await VendorLog.findById(logId);
+
+    if (!existingLog) {
+      return res.status(404).json({
+        success: false,
+        message: "Log not found.",
+      });
+    }
+
+    // 2. Prevent updates if the log is already Approved
+    if (existingLog.status === "Approved") {
+      // If new files were uploaded but we are rejecting the update, delete the incoming files
+      rollbackUploadedFiles(req.files);
+      return res.status(400).json({
+        success: false,
+        message: "This log is already approved and cannot be updated.",
+      });
+    }
+
+    // 3. Authorization Check
+    // Allow update if user is the superadmin, the supervisor of this log, or the vendor of this log
+    const userId = req.user.id.toString();
+    const isSupervisor = existingLog.supervisorId?.toString() === userId;
+    const isVendor = existingLog.vendorId?.toString() === userId;
+    const isSuperAdmin = req.user.role === "superadmin";
+
+    if (!isSupervisor && !isVendor && !isSuperAdmin) {
+      rollbackUploadedFiles(req.files);
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized: You do not have permission to update this log.",
+      });
+    }
+
+    // 4. Sanitize incoming foreign keys
+    if (req.body.driverId === "null" || req.body.driverId === "undefined" || req.body.driverId === "") {
+      req.body.driverId = null;
+    }
+    if (req.body.vehicleId === "null" || req.body.vehicleId === "undefined" || req.body.vehicleId === "") {
+      req.body.vehicleId = null;
+    }
+
+    // 5. Validate foreign keys (only if they are being updated)
+    if (req.body.driverId !== undefined || req.body.vehicleId !== undefined) {
+      await validateForeignKeys(
+        req.body.driverId !== undefined ? req.body.driverId : existingLog.driverId,
+        req.body.vehicleId !== undefined ? req.body.vehicleId : existingLog.vehicleId,
+        null
+      );
+    }
+
+    // 6. Handle File Updates
+    const updateData = { ...req.body };
+    const oldFilesToDelete = [];
+
+    if (req.files && Object.keys(req.files).length > 0) {
+      processFilePaths(req.files, updateData);
+
+      // Queue old files for deletion to save disk space
+      if (req.files.billImgPath && existingLog.billImgPath) {
+        oldFilesToDelete.push(path.join(__dirname, "..", existingLog.billImgPath));
+      }
+      if (req.files.vehicleImgPath && existingLog.vehicleImgPath) {
+        oldFilesToDelete.push(path.join(__dirname, "..", existingLog.vehicleImgPath));
+      }
+      if (req.files.profileImgPaths && existingLog.profileImgPaths?.length > 0) {
+        existingLog.profileImgPaths.forEach(oldPath => {
+           oldFilesToDelete.push(path.join(__dirname, "..", oldPath));
+        });
+      }
+    }
+
+    // 7. Update the document
+    Object.assign(existingLog, updateData);
+    const updatedLog = await existingLog.save();
+
+    // 8. Delete old replaced files from the file system
+    oldFilesToDelete.forEach((filePath) => {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Log updated successfully.",
+      data: updatedLog,
+    });
+
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    // If anything fails, delete the new files that were just uploaded
+    rollbackUploadedFiles(req.files);
+    return handleApiError(error, res);
   }
 };
 
@@ -267,6 +353,98 @@ exports.updateLogStatus = async (req, res) => {
     });
 
   } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+
+const getReplacedFilePaths = (updateData, existingLog) => {
+  const oldFilesToDelete = [];
+
+  const queueForDeletion = (oldPath) => {
+    if (oldPath) {
+      oldFilesToDelete.push(path.join(__dirname, "..", oldPath));
+    }
+  };
+
+  if (updateData.billImgPath) queueForDeletion(existingLog.billImgPath);
+  if (updateData.vehicleImgPath) queueForDeletion(existingLog.vehicleImgPath);
+  
+  if (updateData.profileImgPaths && updateData.profileImgPaths.length > 0) {
+    existingLog.profileImgPaths?.forEach(queueForDeletion);
+  }
+
+  return oldFilesToDelete;
+};
+
+const deleteFilesSilently = (filePaths) => {
+  if (!filePaths || filePaths.length === 0) return;
+  
+  filePaths.forEach((filePath) => {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  });
+};
+
+exports.patchVendorLog = async (req, res) => {
+  try {
+    const logId = req.params.id;
+    const { builtyId, description, amount } = req.body;
+
+    if (!builtyId) {
+      rollbackUploadedFiles(req.files);
+      return res.status(400).json({ success: false, message: "builtyId is required." });
+    }
+
+    const existingLog = await VendorLog.findById(logId);
+    if (!existingLog) {
+      rollbackUploadedFiles(req.files);
+      return res.status(404).json({ success: false, message: "Log not found." });
+    }
+
+    // 3. Authorization & Relationship Checks
+    const isBuiltyMatch = existingLog.builtyId?.toString() === builtyId;
+    const isVendorMatch = existingLog.vendorId?.toString() === req.user.id.toString();
+
+    if (!isBuiltyMatch) {
+      rollbackUploadedFiles(req.files);
+      return res.status(400).json({ success: false, message: "Builty ID mismatch." });
+    }
+
+    if (!isVendorMatch) {
+      rollbackUploadedFiles(req.files);
+      return res.status(403).json({ success: false, message: "Unauthorized vendor." });
+    }
+
+    if (existingLog.status === "Approved") {
+      rollbackUploadedFiles(req.files);
+      return res.status(400).json({ success: false, message: "Approved logs cannot be updated." });
+    }
+
+    const updateData = {};
+    if (description !== undefined) updateData.description = description;
+    if (amount !== undefined && amount !== "") updateData.amount = Number(amount);
+
+    let oldFilesToDelete = [];
+    if (req.files && Object.keys(req.files).length > 0) {
+      processFilePaths(req.files, updateData);
+      oldFilesToDelete = getReplacedFilePaths(updateData, existingLog);
+    }
+
+    Object.assign(existingLog, updateData);
+    const updatedLog = await existingLog.save();
+
+    deleteFilesSilently(oldFilesToDelete);
+
+    return res.status(200).json({
+      success: true,
+      message: "Log updated successfully.",
+      data: updatedLog,
+    });
+
+  } catch (error) {
+    rollbackUploadedFiles(req.files);
     return handleApiError(error, res);
   }
 };

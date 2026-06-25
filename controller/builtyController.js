@@ -8,6 +8,7 @@ const { notifyVendor } = require('../services/notificationService');
 const Trip = require("../model/tripModel");
 const Location = require("../model/location");
 const Vehicleexpense = require("../model/vehicleExpensesModel");
+const VendorLog = require("../model/vendorLog");
 
 const roleModelMap = {
   school: "School",
@@ -65,6 +66,8 @@ const upsertBuiltyExpense = async ({
     }
 
     return;
+
+
   }
 
   await Vehicleexpense.create({
@@ -243,7 +246,7 @@ exports.createBuilty = async (req, res) => {
       {
         supervisorId: payload.supervisorId,
         supervisorModel: payload.supervisorModel,
-        builtyType:"regular"
+        builtyType: "regular"
       },
       { $inc: { seq: 1 } },
       { new: true, upsert: true }
@@ -306,11 +309,21 @@ exports.createBuilty = async (req, res) => {
     });
 
     if (payload.vendorId) {
+      await handleVendorAssignment({
+        vendorId: payload.vendorId,
+        builty,
+        createdTrip,
+        vehicleId: payload.vehicleId,
+        driverId: payload.driverId,
+        supervisorId: payload.supervisorId,
+        description: payload.description,
+      });
+
       notifyVendor(payload.vendorId, builty).catch(err => {
         console.error("Async notification background error:", err);
       });
     }
-    
+
     if (payload.vehicleId) {
       await VehicleMaster.findByIdAndUpdate(payload.vehicleId, {
         isAssigned: true,
@@ -337,7 +350,6 @@ exports.createBuilty = async (req, res) => {
     });
   }
 };
-
 
 exports.updateBuilty = async (req, res) => {
   try {
@@ -717,7 +729,6 @@ exports.updateBuilty = async (req, res) => {
   }
 };
 
-
 exports.dispatchBuilty = async (req, res) => {
   try {
     if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
@@ -851,7 +862,7 @@ exports.dispatchBuilty = async (req, res) => {
 
     builty.status = "Dispatched";
 
-        if (builty.driverId && builty.vehicleId) {
+    if (builty.driverId && builty.vehicleId) {
       await Trip.findOneAndUpdate(
         {
           driverId: builty.driverId,
@@ -957,7 +968,7 @@ exports.completeBuilty = async (req, res) => {
     builty.isLessDelivered = isLessDelivered;
     builty.endOdometerReading = endOdometerReading
     builty.unLoadingCharge = unLoadingCharge,
-    builty.unLoadKataCharge = unLoadKataCharge
+      builty.unLoadKataCharge = unLoadKataCharge
 
     builty.status = "Completed";
     builty.completedAt = new Date();
@@ -997,7 +1008,7 @@ exports.completeBuilty = async (req, res) => {
 
 exports.cancelBuilty = async (req, res) => {
   try {
-    if (!["superadmin", "user", "worker","driver"].includes(req.user.role)) {
+    if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -1208,5 +1219,35 @@ exports.getBuiltyById = async (req, res) => {
       message: "Error fetching builty",
       error: error.message,
     });
+  }
+};
+
+
+const handleVendorAssignment = async ({
+  vendorId,
+  builty,
+  createdTrip,
+  vehicleId,
+  driverId,
+  supervisorId,
+  description,
+}) => {
+  notifyVendor(vendorId, builty).catch(err => {
+    console.error("Async notification background error:", err);
+  });
+
+  try {
+    await VendorLog.create({
+      vendorId,
+      builtyId: builty._id,
+      tripId: createdTrip ? createdTrip._id : null,
+      vehicleId: vehicleId || null,
+      driverId: driverId || null,
+      supervisorId,
+      description: description || "",
+      createdBy: "supervisor"
+    });
+  } catch (err) {
+    console.error("Error creating vendor log entry:", err);
   }
 };

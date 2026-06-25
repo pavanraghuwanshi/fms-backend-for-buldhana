@@ -60,8 +60,8 @@ const vendorLogSchema = new mongoose.Schema(
             default: null,
         },
 
-        amount:{
-         type: Number, default: 0 
+        amount: {
+            type: Number, default: 0
         },
 
         status: {
@@ -77,6 +77,11 @@ const vendorLogSchema = new mongoose.Schema(
             required: true,
             index: true,
         },
+        createdBy: {
+            type: String,
+            enum: ["supervisor", "vendor"],
+            default: "vendor",
+        }
     },
     { timestamps: true }
 );

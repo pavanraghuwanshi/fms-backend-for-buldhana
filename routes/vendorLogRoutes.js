@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const {createLog, deleteLog,updateLog,  getAllLogs, updateLogStatus} = require("../controller/vendorLogController");
+const {createLog, deleteLog,updateLog,  getAllLogs, updateLogStatus, patchVendorLog} = require("../controller/vendorLogController");
 
 const { authenticateToken } = require("../middleware/authMiddleware");
 const upload = require("../middleware/upload");
@@ -14,7 +14,8 @@ router.post("/", upload.fields([
   { name: "profileImgPaths", maxCount: 5 }
 ]), createLog);
 router.get("/", getAllLogs);
-//router.get("/:id", getLogById);
+router.patch("/update/log/:id", patchVendorLog);
+
 router.put("/:id", updateLog);
 router.delete("/:id", deleteLog);
 router.patch('/logs/status/:id', updateLogStatus);
