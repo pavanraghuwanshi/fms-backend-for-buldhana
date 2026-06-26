@@ -63,7 +63,7 @@ const vendorLogSchema = new mongoose.Schema(
 
         status: {
             type: String,
-            enum: ["Pending", "Approved"],
+            enum: ["Pending","Rejected", "Approved"],
             default: "Pending",
             index: true,
         },
@@ -78,6 +78,10 @@ const vendorLogSchema = new mongoose.Schema(
             type: String,
             enum: ["supervisor", "vendor"],
             default: "vendor",
+        },
+        vendorAction:{
+            type: String,
+            enum: ["Completed", "Pending"],
         }
     },
     { timestamps: true }
