@@ -1,20 +1,24 @@
 const express = require("express");
 const router = express.Router();
-const {createLog, deleteLog,updateLog,  getAllLogs, updateLogStatus, patchVendorLog} = require("../controller/vendorLogController");
+const {createLog, deleteLog,updateLog,  getAllLogs, updateLogStatus, patchVendorLog, getLogsByVendorId,} = require("../controller/vendorLogController");
 
 const { authenticateToken } = require("../middleware/authMiddleware");
-const upload = require("../middleware/upload");
+const createUploader = require("../middleware/uploadDiskImg");
+const uploadVendorLogs = createUploader("vendorlogs");
 router.use(authenticateToken);
 
-
-// routes/vendorLogRoutes.js
-router.post("/", upload.fields([
+router.post("/", uploadVendorLogs.fields([
   { name: "billImgPath", maxCount: 1 },
   { name: "vehicleImgPath", maxCount: 1 },
   { name: "profileImgPaths", maxCount: 5 }
 ]), createLog);
 router.get("/", getAllLogs);
-router.patch("/update/log/:id", patchVendorLog);
+router.patch("/update/log/:id", uploadVendorLogs.fields([
+  { name: "billImgPath", maxCount: 1 },
+  { name: "vehicleImgPath", maxCount: 1 },
+  { name: "profileImgPaths", maxCount: 5 }
+]), patchVendorLog);
+router.get("/vendor/:vendorId", getLogsByVendorId);
 
 router.put("/:id", updateLog);
 router.delete("/:id", deleteLog);

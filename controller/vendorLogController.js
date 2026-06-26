@@ -8,10 +8,7 @@ const VehicleMaster = require("../model/maintenanceDevice.model");
 const UPLOAD_BASE_URL = "/uploads/vendorlogs";
 
 const determineSupervisorId = (user, body) => {
-  if (!user) {
-    return null;
-  }
-
+  if (!user) return null;
   const { role, id, supervisor, supervisorId: userSupervisorId } = user;
 
   if (role === "superadmin" && body.supervisorId) return body.supervisorId;
@@ -22,10 +19,7 @@ const determineSupervisorId = (user, body) => {
 };
 
 const validateForeignKeys = async (driverId, vehicleId, session) => {
-  if (!vehicleId) {
-    // FIXED: Throws an error instead of using 'res', which is undefined in this scope
-    throw new Error("Vehicle id is required...");
-  }
+  if (!vehicleId) throw new Error("Vehicle id is required...");
 
   if (driverId) {
     const driverExists = await Driver.findById(driverId).session(session);
@@ -39,17 +33,25 @@ const validateForeignKeys = async (driverId, vehicleId, session) => {
 };
 
 const processFilePaths = (files, logData) => {
-  if (!files) {
-    return;
+  if (!files) return;
+
+  // 1. Bill Image
+  if (files.billImgPath) {
+    const [firstBillFile] = files.billImgPath; 
+    if (firstBillFile && firstBillFile.filename) {
+      logData.billImgPath = `${UPLOAD_BASE_URL}/${firstBillFile.filename}`;
+    }
   }
 
-  const getSingleFilePath = (fileArray) => {
-    return fileArray && fileArray.length > 0 ? `${UPLOAD_BASE_URL}/${fileArray.filename}` : null;
-  };
+  // 2. Vehicle Image
+  if (files.vehicleImgPath) {
+    const [firstVehicleFile] = files.vehicleImgPath;
+    if (firstVehicleFile && firstVehicleFile.filename) {
+      logData.vehicleImgPath = `${UPLOAD_BASE_URL}/${firstVehicleFile.filename}`;
+    }
+  }
 
-  if (files.billImgPath) logData.billImgPath = getSingleFilePath(files.billImgPath);
-  if (files.vehicleImgPath) logData.vehicleImgPath = getSingleFilePath(files.vehicleImgPath);
-
+  // 3. Profile Images
   if (files.profileImgPaths) {
     logData.profileImgPaths = files.profileImgPaths.map(
       (file) => `${UPLOAD_BASE_URL}/${file.filename}`
@@ -57,18 +59,40 @@ const processFilePaths = (files, logData) => {
   }
 };
 
+const getReplacedFilePaths = (updateData, existingLog) => {
+  const oldFilesToDelete = [];
+  const queueForDeletion = (oldPath) => {
+    if (oldPath) oldFilesToDelete.push(path.join(__dirname, "..", oldPath));
+  };
+
+  if (updateData.billImgPath) queueForDeletion(existingLog.billImgPath);
+  if (updateData.vehicleImgPath) queueForDeletion(existingLog.vehicleImgPath);
+  
+  if (updateData.profileImgPaths && updateData.profileImgPaths.length > 0) {
+    existingLog.profileImgPaths?.forEach(queueForDeletion);
+  }
+
+  return oldFilesToDelete;
+};
+
 const rollbackUploadedFiles = (files) => {
   if (!files) return;
   const filesToDelete = [];
 
-  if (files.billImgPath && files.billImgPath.length > 0) filesToDelete.push(files.billImgPath.path);
-  if (files.vehicleImgPath && files.vehicleImgPath.length > 0) filesToDelete.push(files.vehicleImgPath.path);
-
-  if (files.profileImgPaths && files.profileImgPaths.length > 0) {
-    files.profileImgPaths.forEach(file => filesToDelete.push(file.path));
-  }
+  if (files.billImgPath) files.billImgPath.forEach(file => filesToDelete.push(file.path));
+  if (files.vehicleImgPath) files.vehicleImgPath.forEach(file => filesToDelete.push(file.path));
+  if (files.profileImgPaths) files.profileImgPaths.forEach(file => filesToDelete.push(file.path));
 
   filesToDelete.forEach((filePath) => {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  });
+};
+
+const deleteFilesSilently = (filePaths) => {
+  if (!filePaths || filePaths.length === 0) return;
+  filePaths.forEach((filePath) => {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
@@ -93,24 +117,14 @@ const handleApiError = (error, res) => {
   });
 };
 
-// ==========================================
-// 2. MAIN CONTROLLER
-// ==========================================
-
+// MAIN CONTROLLERS
 exports.createLog = async (req, res) => {
   try {
     const finalSupervisorId = determineSupervisorId(req.user, req.body);
 
-    if (!req.body.vendorId) {
-      req.body.vendorId = req.user.id;
-    }
-
-    if (req.body.driverId === "null" || req.body.driverId === "undefined" || req.body.driverId === "") {
-      req.body.driverId = null;
-    }
-    if (req.body.vehicleId === "null" || req.body.vehicleId === "undefined" || req.body.vehicleId === "") {
-      req.body.vehicleId = null;
-    }
+    if (!req.body.vendorId) req.body.vendorId = req.user.id;
+    if (req.body.driverId === "null" || req.body.driverId === "undefined" || req.body.driverId === "") req.body.driverId = null;
+    if (req.body.vehicleId === "null" || req.body.vehicleId === "undefined" || req.body.vehicleId === "") req.body.vehicleId = null;
 
     await validateForeignKeys(req.body.driverId, req.body.vehicleId, null);
 
@@ -131,36 +145,86 @@ exports.createLog = async (req, res) => {
   }
 };
 
+// --- HELPER: BUILD QUERY FOR GET ALL LOGS ---
+
+
+exports.patchVendorLog = async (req, res) => {
+  try {
+    const logId = req.params.id;
+    const { builtyId, description, amount } = req.body;
+
+    if (!builtyId) {
+      rollbackUploadedFiles(req.files);
+      return res.status(400).json({ success: false, message: "builtyId is required." });
+    }
+
+    const existingLog = await VendorLog.findById(logId);
+    if (!existingLog) {
+      rollbackUploadedFiles(req.files);
+      return res.status(404).json({ success: false, message: "Log not found." });
+    }
+
+    const isBuiltyMatch = existingLog.builtyId?.toString() === builtyId;
+    const isVendorMatch = existingLog.vendorId?.toString() === req.user.id.toString();
+
+    if (!isBuiltyMatch) {
+      rollbackUploadedFiles(req.files);
+      return res.status(400).json({ success: false, message: "Builty ID mismatch." });
+    }
+
+    if (!isVendorMatch) {
+      rollbackUploadedFiles(req.files);
+      return res.status(403).json({ success: false, message: "Unauthorized vendor." });
+    }
+
+    if (existingLog.status === "Approved") {
+      rollbackUploadedFiles(req.files);
+      return res.status(400).json({ success: false, message: "Approved logs cannot be updated." });
+    }
+
+    const updateData = {};
+    if (description !== undefined) updateData.description = description;
+    if (amount !== undefined && amount !== "") updateData.amount = Number(amount);
+
+    let oldFilesToDelete = [];
+    if (req.files && Object.keys(req.files).length > 0) {
+      processFilePaths(req.files, updateData);
+      oldFilesToDelete = getReplacedFilePaths(updateData, existingLog);
+    }
+
+    Object.assign(existingLog, updateData);
+    const updatedLog = await existingLog.save();
+
+    deleteFilesSilently(oldFilesToDelete);
+
+    return res.status(200).json({
+      success: true,
+      message: "Log updated successfully.",
+      data: updatedLog,
+    });
+
+  } catch (error) {
+    rollbackUploadedFiles(req.files);
+    return handleApiError(error, res);
+  }
+};
+
 
 exports.getAllLogs = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, search } = req.query;
-    let query = {};
 
-    if (req.user.role === "user") {
-      query.supervisorId = req.user.id;
-    } else if (req.user.role === "vendor") {
-      query.vendorId = req.user.id;
-    } else {
+    if (!["user", "vendor"].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: "Access denied. You do not have permission to view these logs.",
       });
     }
 
-    if (status) {
-      query.status = status;
-    }
-
-    if (search) {
-      query.$or = [
-        { description: { $regex: search, $options: "i" } }
-      ];
-    }
-
+    const { page = 1, limit = 20 } = req.query;
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
+    const query = buildGetAllQuery(req.query, req.user);
 
     const [logs, total] = await Promise.all([
       VendorLog.find(query)
@@ -174,11 +238,12 @@ exports.getAllLogs = async (req, res) => {
     ]);
 
     return res.status(200).json({
+      success: true,
       message: "Logs fetched successfully",
       total,
       page: pageNumber,
       limit: limitNumber,
-      builtys: logs,
+      builtys: logs, 
     });
 
   } catch (error) {
@@ -190,6 +255,61 @@ exports.getAllLogs = async (req, res) => {
   }
 };
 
+exports.getLogsByVendorId = async (req, res) => {
+  try {
+    // 1. Basic role check
+    if (!["user", "vendor"].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. You do not have permission to view these logs.",
+      });
+    }
+
+    const { vendorId } = req.params; 
+    const { page = 1, limit = 20 } = req.query;
+
+
+    if (req.user.role === "vendor" && req.user.id.toString() !== vendorId) {
+      return res.status(403).json({ 
+        success: false, 
+        message: "Security Error: You can only view your own logs." 
+      });
+    }
+
+    req.query.vendorId = vendorId;
+
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+    const skipIndex = (pageNumber - 1) * limitNumber;
+    const query = buildGetAllQuery(req.query, req.user);
+    const [logs, total] = await Promise.all([
+      VendorLog.find(query)
+        .populate("driverId", "name")
+        .populate("vehicleId", "vehicleNumber make")
+        .sort({ createdAt: -1 })
+        .skip(skipIndex)
+        .limit(limitNumber)
+        .lean(),
+      VendorLog.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Vendor specific logs fetched successfully",
+      total,
+      page: pageNumber,
+      limit: limitNumber,
+      builtys: logs, 
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching the vendor logs.",
+      error: error.message,
+    });
+  }
+};
 exports.updateLog = async (req, res) => {
   try {
     const logId = req.params.id;
@@ -358,93 +478,41 @@ exports.updateLogStatus = async (req, res) => {
 };
 
 
-const getReplacedFilePaths = (updateData, existingLog) => {
-  const oldFilesToDelete = [];
 
-  const queueForDeletion = (oldPath) => {
-    if (oldPath) {
-      oldFilesToDelete.push(path.join(__dirname, "..", oldPath));
-    }
-  };
+const buildGetAllQuery = (queryParams, user) => {
+  const { status, search, fromDate, toDate, vendorId } = queryParams;
+  let query = {};
 
-  if (updateData.billImgPath) queueForDeletion(existingLog.billImgPath);
-  if (updateData.vehicleImgPath) queueForDeletion(existingLog.vehicleImgPath);
-  
-  if (updateData.profileImgPaths && updateData.profileImgPaths.length > 0) {
-    existingLog.profileImgPaths?.forEach(queueForDeletion);
+  // 1. Role-Based Scoping & Vendor Filtering
+  if (user.role === "user") {
+    query.supervisorId = user.id;
+    // Supervisors can optionally filter by a specific vendorId
+    if (vendorId) query.vendorId = vendorId; 
+  } else if (user.role === "vendor") {
+    // Vendors are strictly locked to their own ID (ignores any query passed)
+    query.vendorId = user.id;
   }
 
-  return oldFilesToDelete;
-};
+  // 2. Status Filter
+  if (status) query.status = status;
 
-const deleteFilesSilently = (filePaths) => {
-  if (!filePaths || filePaths.length === 0) return;
-  
-  filePaths.forEach((filePath) => {
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-  });
-};
-
-exports.patchVendorLog = async (req, res) => {
-  try {
-    const logId = req.params.id;
-    const { builtyId, description, amount } = req.body;
-
-    if (!builtyId) {
-      rollbackUploadedFiles(req.files);
-      return res.status(400).json({ success: false, message: "builtyId is required." });
-    }
-
-    const existingLog = await VendorLog.findById(logId);
-    if (!existingLog) {
-      rollbackUploadedFiles(req.files);
-      return res.status(404).json({ success: false, message: "Log not found." });
-    }
-
-    // 3. Authorization & Relationship Checks
-    const isBuiltyMatch = existingLog.builtyId?.toString() === builtyId;
-    const isVendorMatch = existingLog.vendorId?.toString() === req.user.id.toString();
-
-    if (!isBuiltyMatch) {
-      rollbackUploadedFiles(req.files);
-      return res.status(400).json({ success: false, message: "Builty ID mismatch." });
-    }
-
-    if (!isVendorMatch) {
-      rollbackUploadedFiles(req.files);
-      return res.status(403).json({ success: false, message: "Unauthorized vendor." });
-    }
-
-    if (existingLog.status === "Approved") {
-      rollbackUploadedFiles(req.files);
-      return res.status(400).json({ success: false, message: "Approved logs cannot be updated." });
-    }
-
-    const updateData = {};
-    if (description !== undefined) updateData.description = description;
-    if (amount !== undefined && amount !== "") updateData.amount = Number(amount);
-
-    let oldFilesToDelete = [];
-    if (req.files && Object.keys(req.files).length > 0) {
-      processFilePaths(req.files, updateData);
-      oldFilesToDelete = getReplacedFilePaths(updateData, existingLog);
-    }
-
-    Object.assign(existingLog, updateData);
-    const updatedLog = await existingLog.save();
-
-    deleteFilesSilently(oldFilesToDelete);
-
-    return res.status(200).json({
-      success: true,
-      message: "Log updated successfully.",
-      data: updatedLog,
-    });
-
-  } catch (error) {
-    rollbackUploadedFiles(req.files);
-    return handleApiError(error, res);
+  // 3. Search Filter (Description)
+  if (search) {
+    query.$or = [{ description: { $regex: search, $options: "i" } }];
   }
+
+  // 4. Date Range Filter
+  if (fromDate || toDate) {
+    query.createdAt = {};
+    if (fromDate) query.createdAt.$gte = new Date(fromDate);
+    
+    if (toDate) {
+      // Set the toDate to 23:59:59.999 to cover the entire end day
+      const endDate = new Date(toDate);
+      endDate.setUTCHours(23, 59, 59, 999);
+      query.createdAt.$lte = endDate;
+    }
+  }
+
+  return query;
 };

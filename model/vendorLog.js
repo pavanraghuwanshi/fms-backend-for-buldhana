@@ -25,10 +25,7 @@ const vendorLogSchema = new mongoose.Schema(
         builtyId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Builty",
-            index: {
-                unique: true,
-                partialFilterExpression: { builtyId: { $type: "objectId" } }
-            },
+
             default: null,
         },
         vendorId: {
@@ -86,8 +83,7 @@ const vendorLogSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-// Composite index to speed up lookups involving multiple filters
-vendorLogSchema.index({ supervisorId: 1, builtyId: 1, driverId: 1 });
+
 
 const VendorLog = maintenanceDB.model("VendorLog", vendorLogSchema);
 module.exports = VendorLog;
