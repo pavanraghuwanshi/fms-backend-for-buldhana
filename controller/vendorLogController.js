@@ -490,7 +490,16 @@ exports.updateLogStatus = async (req, res) => {
 };
 
 const buildGetAllQuery = (queryParams, user) => {
-  const { status, search, fromDate, toDate, vendorId, createdBy = "vendor" } = queryParams;
+  const { 
+    status, 
+    search, 
+    fromDate, 
+    toDate, 
+    vendorId, 
+    createdBy = "vendor", 
+    vendorAction 
+  } = queryParams;
+  
   let query = {};
 
   if (user.role === "user") {
@@ -500,7 +509,13 @@ const buildGetAllQuery = (queryParams, user) => {
     query.vendorId = user.id;
   }
 
-  if (status) query.status = status;
+  if (status && ["Pending", "Rejected", "Approved"].includes(status)) {
+    query.status = status;
+  }
+
+  if (vendorAction && ["Completed", "Pending"].includes(vendorAction)) {
+    query.vendorAction = vendorAction;
+  }
 
   if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
     query.createdBy = createdBy;
@@ -509,6 +524,7 @@ const buildGetAllQuery = (queryParams, user) => {
   if (search) {
     query.$or = [{ description: { $regex: search, $options: "i" } }];
   }
+  
   if (fromDate || toDate) {
     query.createdAt = {};
 
@@ -530,9 +546,9 @@ const buildGetAllQuery = (queryParams, user) => {
       delete query.createdAt;
     }
   }
+  
   return query;
 };
-
 exports.getSupervisorCreatedLogs = async (req, res) => {
   try {
     // 1. Role Check (Now allows both supervisors/'user' and 'vendors')
