@@ -259,6 +259,8 @@ exports.getAllLogs = async (req, res) => {
       total,
       page: pageNumber,
       limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+      count: logs.length,
       builtys: logs,
     });
 
@@ -321,6 +323,8 @@ exports.getLogsByVendorId = async (req, res) => {
       total,
       page: pageNumber,
       limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+      count: logs.length,
       builtys: logs,
     });
 
@@ -490,16 +494,16 @@ exports.updateLogStatus = async (req, res) => {
 };
 
 const buildGetAllQuery = (queryParams, user) => {
-  const { 
-    status, 
-    search, 
-    fromDate, 
-    toDate, 
-    vendorId, 
-    createdBy = "vendor", 
-    vendorAction 
+  const {
+    status,
+    search,
+    fromDate,
+    toDate,
+    vendorId,
+    createdBy = "vendor",
+    vendorAction
   } = queryParams;
-  
+
   let query = {};
 
   if (user.role === "user") {
@@ -524,7 +528,7 @@ const buildGetAllQuery = (queryParams, user) => {
   if (search) {
     query.$or = [{ description: { $regex: search, $options: "i" } }];
   }
-  
+
   if (fromDate || toDate) {
     query.createdAt = {};
 
@@ -546,7 +550,7 @@ const buildGetAllQuery = (queryParams, user) => {
       delete query.createdAt;
     }
   }
-  
+
   return query;
 };
 exports.getSupervisorCreatedLogs = async (req, res) => {
@@ -599,6 +603,8 @@ exports.getSupervisorCreatedLogs = async (req, res) => {
       total,
       page: pageNumber,
       limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+      count: logs.length,
       builtys: logs,
     });
 
@@ -611,7 +617,7 @@ exports.getSupervisorCreatedLogs = async (req, res) => {
   }
 };
 
-exports.getLogsByVendorId = async (req, res) => {
+exports.getLogsByVendorIdCreatedBySup = async (req, res) => {
   try {
     // 1. Basic role check
     if (!["user", "vendor"].includes(req.user.role)) {
@@ -679,6 +685,8 @@ exports.getLogsByVendorId = async (req, res) => {
       total,
       page: pageNumber,
       limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+      count: logs.length,
       builtys: logs,
     });
 
