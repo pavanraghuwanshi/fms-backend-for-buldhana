@@ -18,6 +18,7 @@ const determineSupervisorId = (user, body) => {
   return id;
 };
 
+
 const validateForeignKeys = async (driverId, vehicleId, session) => {
   if (!vehicleId) throw new Error("Vehicle id is required...");
 
@@ -212,7 +213,6 @@ exports.patchVendorLog = async (req, res) => {
 
 exports.getAllLogs = async (req, res) => {
   try {
-
     if (!["user", "vendor"].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
@@ -220,16 +220,22 @@ exports.getAllLogs = async (req, res) => {
       });
     }
 
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, createdBy } = req.query; 
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
+    
     const query = buildGetAllQuery(req.query, req.user);
+
+    if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
+      query.createdBy = createdBy;
+    }
 
     const [logs, total] = await Promise.all([
       VendorLog.find(query)
         .populate("driverId", "name")
         .populate("vehicleId", "vehicleNumber make")
+        .populate("vendorId", "vendorName") 
         .sort({ createdAt: -1 })
         .skip(skipIndex)
         .limit(limitNumber)
@@ -257,7 +263,6 @@ exports.getAllLogs = async (req, res) => {
 
 exports.getLogsByVendorId = async (req, res) => {
   try {
-    // 1. Basic role check
     if (!["user", "vendor"].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
@@ -266,7 +271,7 @@ exports.getLogsByVendorId = async (req, res) => {
     }
 
     const { vendorId } = req.params; 
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, createdBy } = req.query;
 
 
     if (req.user.role === "vendor" && req.user.id.toString() !== vendorId) {
@@ -281,11 +286,18 @@ exports.getLogsByVendorId = async (req, res) => {
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
+    
     const query = buildGetAllQuery(req.query, req.user);
+
+    if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
+      query.createdBy = createdBy;
+    }
+
     const [logs, total] = await Promise.all([
       VendorLog.find(query)
         .populate("driverId", "name")
         .populate("vehicleId", "vehicleNumber make")
+        .populate("vendorId", "vendorName") 
         .sort({ createdAt: -1 })
         .skip(skipIndex)
         .limit(limitNumber)
@@ -310,6 +322,7 @@ exports.getLogsByVendorId = async (req, res) => {
     });
   }
 };
+
 exports.updateLog = async (req, res) => {
   try {
     const logId = req.params.id;
@@ -324,9 +337,7 @@ exports.updateLog = async (req, res) => {
       });
     }
 
-    // 2. Prevent updates if the log is already Approved
     if (existingLog.status === "Approved") {
-      // If new files were uploaded but we are rejecting the update, delete the incoming files
       rollbackUploadedFiles(req.files);
       return res.status(400).json({
         success: false,
@@ -334,8 +345,6 @@ exports.updateLog = async (req, res) => {
       });
     }
 
-    // 3. Authorization Check
-    // Allow update if user is the superadmin, the supervisor of this log, or the vendor of this log
     const userId = req.user.id.toString();
     const isSupervisor = existingLog.supervisorId?.toString() === userId;
     const isVendor = existingLog.vendorId?.toString() === userId;
@@ -349,7 +358,6 @@ exports.updateLog = async (req, res) => {
       });
     }
 
-    // 4. Sanitize incoming foreign keys
     if (req.body.driverId === "null" || req.body.driverId === "undefined" || req.body.driverId === "") {
       req.body.driverId = null;
     }
@@ -357,7 +365,6 @@ exports.updateLog = async (req, res) => {
       req.body.vehicleId = null;
     }
 
-    // 5. Validate foreign keys (only if they are being updated)
     if (req.body.driverId !== undefined || req.body.vehicleId !== undefined) {
       await validateForeignKeys(
         req.body.driverId !== undefined ? req.body.driverId : existingLog.driverId,
@@ -373,7 +380,6 @@ exports.updateLog = async (req, res) => {
     if (req.files && Object.keys(req.files).length > 0) {
       processFilePaths(req.files, updateData);
 
-      // Queue old files for deletion to save disk space
       if (req.files.billImgPath && existingLog.billImgPath) {
         oldFilesToDelete.push(path.join(__dirname, "..", existingLog.billImgPath));
       }
@@ -387,11 +393,8 @@ exports.updateLog = async (req, res) => {
       }
     }
 
-    // 7. Update the document
     Object.assign(existingLog, updateData);
     const updatedLog = await existingLog.save();
-
-    // 8. Delete old replaced files from the file system
     oldFilesToDelete.forEach((filePath) => {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
@@ -405,7 +408,6 @@ exports.updateLog = async (req, res) => {
     });
 
   } catch (error) {
-    // If anything fails, delete the new files that were just uploaded
     rollbackUploadedFiles(req.files);
     return handleApiError(error, res);
   }
@@ -477,42 +479,46 @@ exports.updateLogStatus = async (req, res) => {
   }
 };
 
-
-
 const buildGetAllQuery = (queryParams, user) => {
-  const { status, search, fromDate, toDate, vendorId } = queryParams;
+  const { status, search, fromDate, toDate, vendorId, createdBy = "vendor" } = queryParams;
   let query = {};
 
-  // 1. Role-Based Scoping & Vendor Filtering
   if (user.role === "user") {
     query.supervisorId = user.id;
-    // Supervisors can optionally filter by a specific vendorId
     if (vendorId) query.vendorId = vendorId; 
   } else if (user.role === "vendor") {
-    // Vendors are strictly locked to their own ID (ignores any query passed)
     query.vendorId = user.id;
   }
 
-  // 2. Status Filter
   if (status) query.status = status;
 
-  // 3. Search Filter (Description)
+  if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
+    query.createdBy = createdBy;
+  }
+
   if (search) {
     query.$or = [{ description: { $regex: search, $options: "i" } }];
   }
-
-  // 4. Date Range Filter
   if (fromDate || toDate) {
     query.createdAt = {};
-    if (fromDate) query.createdAt.$gte = new Date(fromDate);
+    
+    if (fromDate) {
+      const parsedFrom = new Date(fromDate);
+      if (!isNaN(parsedFrom)) {
+        query.createdAt.$gte = parsedFrom;
+      }
+    }
     
     if (toDate) {
-      // Set the toDate to 23:59:59.999 to cover the entire end day
       const endDate = new Date(toDate);
-      endDate.setUTCHours(23, 59, 59, 999);
-      query.createdAt.$lte = endDate;
+      if (!isNaN(endDate)) {
+        endDate.setUTCHours(23, 59, 59, 999);
+        query.createdAt.$lte = endDate;
+      }
+    }
+    if (Object.keys(query.createdAt).length === 0) {
+      delete query.createdAt;
     }
   }
-
   return query;
 };
