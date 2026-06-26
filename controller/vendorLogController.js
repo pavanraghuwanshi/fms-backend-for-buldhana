@@ -4,7 +4,8 @@ const path = require("path");
 const VendorLog = require("../model/vendorLog");
 const Driver = require("../model/driverModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
-
+const Builty = require("../model/builtyModel");
+const Location = require("../model/location");
 const UPLOAD_BASE_URL = "/uploads/vendorlogs";
 
 const determineSupervisorId = (user, body) => {
@@ -521,4 +522,146 @@ const buildGetAllQuery = (queryParams, user) => {
     }
   }
   return query;
+};
+
+exports.getSupervisorCreatedLogs = async (req, res) => {
+  try {
+    // 1. Role Check (Now allows both supervisors/'user' and 'vendors')
+    if (!["user", "vendor"].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. You do not have permission to view these logs.",
+      });
+    }
+
+    const { page = 1, limit = 20 } = req.query;
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+    const skipIndex = (pageNumber - 1) * limitNumber;
+
+    const query = buildGetAllQuery(req.query, req.user);
+    query.createdBy = "supervisor"; 
+
+    const [logs, total] = await Promise.all([
+      VendorLog.find(query)
+        .populate("driverId", "name")
+        .populate("vehicleId", "vehicleNumber make")
+        .populate("vendorId", "vendorName")
+        .populate({
+          path: "builtyId",
+          select: "tpNo description pickupLocationId destinationLocationId", 
+          populate: [
+            { 
+              path: "pickupLocationId", 
+              select: "locationName" 
+            },
+            { 
+              path: "destinationLocationId", 
+              select: "locationName"
+            }
+          ]
+        })
+        .sort({ createdAt: -1 })
+        .skip(skipIndex)
+        .limit(limitNumber)
+        .lean(),
+      VendorLog.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Supervisor logs fetched successfully",
+      total,
+      page: pageNumber,
+      limit: limitNumber,
+      builtys: logs, 
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching supervisor logs.",
+      error: error.message,
+    });
+  }
+};
+
+exports.getLogsByVendorId = async (req, res) => {
+  try {
+    // 1. Basic role check
+    if (!["user", "vendor"].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. You do not have permission to view these logs.",
+      });
+    }
+
+    const { vendorId } = req.params; 
+    const { page = 1, limit = 20, createdBy } = req.query;
+
+    // 2. Security Check: Vendors can only view their own logs
+    if (req.user.role === "vendor" && req.user.id.toString() !== vendorId) {
+      return res.status(403).json({ 
+        success: false, 
+        message: "Security Error: You can only view your own logs." 
+      });
+    }
+
+    req.query.vendorId = vendorId;
+
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+    const skipIndex = (pageNumber - 1) * limitNumber;
+    
+    // 3. Build query and apply optional createdBy filter
+    const query = buildGetAllQuery(req.query, req.user);
+
+    if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
+      query.createdBy = createdBy;
+    }
+
+    // 4. Fetch data with the same deep nested population
+    const [logs, total] = await Promise.all([
+      VendorLog.find(query)
+        .populate("driverId", "name")
+        .populate("vehicleId", "vehicleNumber make")
+        .populate("vendorId", "vendorName")
+        // Deep populate to get Builty info AND Location names
+        .populate({
+          path: "builtyId",
+          select: "tpNo description pickupLocationId destinationLocationId", 
+          populate: [
+            { 
+              path: "pickupLocationId", 
+              select: "locationName" 
+            },
+            { 
+              path: "destinationLocationId", 
+              select: "locationName" 
+            }
+          ]
+        })
+        .sort({ createdAt: -1 })
+        .skip(skipIndex)
+        .limit(limitNumber)
+        .lean(),
+      VendorLog.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Vendor specific logs fetched successfully",
+      total,
+      page: pageNumber,
+      limit: limitNumber,
+      builtys: logs, 
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching the vendor logs.",
+      error: error.message,
+    });
+  }
 };
