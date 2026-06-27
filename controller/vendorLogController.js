@@ -230,7 +230,7 @@ exports.getAllLogs = async (req, res) => {
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
 
-    const query = buildGetAllQuery(req.query, req.user);
+    const query = await buildGetAllQuery(req.query, req.user);
 
     if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
       query.createdBy = createdBy;
@@ -294,7 +294,7 @@ exports.getLogsByVendorId = async (req, res) => {
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
 
-    const query = buildGetAllQuery(req.query, req.user);
+   const query = await buildGetAllQuery(req.query, req.user);
 
     if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
       query.createdBy = createdBy;
@@ -375,7 +375,7 @@ exports.updateLog = async (req, res) => {
     if (req.body.driverId !== undefined || req.body.vehicleId !== undefined) {
       const driverToValidate = req.body.driverId !== undefined ? req.body.driverId : existingLog.driverId;
       const vehicleToValidate = req.body.vehicleId !== undefined ? req.body.vehicleId : existingLog.vehicleId;
-      
+
       await validateForeignKeys(driverToValidate, vehicleToValidate, null);
     }
 
@@ -501,8 +501,30 @@ const buildGetAllQuery = (queryParams, user) => {
     query.createdBy = createdBy;
   }
 
-  if (search) {
-    query.$or = [{ description: { $regex: search, $options: "i" } }];
+  const cleanSearch = search?.trim();
+
+  if (cleanSearch) {
+    const searchRegex = { $regex: cleanSearch, $options: "i" };
+
+    const [drivers, vehicles, vendors, builtys] = await Promise.all([
+      Driver.find({ name: searchRegex }, '_id').lean(),
+      VehicleMaster.find({ $or: [{ vehicleNumber: searchRegex }, { make: searchRegex }] }, '_id').lean(),
+      Vendor.find({ vendorName: searchRegex }, '_id').lean(),
+      Builty.find({ tpNo: searchRegex }, '_id').lean()
+    ]);
+
+    const orConditions = [];
+
+    if (drivers.length) orConditions.push({ driverId: { $in: drivers.map(d => d._id) } });
+    if (vehicles.length) orConditions.push({ vehicleId: { $in: vehicles.map(v => v._id) } });
+    if (vendors.length) orConditions.push({ vendorId: { $in: vendors.map(v => v._id) } });
+    if (builtys.length) orConditions.push({ builtyId: { $in: builtys.map(b => b._id) } });
+
+    if (orConditions.length > 0) {
+      query.$or = orConditions;
+    } else {
+      query._id = { $in: [] };
+    }
   }
 
   if (fromDate || toDate) {
@@ -544,7 +566,7 @@ exports.getSupervisorCreatedLogs = async (req, res) => {
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
 
-    const query = buildGetAllQuery(req.query, req.user);
+    const query = await buildGetAllQuery(req.query, req.user);
     query.createdBy = "supervisor";
 
     const [logs, total] = await Promise.all([
@@ -618,7 +640,7 @@ exports.getLogsByVendorIdCreatedBySup = async (req, res) => {
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
 
-    const query = buildGetAllQuery(req.query, req.user);
+    const query = await buildGetAllQuery(req.query, req.user);
     query.createdBy = "supervisor";
     const [logs, total] = await Promise.all([
       VendorLog.find(query)
