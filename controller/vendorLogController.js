@@ -147,7 +147,7 @@ exports.createLog = async (req, res) => {
 exports.patchVendorLog = async (req, res) => {
   try {
     const logId = req.params.id;
-    const { builtyId, description, amount } = req.body;
+    const { builtyId, description, amount, vendorAction } = req.body;
 
     if (!builtyId) {
       rollbackUploadedFiles(req.files);
