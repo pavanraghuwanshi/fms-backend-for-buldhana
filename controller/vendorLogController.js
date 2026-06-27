@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
 const VendorLog = require("../model/vendorLog");
+const Vendor = require("../model/vendor");
 const Driver = require("../model/driverModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Builty = require("../model/builtyModel");
@@ -39,7 +40,7 @@ const processFilePaths = (files, logData) => {
 
   // 1. Bill Image
   if (files.billImgPath) {
-    const [firstBillFile] = files.billImgPath; 
+    const [firstBillFile] = files.billImgPath;
     if (firstBillFile && firstBillFile.filename) {
       logData.billImgPath = `${UPLOAD_BASE_URL}/${firstBillFile.filename}`;
     }
@@ -69,7 +70,7 @@ const getReplacedFilePaths = (updateData, existingLog) => {
 
   if (updateData.billImgPath) queueForDeletion(existingLog.billImgPath);
   if (updateData.vehicleImgPath) queueForDeletion(existingLog.vehicleImgPath);
-  
+
   if (updateData.profileImgPaths && updateData.profileImgPaths.length > 0) {
     existingLog.profileImgPaths?.forEach(queueForDeletion);
   }
@@ -221,12 +222,12 @@ exports.getAllLogs = async (req, res) => {
       });
     }
 
-    const { page = 1, limit = 20, createdBy } = req.query; 
+    const { page = 1, limit = 20, createdBy } = req.query;
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
-    
-    const query = buildGetAllQuery(req.query, req.user);
+
+    const query = await buildGetAllQuery(req.query, req.user);
 
     if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
       query.createdBy = createdBy;
@@ -236,7 +237,7 @@ exports.getAllLogs = async (req, res) => {
       VendorLog.find(query)
         .populate("driverId", "name")
         .populate("vehicleId", "vehicleNumber make")
-        .populate("vendorId", "vendorName") 
+        .populate("vendorId", "vendorName")
         .sort({ createdAt: -1 })
         .skip(skipIndex)
         .limit(limitNumber)
@@ -250,7 +251,7 @@ exports.getAllLogs = async (req, res) => {
       total,
       page: pageNumber,
       limit: limitNumber,
-      builtys: logs, 
+      builtys: logs,
     });
 
   } catch (error) {
@@ -271,14 +272,14 @@ exports.getLogsByVendorId = async (req, res) => {
       });
     }
 
-    const { vendorId } = req.params; 
+    const { vendorId } = req.params;
     const { page = 1, limit = 20, createdBy } = req.query;
 
 
     if (req.user.role === "vendor" && req.user.id.toString() !== vendorId) {
-      return res.status(403).json({ 
-        success: false, 
-        message: "Security Error: You can only view your own logs." 
+      return res.status(403).json({
+        success: false,
+        message: "Security Error: You can only view your own logs."
       });
     }
 
@@ -287,8 +288,8 @@ exports.getLogsByVendorId = async (req, res) => {
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
-    
-    const query = buildGetAllQuery(req.query, req.user);
+
+    const query = await buildGetAllQuery(req.query, req.user);
 
     if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
       query.createdBy = createdBy;
@@ -298,7 +299,7 @@ exports.getLogsByVendorId = async (req, res) => {
       VendorLog.find(query)
         .populate("driverId", "name")
         .populate("vehicleId", "vehicleNumber make")
-        .populate("vendorId", "vendorName") 
+        .populate("vendorId", "vendorName")
         .sort({ createdAt: -1 })
         .skip(skipIndex)
         .limit(limitNumber)
@@ -312,7 +313,7 @@ exports.getLogsByVendorId = async (req, res) => {
       total,
       page: pageNumber,
       limit: limitNumber,
-      builtys: logs, 
+      builtys: logs,
     });
 
   } catch (error) {
@@ -328,7 +329,6 @@ exports.updateLog = async (req, res) => {
   try {
     const logId = req.params.id;
 
-    // 1. Fetch the existing log
     const existingLog = await VendorLog.findById(logId);
 
     if (!existingLog) {
@@ -374,7 +374,6 @@ exports.updateLog = async (req, res) => {
       );
     }
 
-    // 6. Handle File Updates
     const updateData = { ...req.body };
     const oldFilesToDelete = [];
 
@@ -389,7 +388,7 @@ exports.updateLog = async (req, res) => {
       }
       if (req.files.profileImgPaths && existingLog.profileImgPaths?.length > 0) {
         existingLog.profileImgPaths.forEach(oldPath => {
-           oldFilesToDelete.push(path.join(__dirname, "..", oldPath));
+          oldFilesToDelete.push(path.join(__dirname, "..", oldPath));
         });
       }
     }
@@ -480,13 +479,14 @@ exports.updateLogStatus = async (req, res) => {
   }
 };
 
-const buildGetAllQuery = (queryParams, user) => {
+// 1. Added 'async' here
+const buildGetAllQuery = async (queryParams, user) => {
   const { status, search, fromDate, toDate, vendorId, createdBy = "vendor" } = queryParams;
   let query = {};
 
   if (user.role === "user") {
     query.supervisorId = user.id;
-    if (vendorId) query.vendorId = vendorId; 
+    if (vendorId) query.vendorId = vendorId;
   } else if (user.role === "vendor") {
     query.vendorId = user.id;
   }
@@ -497,22 +497,45 @@ const buildGetAllQuery = (queryParams, user) => {
     query.createdBy = createdBy;
   }
 
-  if (search) {
-    query.$or = [{ description: { $regex: search, $options: "i" } }];
+  const cleanSearch = search?.trim();
+
+  if (cleanSearch) {
+    const searchRegex = { $regex: cleanSearch, $options: "i" };
+
+    const [drivers, vehicles, vendors, builtys] = await Promise.all([
+      Driver.find({ name: searchRegex }, '_id').lean(),
+      VehicleMaster.find({ $or: [{ vehicleNumber: searchRegex }, { make: searchRegex }] }, '_id').lean(),
+      Vendor.find({ vendorName: searchRegex }, '_id').lean(),
+      Builty.find({ tpNo: searchRegex }, '_id').lean()
+    ]);
+
+    const orConditions = [];
+
+    if (drivers.length) orConditions.push({ driverId: { $in: drivers.map(d => d._id) } });
+    if (vehicles.length) orConditions.push({ vehicleId: { $in: vehicles.map(v => v._id) } });
+    if (vendors.length) orConditions.push({ vendorId: { $in: vendors.map(v => v._id) } });
+    if (builtys.length) orConditions.push({ builtyId: { $in: builtys.map(b => b._id) } });
+
+    if (orConditions.length > 0) {
+      query.$or = orConditions;
+    } else {
+      query._id = { $in: [] };
+    }
   }
+
   if (fromDate || toDate) {
     query.createdAt = {};
-    
+
     if (fromDate) {
       const parsedFrom = new Date(fromDate);
-      if (!isNaN(parsedFrom)) {
+      if (!isNaN(parsedFrom.getTime())) {
         query.createdAt.$gte = parsedFrom;
       }
     }
-    
+
     if (toDate) {
       const endDate = new Date(toDate);
-      if (!isNaN(endDate)) {
+      if (!isNaN(endDate.getTime())) {
         endDate.setUTCHours(23, 59, 59, 999);
         query.createdAt.$lte = endDate;
       }
@@ -521,6 +544,7 @@ const buildGetAllQuery = (queryParams, user) => {
       delete query.createdAt;
     }
   }
+
   return query;
 };
 
@@ -539,8 +563,8 @@ exports.getSupervisorCreatedLogs = async (req, res) => {
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
 
-    const query = buildGetAllQuery(req.query, req.user);
-    query.createdBy = "supervisor"; 
+    const query = await buildGetAllQuery(req.query, req.user);
+    query.createdBy = "supervisor";
 
     const [logs, total] = await Promise.all([
       VendorLog.find(query)
@@ -549,14 +573,14 @@ exports.getSupervisorCreatedLogs = async (req, res) => {
         .populate("vendorId", "vendorName")
         .populate({
           path: "builtyId",
-          select: "tpNo description pickupLocationId destinationLocationId", 
+          select: "tpNo description pickupLocationId destinationLocationId",
           populate: [
-            { 
-              path: "pickupLocationId", 
-              select: "locationName" 
+            {
+              path: "pickupLocationId",
+              select: "locationName"
             },
-            { 
-              path: "destinationLocationId", 
+            {
+              path: "destinationLocationId",
               select: "locationName"
             }
           ]
@@ -574,7 +598,7 @@ exports.getSupervisorCreatedLogs = async (req, res) => {
       total,
       page: pageNumber,
       limit: limitNumber,
-      builtys: logs, 
+      builtys: logs,
     });
 
   } catch (error) {
@@ -596,14 +620,14 @@ exports.getLogsByVendorId = async (req, res) => {
       });
     }
 
-    const { vendorId } = req.params; 
+    const { vendorId } = req.params;
     const { page = 1, limit = 20, createdBy } = req.query;
 
     // 2. Security Check: Vendors can only view their own logs
     if (req.user.role === "vendor" && req.user.id.toString() !== vendorId) {
-      return res.status(403).json({ 
-        success: false, 
-        message: "Security Error: You can only view your own logs." 
+      return res.status(403).json({
+        success: false,
+        message: "Security Error: You can only view your own logs."
       });
     }
 
@@ -612,15 +636,13 @@ exports.getLogsByVendorId = async (req, res) => {
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
-    
-    // 3. Build query and apply optional createdBy filter
-    const query = buildGetAllQuery(req.query, req.user);
+
+    const query = await buildGetAllQuery(req.query, req.user);
 
     if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
       query.createdBy = createdBy;
     }
 
-    // 4. Fetch data with the same deep nested population
     const [logs, total] = await Promise.all([
       VendorLog.find(query)
         .populate("driverId", "name")
@@ -629,15 +651,15 @@ exports.getLogsByVendorId = async (req, res) => {
         // Deep populate to get Builty info AND Location names
         .populate({
           path: "builtyId",
-          select: "tpNo description pickupLocationId destinationLocationId", 
+          select: "tpNo description pickupLocationId destinationLocationId",
           populate: [
-            { 
-              path: "pickupLocationId", 
-              select: "locationName" 
+            {
+              path: "pickupLocationId",
+              select: "locationName"
             },
-            { 
-              path: "destinationLocationId", 
-              select: "locationName" 
+            {
+              path: "destinationLocationId",
+              select: "locationName"
             }
           ]
         })
@@ -654,7 +676,7 @@ exports.getLogsByVendorId = async (req, res) => {
       total,
       page: pageNumber,
       limit: limitNumber,
-      builtys: logs, 
+      builtys: logs,
     });
 
   } catch (error) {
