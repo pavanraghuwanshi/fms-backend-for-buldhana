@@ -21,8 +21,11 @@ router.patch("/update/log/:id", uploadVendorLogs.fields([
 router.get("/vendor/:vendorId", getLogsByVendorId);
 router.get("/supervisor", getSupervisorCreatedLogs);
 router.get("/supervisor-list/by-vendor-id/:vendorId", getLogsByVendorIdCreatedBySup);
-
-router.put("/:id", updateLog);
+router.put("/:id", uploadVendorLogs.fields([
+  { name: "billImgPath", maxCount: 1 },
+  { name: "vehicleImgPath", maxCount: 1 },
+  { name: "profileImgPaths", maxCount: 5 }
+]), updateLog);
 router.delete("/:id", deleteLog);
 router.patch('/logs/status/:id', updateLogStatus);
 module.exports = router;
