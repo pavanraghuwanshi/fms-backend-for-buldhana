@@ -646,11 +646,7 @@ exports.getLogsByVendorIdCreatedBySup = async (req, res) => {
 
     // 3. Build query and apply optional createdBy filter
     const query = buildGetAllQuery(req.query, req.user);
-
-    if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
-      query.createdBy = createdBy;
-    }
-
+    query.createdBy = "supervisor";
     // 4. Fetch data with the same deep nested population
     const [logs, total] = await Promise.all([
       VendorLog.find(query)
