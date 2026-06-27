@@ -1245,7 +1245,8 @@ const handleVendorAssignment = async ({
       driverId: driverId || null,
       supervisorId,
       description: description || "",
-      createdBy: "supervisor"
+      createdBy: "supervisor",
+      vendorAction: "Pending"
     });
   } catch (err) {
     console.error("Error creating vendor log entry:", err);

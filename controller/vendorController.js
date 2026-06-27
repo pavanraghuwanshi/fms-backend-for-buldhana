@@ -402,7 +402,6 @@ exports.updateFcmToken = async (req, res) => {
   }
 };
 
-// for tp list for vendor
 exports.getVendorBuiltys = async (req, res) => {
   try {
     if (req.user.role !== "vendor") {

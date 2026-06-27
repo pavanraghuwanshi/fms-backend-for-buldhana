@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const {createLog, deleteLog,updateLog,  getAllLogs, updateLogStatus, patchVendorLog, getLogsByVendorId, getSupervisorCreatedLogs} = require("../controller/vendorLogController");
+const {createLog, deleteLog,updateLog,  getAllLogs, updateLogStatus, patchVendorLog, getLogsByVendorId, getSupervisorCreatedLogs, getLogsByVendorIdCreatedBySup} = require("../controller/vendorLogController");
 
 const { authenticateToken } = require("../middleware/authMiddleware");
 const createUploader = require("../middleware/uploadDiskImg");
@@ -20,7 +20,12 @@ router.patch("/update/log/:id", uploadVendorLogs.fields([
 ]), patchVendorLog);
 router.get("/vendor/:vendorId", getLogsByVendorId);
 router.get("/supervisor", getSupervisorCreatedLogs);
-router.put("/:id", updateLog);
+router.get("/supervisor-list/by-vendor-id/:vendorId", getLogsByVendorIdCreatedBySup);
+router.put("/:id", uploadVendorLogs.fields([
+  { name: "billImgPath", maxCount: 1 },
+  { name: "vehicleImgPath", maxCount: 1 },
+  { name: "profileImgPaths", maxCount: 5 }
+]), updateLog);
 router.delete("/:id", deleteLog);
 router.patch('/logs/status/:id', updateLogStatus);
 module.exports = router;
