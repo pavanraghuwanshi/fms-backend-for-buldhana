@@ -469,7 +469,7 @@ exports.updateLogStatus = async (req, res) => {
   }
 };
 
-const buildGetAllQuery = (queryParams, user) => {
+const buildGetAllQuery = async (queryParams, user) =>{
   const {
     status,
     search,
@@ -501,7 +501,7 @@ const buildGetAllQuery = (queryParams, user) => {
     query.createdBy = createdBy;
   }
 
-  const cleanSearch = search?.trim();
+const cleanSearch = search?.trim();
 
   if (cleanSearch) {
     const searchRegex = { $regex: cleanSearch, $options: "i" };
@@ -515,6 +515,7 @@ const buildGetAllQuery = (queryParams, user) => {
 
     const orConditions = [];
 
+    // OPTIMIZATION 3: Only map arrays and push to conditions if they actually contain data.
     if (drivers.length) orConditions.push({ driverId: { $in: drivers.map(d => d._id) } });
     if (vehicles.length) orConditions.push({ vehicleId: { $in: vehicles.map(v => v._id) } });
     if (vendors.length) orConditions.push({ vendorId: { $in: vendors.map(v => v._id) } });
