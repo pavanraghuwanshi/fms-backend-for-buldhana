@@ -644,6 +644,8 @@ exports.getLogsByVendorIdCreatedBySup = async (req, res) => {
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
 
+    // Functions
+
     // 3. Build query and apply optional createdBy filter
     const query = buildGetAllQuery(req.query, req.user);
     query.createdBy = "supervisor";
