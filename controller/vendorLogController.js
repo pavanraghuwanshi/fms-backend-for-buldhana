@@ -37,7 +37,6 @@ const validateForeignKeys = async (driverId, vehicleId, session) => {
 const processFilePaths = (files, logData) => {
   if (!files) return;
 
-  // 1. Bill Image
   if (files.billImgPath) {
     const [firstBillFile] = files.billImgPath;
     if (firstBillFile && firstBillFile.filename) {
@@ -45,7 +44,6 @@ const processFilePaths = (files, logData) => {
     }
   }
 
-  // 2. Vehicle Image
   if (files.vehicleImgPath) {
     const [firstVehicleFile] = files.vehicleImgPath;
     if (firstVehicleFile && firstVehicleFile.filename) {
@@ -53,7 +51,6 @@ const processFilePaths = (files, logData) => {
     }
   }
 
-  // 3. Profile Images
   if (files.profileImgPaths) {
     logData.profileImgPaths = files.profileImgPaths.map(
       (file) => `${UPLOAD_BASE_URL}/${file.filename}`
@@ -119,7 +116,6 @@ const handleApiError = (error, res) => {
   });
 };
 
-// MAIN CONTROLLERS
 exports.createLog = async (req, res) => {
   try {
     const finalSupervisorId = determineSupervisorId(req.user, req.body);
@@ -146,8 +142,6 @@ exports.createLog = async (req, res) => {
     return handleApiError(error, res);
   }
 };
-
-// --- HELPER: BUILD QUERY FOR GET ALL LOGS ---
 
 
 exports.patchVendorLog = async (req, res) => {
@@ -427,7 +421,6 @@ exports.updateLog = async (req, res) => {
   }
 };
 
-// Delete
 exports.deleteLog = async (req, res) => {
   try {
     const log = await VendorLog.findOneAndDelete({ _id: req.params.id, supervisorId: req.user.id });
@@ -555,7 +548,7 @@ const buildGetAllQuery = (queryParams, user) => {
 };
 exports.getSupervisorCreatedLogs = async (req, res) => {
   try {
-    // 1. Role Check (Now allows both supervisors/'user' and 'vendors')
+
     if (!["user", "vendor"].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
@@ -619,7 +612,6 @@ exports.getSupervisorCreatedLogs = async (req, res) => {
 
 exports.getLogsByVendorIdCreatedBySup = async (req, res) => {
   try {
-    // 1. Basic role check
     if (!["user", "vendor"].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
@@ -630,7 +622,6 @@ exports.getLogsByVendorIdCreatedBySup = async (req, res) => {
     const { vendorId } = req.params;
     const { page = 1, limit = 20, createdBy } = req.query;
 
-    // 2. Security Check: Vendors can only view their own logs
     if (req.user.role === "vendor" && req.user.id.toString() !== vendorId) {
       return res.status(403).json({
         success: false,
@@ -644,18 +635,13 @@ exports.getLogsByVendorIdCreatedBySup = async (req, res) => {
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
 
-    // Functions
-
-    // 3. Build query and apply optional createdBy filter
     const query = buildGetAllQuery(req.query, req.user);
     query.createdBy = "supervisor";
-    // 4. Fetch data with the same deep nested population
     const [logs, total] = await Promise.all([
       VendorLog.find(query)
         .populate("driverId", "name")
         .populate("vehicleId", "vehicleNumber make")
         .populate("vendorId", "vendorName")
-        // Deep populate to get Builty info AND Location names
         .populate({
           path: "builtyId",
           select: "tpNo description pickupLocationId destinationLocationId",
