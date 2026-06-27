@@ -334,19 +334,17 @@ exports.getLogsByVendorId = async (req, res) => {
 exports.updateLog = async (req, res) => {
   try {
     const logId = req.params.id;
-
-    // 1. Fetch the existing log
     const existingLog = await VendorLog.findById(logId);
 
     if (!existingLog) {
+      if (req.files) rollbackUploadedFiles(req.files);
       return res.status(404).json({
         success: false,
         message: "Log not found.",
       });
     }
-
     if (existingLog.status === "Approved") {
-      rollbackUploadedFiles(req.files);
+      if (req.files) rollbackUploadedFiles(req.files);
       return res.status(400).json({
         success: false,
         message: "This log is already approved and cannot be updated.",
@@ -359,7 +357,7 @@ exports.updateLog = async (req, res) => {
     const isSuperAdmin = req.user.role === "superadmin";
 
     if (!isSupervisor && !isVendor && !isSuperAdmin) {
-      rollbackUploadedFiles(req.files);
+      if (req.files) rollbackUploadedFiles(req.files);
       return res.status(403).json({
         success: false,
         message: "Unauthorized: You do not have permission to update this log.",
@@ -374,40 +372,24 @@ exports.updateLog = async (req, res) => {
     }
 
     if (req.body.driverId !== undefined || req.body.vehicleId !== undefined) {
-      await validateForeignKeys(
-        req.body.driverId !== undefined ? req.body.driverId : existingLog.driverId,
-        req.body.vehicleId !== undefined ? req.body.vehicleId : existingLog.vehicleId,
-        null
-      );
+      const driverToValidate = req.body.driverId !== undefined ? req.body.driverId : existingLog.driverId;
+      const vehicleToValidate = req.body.vehicleId !== undefined ? req.body.vehicleId : existingLog.vehicleId;
+      
+      await validateForeignKeys(driverToValidate, vehicleToValidate, null);
     }
 
-    // 6. Handle File Updates
     const updateData = { ...req.body };
-    const oldFilesToDelete = [];
+    let oldFilesToDelete = [];
 
     if (req.files && Object.keys(req.files).length > 0) {
       processFilePaths(req.files, updateData);
 
-      if (req.files.billImgPath && existingLog.billImgPath) {
-        oldFilesToDelete.push(path.join(__dirname, "..", existingLog.billImgPath));
-      }
-      if (req.files.vehicleImgPath && existingLog.vehicleImgPath) {
-        oldFilesToDelete.push(path.join(__dirname, "..", existingLog.vehicleImgPath));
-      }
-      if (req.files.profileImgPaths && existingLog.profileImgPaths?.length > 0) {
-        existingLog.profileImgPaths.forEach(oldPath => {
-          oldFilesToDelete.push(path.join(__dirname, "..", oldPath));
-        });
-      }
+      oldFilesToDelete = getReplacedFilePaths(updateData, existingLog);
     }
 
     Object.assign(existingLog, updateData);
     const updatedLog = await existingLog.save();
-    oldFilesToDelete.forEach((filePath) => {
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    });
+    deleteFilesSilently(oldFilesToDelete);
 
     return res.status(200).json({
       success: true,
@@ -416,7 +398,7 @@ exports.updateLog = async (req, res) => {
     });
 
   } catch (error) {
-    rollbackUploadedFiles(req.files);
+    if (req.files) rollbackUploadedFiles(req.files);
     return handleApiError(error, res);
   }
 };
