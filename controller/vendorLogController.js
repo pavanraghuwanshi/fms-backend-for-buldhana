@@ -8,7 +8,7 @@ const VehicleMaster = require("../model/maintenanceDevice.model");
 const Builty = require("../model/builtyModel");
 const Location = require("../model/location");
 const UPLOAD_BASE_URL = "/uploads/vendorlogs";
-
+const { logAction } = require('../utils/logger');
 const determineSupervisorId = (user, body) => {
   if (!user) return null;
   const { role, id, supervisor, supervisorId: userSupervisorId } = user;
@@ -131,6 +131,19 @@ exports.createLog = async (req, res) => {
     processFilePaths(req.files, logData);
 
     const log = await VendorLog.create(logData);
+    logAction({
+      userId: req.user?._id || req.user?.id || '60d5ec49f1b2c4001f8e4b8e',
+      userType: req.user.role || 'Vendor',
+      action: 'CREATE',
+      module: 'VendorLog',
+      recordId: log._id,
+      newData: log,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      status: 'SUCCESS'
+    });
 
     return res.status(201).json({
       success: true,
@@ -139,6 +152,17 @@ exports.createLog = async (req, res) => {
     });
 
   } catch (error) {
+    logAction({
+      userId: req.user?._id || 'SYSTEM',
+      userType: req.user?.role || 'System',
+      action: 'CREATE',
+      module: 'VendorLog',
+      recordId: null, // No ID created on failure
+      status: 'FAILED',
+      ipAddress: req.ip,
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method
+    });
     rollbackUploadedFiles(req.files);
     return handleApiError(error, res);
   }

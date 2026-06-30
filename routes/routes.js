@@ -49,6 +49,7 @@ const workerRoleRoute = require("./workerRoleRoute");
 const dailyBuiltyRoute = require("./dailyBuiltyRoute")
 const zoneRoute = require("./zoneRoute")
 const customerRoute = require("./customerRoute")
+const auditLogRoute = require("./auditLogRoute")
 const dailyBuiltyProductRoute = require("./dailyBuiltyProductRoute")
 
 router.use("/worker-role", workerRoleRoute);
@@ -100,10 +101,10 @@ router.use("/location", locationRoute);
 router.use("/vendor", vendorRoute);
 router.use("/daily-builty-product",dailyBuiltyProductRoute)
 router.use("/vendor-logs", vendorLogRoutes);
+router.use("/all-audit-logs", auditLogRoute)
 
 
 
 router.use("/send-whatsapp-invoice", sendWhatsappInvoiceRoute);
-
 
 module.exports = router;

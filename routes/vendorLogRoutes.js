@@ -5,6 +5,7 @@ const {createLog, deleteLog,updateLog,  getAllLogs, updateLogStatus, patchVendor
 const { authenticateToken } = require("../middleware/authMiddleware");
 const createUploader = require("../middleware/uploadDiskImg");
 const uploadVendorLogs = createUploader("vendorlogs");
+
 router.use(authenticateToken);
 
 router.post("/", uploadVendorLogs.fields([

@@ -112,7 +112,16 @@ const driverSchema = new mongoose.Schema(
     licenseExpiryDate: {
       type: Date,
     },
-    fcmToken: { type: [String], default: [] }
+      fcmTokens: {
+      type: [
+        {
+          token: { type: String, required: true },
+          deviceId: String,
+          createdAt: { type: Date, default: Date.now },
+        }
+      ],
+      select: false 
+    }
   },
 
   {

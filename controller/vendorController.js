@@ -455,3 +455,100 @@ exports.getVendorBuiltys = async (req, res) => {
     });
   }
 };
+
+
+exports.saveOrUpdateToken = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userType = req.user.role; 
+
+    const { deviceId, fcmToken } = req.body;
+
+    if (!deviceId || !fcmToken || !userId || !userType) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    await FcmToken.findOneAndUpdate(
+      {
+        userId: userId, 
+        deviceId: deviceId 
+      }, 
+      { 
+        fcmToken: fcmToken,
+        userType: userType,   
+        updatedAt: Date.now() 
+      },
+      { 
+        upsert: true, 
+        new: true, 
+        setDefaultsOnInsert: true 
+      }
+    );
+
+    return res.status(200).json({ message: "Token registered and lifespan refreshed successfully" });
+
+  } catch (error) {
+    console.error("Token Save Error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+
+exports.saveOrUpdateToken = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userType = req.user.role; 
+
+    const { deviceId, fcmToken } = req.body;
+
+    if (!deviceId || !fcmToken || !userId || !userType) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    let Model;
+    if (userType === 'driver') {
+      Model = Driver;
+    } else if (userType === 'vendor') {
+      Model = Vendor;
+    } else {
+      return res.status(403).json({ message: "Invalid user role for FCM storage" });
+    }
+
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+
+    await Model.updateOne(
+      { _id: userId },
+      { 
+        $pull: { 
+          fcmTokens: { 
+            $or: [
+              { updatedAt: { $lt: sixtyDaysAgo } },
+              { deviceId: deviceId }               
+            ] 
+          } 
+        } 
+      }
+    );
+
+
+    await Model.updateOne(
+      { _id: userId },
+      { 
+        $push: { 
+          fcmTokens: { 
+            deviceId: deviceId,
+            token: fcmToken,
+            updatedAt: Date.now()
+          } 
+        } 
+      }
+    );
+
+    return res.status(200).json({ message: "FCM token synced to user schema successfully" });
+
+  } catch (error) {
+    console.error("FCM Schema Save Error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
