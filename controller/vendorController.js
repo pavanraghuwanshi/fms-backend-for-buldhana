@@ -368,40 +368,6 @@ exports.vendorLogin = async (req, res) => {
   }
 };
 
-exports.updateFcmToken = async (req, res) => {
-  try {
-    const { vendorId, deviceId, fcmToken } = req.body;
-
-    if (!deviceId || !fcmToken) {
-      return res.status(400).json({ message: "deviceId and fcmToken are required" });
-    }
-
-    const vendor = await Vendor.findById(vendorId).select('+fcmTokens');
-    if (!vendor) return res.status(404).json({ message: "Vendor not found" });
-
-    const existingDeviceIndex = vendor.fcmTokens.findIndex(
-      (item) => item.deviceId === deviceId
-    );
-
-    if (existingDeviceIndex !== -1) {
-      if (vendor.fcmTokens[existingDeviceIndex].token === fcmToken) {
-        return res.status(200).json({ message: "Token already up to date" });
-      }
-      vendor.fcmTokens[existingDeviceIndex].token = fcmToken;
-      vendor.fcmTokens[existingDeviceIndex].createdAt = Date.now();
-    } else {
-      // Add new device entry
-      vendor.fcmTokens.push({ deviceId, token: fcmToken });
-    }
-
-    await vendor.save();
-    return res.status(200).json({ message: "FCM token updated successfully" });
-  } catch (error) {
-    console.error("FCM Update Error:", error);
-    return res.status(500).json({ message: "Internal server error", error: error.message });
-  }
-};
-
 exports.getVendorBuiltys = async (req, res) => {
   try {
     if (req.user.role !== "vendor") {
@@ -455,44 +421,6 @@ exports.getVendorBuiltys = async (req, res) => {
     });
   }
 };
-
-
-exports.saveOrUpdateToken = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const userType = req.user.role; 
-
-    const { deviceId, fcmToken } = req.body;
-
-    if (!deviceId || !fcmToken || !userId || !userType) {
-      return res.status(400).json({ message: "Missing required fields" });
-    }
-
-    await FcmToken.findOneAndUpdate(
-      {
-        userId: userId, 
-        deviceId: deviceId 
-      }, 
-      { 
-        fcmToken: fcmToken,
-        userType: userType,   
-        updatedAt: Date.now() 
-      },
-      { 
-        upsert: true, 
-        new: true, 
-        setDefaultsOnInsert: true 
-      }
-    );
-
-    return res.status(200).json({ message: "Token registered and lifespan refreshed successfully" });
-
-  } catch (error) {
-    console.error("Token Save Error:", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
-
 
 
 exports.saveOrUpdateToken = async (req, res) => {

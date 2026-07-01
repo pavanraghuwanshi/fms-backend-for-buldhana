@@ -9,7 +9,6 @@ const {
   deleteVendor,
   getVendorDropdown,
   vendorLogin,
-  updateFcmToken,
   getVendorBuiltys,
   saveOrUpdateToken
 } = require("../controller/vendorController");
@@ -24,6 +23,5 @@ router.get("/dropdown", authenticateToken, getVendorDropdown);
 router.get("/:id", authenticateToken, getVendorById);
 router.put("/:id", authenticateToken, updateVendor);
 router.delete("/:id", authenticateToken, deleteVendor);
-router.post("/update-fcm", authenticateToken, updateFcmToken);
 
 module.exports = router;
