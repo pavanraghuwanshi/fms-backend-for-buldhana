@@ -1,4 +1,4 @@
-const BuiltyTemplate = require("../model/builtyTemplate");
+const BuiltyTemplate = require("../model/BuiltyTemplate");
 const mongoose = require("mongoose");
 exports.createTemplate = async (req, res) => {
   try {
