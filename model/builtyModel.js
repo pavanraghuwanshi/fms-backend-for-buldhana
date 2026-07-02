@@ -3,7 +3,7 @@ const { maintenanceDB } = require("../database/database");
 
 const builtyProductSchema = new mongoose.Schema(
   {
-    productName: { type: String,required:true, trim: true },
+    productName: { type: String, required: true, trim: true },
     quantity: { type: Number, default: 0 },
     unit: { type: String, trim: true }, // MT / Bags / Kg
     bagSize: { type: Number },
@@ -51,7 +51,7 @@ const builtySchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    pickupLocation:{
+    pickupLocation: {
       type: String,
       trim: true,
     },
@@ -70,11 +70,11 @@ const builtySchema = new mongoose.Schema(
       required: true,
     },
     transportRateAmount: { type: Number, default: 0 },
-    transportRateType: { type: String, enum: ["fixed", "per_ton","per_quintal"] },
+    transportRateType: { type: String, enum: ["fixed", "per_ton", "per_quintal"] },
     shortageDeductionRate: { type: Number, default: 0 },
-    description:{type:String},
-    vendorType: {type:String},
-    
+    description: { type: String },
+    vendorType: { type: String },
+
     // booking mode is not used
     bookingMode: {
       type: String,
@@ -93,12 +93,12 @@ const builtySchema = new mongoose.Schema(
       ref: "CommissionAgent",
       default: null,
     },
-    commissionAgentAmount:{
-      type:Number
+    commissionAgentAmount: {
+      type: Number
     },
     vehicleId: {
       type: mongoose.Schema.Types.ObjectId,
-        ref: "VehicleMaster",
+      ref: "VehicleMaster",
       default: null,
     },
     vendorId: {
@@ -120,7 +120,7 @@ const builtySchema = new mongoose.Schema(
 
     advanceMode: {
       type: String,
-      enum: ["cash", "fuel", "cash_fuel","upi","bank_transfer","other"],
+      enum: ["cash", "fuel", "cash_fuel", "upi", "bank_transfer", "other"],
     },
 
     advanceAmount: {
@@ -188,23 +188,23 @@ const builtySchema = new mongoose.Schema(
       default: "Created",
     },
     paymentStatus: {
-    type: String,
-    enum: ["Pending", "Partial", "Completed"],
-    default: "Pending",
-  },
-  bagType: {
-  type: String,
-  enum:["Plastic","Jute"],
-  },
-  bagWeight: {
-    type: Number,
-    min: 0,
-  },
+      type: String,
+      enum: ["Pending", "Partial", "Completed"],
+      default: "Pending",
+    },
+    bagType: {
+      type: String,
+      enum: ["Plastic", "Jute"],
+    },
+    bagWeight: {
+      type: Number,
+      min: 0,
+    },
 
-  docNo: {
-    type: String,
-    trim: true,
-  },
+    docNo: {
+      type: String,
+      trim: true,
+    },
     cancelReason: {
       type: String,
       trim: true,
@@ -227,15 +227,15 @@ const builtySchema = new mongoose.Schema(
       default: null,
     },
     consignerId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Consignor",
-    required: true,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Consignor",
+      required: true,
     },
 
     consigneeId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Consignee",
-    required: true,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Consignee",
+      required: true,
     },
     supervisorModel: {
       type: String,
@@ -329,8 +329,8 @@ const builtySchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    vehicleExpenseAmount:{
-      type:Number,
+    vehicleExpenseAmount: {
+      type: Number,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -340,8 +340,8 @@ const builtySchema = new mongoose.Schema(
       enum: ["none", "percentage", "fixed"],
       default: "none",
     },
-    driverCommissionPercentage:{
-      type:Number
+    driverCommissionPercentage: {
+      type: Number
     },
     driverCommissionAmount: {
       type: Number,
@@ -358,6 +358,15 @@ const builtySchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+builtySchema.virtual("invoice", {
+  ref: "BuiltyInvoice",
+  localField: "_id",
+  foreignField: "builtyId",
+  justOne: true
+});
+
+builtySchema.set("toJSON", { virtuals: true });
+builtySchema.set("toObject", { virtuals: true });
 
 builtySchema.index(
   { supervisorId: 1, supervisorModel: 1, tpNo: 1 },

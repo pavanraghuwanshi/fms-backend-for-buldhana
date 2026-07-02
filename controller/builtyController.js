@@ -4,7 +4,7 @@ const BuiltyCounter = require("../model/builtyCounterModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Driver = require("../model/driverModel");
 const { notifyVendor } = require('../services/notificationService');
-
+const { logAction } = require('../utils/logger');
 const Trip = require("../model/tripModel");
 const Location = require("../model/location");
 const Vehicleexpense = require("../model/vehicleExpensesModel");
@@ -337,13 +337,38 @@ exports.createBuilty = async (req, res) => {
         },
       });
     }
-
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user.role || 'User',
+      action: 'CREATE',
+      module: 'Builty',
+      recordId: builty._id, // Use 'builty' here
+      oldData: null,
+      newData: builty,     // Use 'builty' here
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      status: 'SUCCESS'
+    });
     return res.status(201).json({
       message: "Builty created successfully",
       builty,
       trip: createdTrip,
     });
   } catch (error) {
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user?.role || 'System',
+      action: 'CREATE',
+      module: 'Builty',
+      recordId: null, // Safest to use null if creation failed
+      status: 'FAILED',
+      ipAddress: req.ip,
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      error: error.message
+    });
     return res.status(500).json({
       message: "Error creating builty",
       error: error.message,
@@ -882,7 +907,7 @@ exports.dispatchBuilty = async (req, res) => {
       );
     }
 
-    await builty.save();
+    const updatedBuilty = await builty.save();
 
     await syncBuiltyAutoExpenses({
       builty,
@@ -895,6 +920,7 @@ exports.dispatchBuilty = async (req, res) => {
       builty,
     });
   } catch (error) {
+
     return res.status(500).json({
       message: "Error dispatching builty",
       error: error.message,
@@ -1170,6 +1196,7 @@ exports.getBuiltys = async (req, res) => {
       .populate("pickupLocationId", "locationName latitude longitude")
       .populate("destinationLocationId", "locationName latitude longitude")
       .populate("vendorId", "vendorName contactPerson contactNumber")
+      .populate("invoice")
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
