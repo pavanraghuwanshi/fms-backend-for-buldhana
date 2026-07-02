@@ -32,7 +32,6 @@ const buildAuditLogQuery = (query, filters) => {
     query.$or = [
       { action: { $regex: search, $options: 'i' } },
       { module: { $regex: search, $options: 'i' } },
-   
 
     ];
   }

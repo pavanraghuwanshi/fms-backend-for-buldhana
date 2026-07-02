@@ -221,12 +221,25 @@ exports.patchVendorLog = async (req, res) => {
       processFilePaths(req.files, updateData);
       oldFilesToDelete = getReplacedFilePaths(updateData, existingLog);
     }
-
+    const oldDataSnapshot = existingLog.toObject();
     Object.assign(existingLog, updateData);
     const updatedLog = await existingLog.save();
 
     deleteFilesSilently(oldFilesToDelete);
-
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user.role || 'Vendor',
+      action: 'UPDATE',
+      module: 'VendorLog',
+      recordId: logId,
+      oldData: oldDataSnapshot,
+      newData: updatedLog,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      status: 'SUCCESS'
+    });
     return res.status(200).json({
       success: true,
       message: "Log updated successfully.",
@@ -234,6 +247,18 @@ exports.patchVendorLog = async (req, res) => {
     });
 
   } catch (error) {
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user?.role || 'System',
+      action: 'UPDATE',
+      module: 'VendorLog',
+      recordId: req.params.id,
+      status: 'FAILED',
+      ipAddress: req.ip,
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      error: error.message
+    });
     rollbackUploadedFiles(req.files);
     return handleApiError(error, res);
   }
@@ -318,7 +343,7 @@ exports.getLogsByVendorId = async (req, res) => {
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
 
-   const query = await buildGetAllQuery(req.query, req.user);
+    const query = await buildGetAllQuery(req.query, req.user);
 
     if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
       query.createdBy = createdBy;
@@ -388,6 +413,7 @@ exports.updateLog = async (req, res) => {
         message: "Unauthorized: You do not have permission to update this log.",
       });
     }
+    const oldDataSnapshot = existingLog.toObject();
 
     if (req.body.driverId === "null" || req.body.driverId === "undefined" || req.body.driverId === "") {
       req.body.driverId = null;
@@ -416,6 +442,20 @@ exports.updateLog = async (req, res) => {
     const updatedLog = await existingLog.save();
     deleteFilesSilently(oldFilesToDelete);
 
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user.role || 'User',
+      action: 'UPDATE',
+      module: 'VendorLog',
+      recordId: logId,
+      oldData: oldDataSnapshot,
+      newData: updatedLog,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      status: 'SUCCESS'
+    });
     return res.status(200).json({
       success: true,
       message: "Log updated successfully.",
@@ -423,6 +463,18 @@ exports.updateLog = async (req, res) => {
     });
 
   } catch (error) {
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user?.role || 'System',
+      action: 'UPDATE',
+      module: 'VendorLog',
+      recordId: logId,
+      status: 'FAILED',
+      ipAddress: req.ip,
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      error: error.message
+    });
     if (req.files) rollbackUploadedFiles(req.files);
     return handleApiError(error, res);
   }
@@ -478,10 +530,23 @@ exports.updateLogStatus = async (req, res) => {
         message: "Unauthorized: Your user ID does not match the supervisor ID of this log.",
       });
     }
-
+    const oldDataSnapshot = log.toObject();
     log.status = status;
     await log.save();
-
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user.role || 'User',
+      action: 'UPDATE_STATUS',
+      module: 'VendorLog',
+      recordId: logId,
+      oldData: oldDataSnapshot,
+      newData: updatedLog,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      status: 'SUCCESS'
+    });
     return res.status(200).json({
       success: true,
       message: "Log status updated successfully.",
@@ -489,11 +554,23 @@ exports.updateLogStatus = async (req, res) => {
     });
 
   } catch (error) {
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user?.role || 'System',
+      action: 'UPDATE_STATUS',
+      module: 'VendorLog',
+      recordId: logId,
+      status: 'FAILED',
+      ipAddress: req.ip,
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      error: error.message
+    });
     return handleApiError(error, res);
   }
 };
 
-const buildGetAllQuery = async (queryParams, user) =>{
+const buildGetAllQuery = async (queryParams, user) => {
   const {
     status,
     search,
@@ -525,7 +602,7 @@ const buildGetAllQuery = async (queryParams, user) =>{
     query.createdBy = createdBy;
   }
 
-const cleanSearch = search?.trim();
+  const cleanSearch = search?.trim();
 
   if (cleanSearch) {
     const searchRegex = { $regex: cleanSearch, $options: "i" };
