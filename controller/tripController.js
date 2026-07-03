@@ -348,7 +348,7 @@ exports.getTripByDriverId = async (req, res) => {
     const trips = await Trip.find({ driverId: req.params.id }).populate(
       "driverId",
       "name"
-    );
+    ).sort({ createdAt: -1 });
 
     if (!trips.length) {
       return res.status(404).json({
