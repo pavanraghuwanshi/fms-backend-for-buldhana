@@ -410,7 +410,7 @@ exports.tripCheckIn = async (req, res) => {
     }
 
     const driver = await Driver.findById(req.user.id).select(
-      "currentTripId currentVehicle"
+      "currentTripId currentVehicle deviceId"
     );
 
     if (!driver) {
@@ -428,8 +428,10 @@ exports.tripCheckIn = async (req, res) => {
     }
 
     if (!driver.deviceId) {
+         console.log("Driver's current vehicle ID:", driver);
       return res.status(400).json({
         success: false,
+     
         message: "No vehicle assigned to this driver",
       });
     }
