@@ -427,7 +427,7 @@ exports.tripCheckIn = async (req, res) => {
       });
     }
 
-    if (!driver.currentVehicle) {
+    if (!driver.deviceId) {
       return res.status(400).json({
         success: false,
         message: "No vehicle assigned to this driver",
