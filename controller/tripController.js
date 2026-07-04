@@ -2,7 +2,7 @@ const Trip = require("../model/tripModel");
 const Driver = require("../model/driverModel");
 const Subtrip = require("../model/subTripModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
-
+const Builty = require("../model/builtyModel");
 exports.createTrip = async (req, res) => {
   try {
     if (req.user.role !== "user") {
@@ -37,14 +37,122 @@ exports.createTrip = async (req, res) => {
   }
 };
 
+const buildTripQuery = async (user, queryParams) => {
+  const { role, id: userId } = user;
+  const {
+    supervisorId,
+    status,
+    search,
+    fromDate,
+    toDate,
+    vehicle,
+    vehicleName,
+    tpNo,
+    docNo,
+    driverName,
+  } = queryParams;
+
+  let query = {};
+
+  if (role === "superadmin") {
+    if (supervisorId) query.supervisorId = supervisorId;
+  } else if (role === "user") {
+    query.supervisorId = userId;
+  } else if (role === "driver") {
+    query.driverId = userId;
+  } else {
+    return null;
+  }
+
+  if (status) {
+    query.status = status;
+  }
+
+  const filters = [];
+
+  if (fromDate || toDate) {
+    const dateFilter = {};
+    if (fromDate) dateFilter.$gte = new Date(fromDate);
+    if (toDate) {
+      const endOfDay = new Date(toDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      dateFilter.$lte = endOfDay;
+    }
+    filters.push({
+      $or: [
+        { createdAt: dateFilter },
+        { date: dateFilter }
+      ]
+    });
+  }
+
+  const vehName = vehicle || vehicleName;
+  if (vehName) {
+    filters.push({ vehicleName: { $regex: vehName, $options: "i" } });
+  }
+
+  if (driverName) {
+    const drivers = await Driver.find({
+      name: { $regex: driverName, $options: "i" },
+    }).select("_id");
+    const driverIds = drivers.map((d) => d._id);
+    filters.push({ driverId: { $in: driverIds } });
+  }
+
+  if (tpNo || docNo) {
+    const builtyQuery = {};
+    if (tpNo) builtyQuery.tpNo = { $regex: tpNo, $options: "i" };
+    if (docNo) builtyQuery.docNo = { $regex: docNo, $options: "i" };
+
+    const builties = await Builty.find(builtyQuery).select("_id");
+    const builtyIds = builties.map((b) => b._id);
+    filters.push({ builtyId: { $in: builtyIds } });
+  }
+
+  if (search) {
+    const drivers = await Driver.find({
+      name: { $regex: search, $options: "i" },
+    }).select("_id");
+    const driverIds = drivers.map((d) => d._id);
+
+    const builties = await Builty.find({
+      $or: [
+        { tpNo: { $regex: search, $options: "i" } },
+        { docNo: { $regex: search, $options: "i" } },
+      ],
+    }).select("_id");
+    const builtyIds = builties.map((b) => b._id);
+
+    filters.push({
+      $or: [
+        { tripId: { $regex: search, $options: "i" } },
+        { route: { $regex: search, $options: "i" } },
+        { vehicleName: { $regex: search, $options: "i" } },
+        { driverId: { $in: driverIds } },
+        { builtyId: { $in: builtyIds } },
+      ],
+    });
+  }
+
+  if (filters.length > 0) {
+    query.$and = filters;
+  }
+
+  return query;
+};
 exports.getAllTrips = async (req, res) => {
   try {
+    const query = await buildTripQuery(req.user, req.query);
+
+    if (!query) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
     let trips = [];
 
     if (req.user.role === "superadmin") {
-      const { supervisorId } = req.query;
-      const query = supervisorId ? { supervisorId } : {};
-
       trips = await Trip.find(query)
         .populate({
           path: "driverId",
@@ -60,7 +168,7 @@ exports.getAllTrips = async (req, res) => {
         })
         .sort({ createdAt: -1 });
     } else if (req.user.role === "user") {
-      trips = await Trip.find({ supervisorId: req.user.id })
+      trips = await Trip.find(query)
         .populate({
           path: "driverId",
           select: "name deviceId",
@@ -75,7 +183,7 @@ exports.getAllTrips = async (req, res) => {
         })
         .sort({ createdAt: -1 });
     } else if (req.user.role === "driver") {
-      trips = await Trip.find({ driverId: req.user.id })
+      trips = await Trip.find(query)
         .populate({
           path: "driverId",
           select: "name deviceId",
@@ -107,10 +215,6 @@ exports.getAllTrips = async (req, res) => {
 
     return res.status(200).json(tripsWithBudget);
 
-
-
-
-
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -118,7 +222,6 @@ exports.getAllTrips = async (req, res) => {
     });
   }
 };
-
 exports.updateTrip = async (req, res) => {
   try {
     if (!["user", "driver"].includes(req.user.role)) {
@@ -545,84 +648,12 @@ exports.getDutySlipByTripId = async (req, res) => {
 };
 
 
-const getPaginatedTrips = async (baseQuery, queryParams, isDriver = false) => {
-  let {
-    page = 1,
-    limit = 10,
-    fromDate,
-    toDate,
-    vehicle,
-    vehicleName,
-    tpNo,
-    docNo,
-    driverName,
-    search,
-  } = queryParams;
+const getPaginatedTrips = async (finalQuery, queryParams, isDriver = false) => {
+  let { page = 1, limit = 10 } = queryParams;
 
   page = parseInt(page) || 1;
   limit = parseInt(limit) || 10;
 
-  const filters = [];
-
-  if (fromDate || toDate) {
-    const dateFilter = {};
-    if (fromDate) dateFilter.$gte = new Date(fromDate);
-    if (toDate) {
-      const endOfDay = new Date(toDate);
-      endOfDay.setHours(23, 59, 59, 999);
-      dateFilter.$lte = endOfDay;
-    }
-    filters.push({ createdAt: dateFilter });
-  }
-
-  const vehName = vehicle || vehicleName;
-  if (vehName) {
-    filters.push({ vehicleName: { $regex: vehName, $options: "i" } });
-  }
-
-  if (driverName) {
-    const drivers = await Driver.find({
-      name: { $regex: driverName, $options: "i" },
-    }).select("_id");
-    const driverIds = drivers.map((d) => d._id);
-    filters.push({ driverId: { $in: driverIds } });
-  }
-
-  if (tpNo || docNo) {
-    const builtyQuery = {};
-    if (tpNo) builtyQuery.tpNo = { $regex: tpNo, $options: "i" };
-    if (docNo) builtyQuery.docNo = { $regex: docNo, $options: "i" };
-
-    const builties = await Builty.find(builtyQuery).select("_id");
-    const builtyIds = builties.map((b) => b._id);
-    filters.push({ builtyId: { $in: builtyIds } });
-  }
-
-  if (search) {
-    const drivers = await Driver.find({
-      name: { $regex: search, $options: "i" },
-    }).select("_id");
-    const driverIds = drivers.map((d) => d._id);
-
-    const builties = await Builty.find({
-      $or: [
-        { tpNo: { $regex: search, $options: "i" } },
-        { docNo: { $regex: search, $options: "i" } },
-      ],
-    }).select("_id");
-    const builtyIds = builties.map((b) => b._id);
-
-    filters.push({
-      $or: [
-        { vehicleName: { $regex: search, $options: "i" } },
-        { driverId: { $in: driverIds } },
-        { builtyId: { $in: builtyIds } },
-      ],
-    });
-  }
-
-  const finalQuery =
-    filters.length > 0 ? { $and: [baseQuery, ...filters] } : baseQuery;
   const totalItems = await Trip.countDocuments(finalQuery);
   let queryBuilder = Trip.find(finalQuery)
     .populate({
@@ -671,24 +702,16 @@ const getPaginatedTrips = async (baseQuery, queryParams, isDriver = false) => {
 
 exports.getAllTripswithPegination = async (req, res) => {
   try {
-    let result;
+    const query = await buildTripQuery(req.user, req.query);
 
-    if (req.user.role === "superadmin") {
-      const { supervisorId } = req.query;
-      const query = supervisorId ? { supervisorId } : {};
-
-      result = await getPaginatedTrips(query, req.query);
-    } else if (req.user.role === "user") {
-      result = await getPaginatedTrips({ supervisorId: req.user.id }, req.query);
-    } else if (req.user.role === "driver") {
-      result = await getPaginatedTrips({ driverId: req.user.id }, req.query, true);
-    } else {
+    if (!query) {
       return res.status(403).json({
         success: false,
         message: "Unauthorized access",
       });
     }
 
+    const result = await getPaginatedTrips(query, req.query, req.user.role === "driver");
     return res.status(200).json(result);
   } catch (error) {
     return res.status(500).json({
