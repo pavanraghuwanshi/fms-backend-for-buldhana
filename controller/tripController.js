@@ -720,3 +720,107 @@ exports.getAllTripswithPegination = async (req, res) => {
     });
   }
 };
+
+exports.getAllTripswithPegination = async (req, res) => {
+  try {
+    const query = await buildTripQuery(req.user, req.query);
+
+    if (!query) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
+
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const skip = (page - 1) * limit;
+
+    const totalItems = await Trip.countDocuments(query);
+
+
+    let trips = [];
+
+    if (req.user.role === "superadmin") {
+      trips = await Trip.find(query)
+        .populate({
+          path: "driverId",
+          select: "name deviceId ",
+          populate: {
+            path: "deviceId",
+            select: "vehicleNumber",
+          },
+        })
+        .populate({
+          path: "builtyId",
+          select: "tpNo docNo",
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)   // Applied pagination
+        .limit(limit); // Applied pagination
+    } else if (req.user.role === "user") {
+      trips = await Trip.find(query)
+        .populate({
+          path: "driverId",
+          select: "name deviceId",
+          populate: {
+            path: "deviceId",
+            select: "vehicleNumber",
+          },
+        })
+        .populate({
+          path: "builtyId",
+          select: "tpNo docNo",
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)   
+        .limit(limit); 
+    } else if (req.user.role === "driver") {
+      trips = await Trip.find(query)
+        .populate({
+          path: "driverId",
+          select: "name deviceId",
+          populate: {
+            path: "deviceId",
+            select: "vehicleNumber",
+          },
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)  
+        .limit(limit); 
+    } else {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
+
+    const tripsWithBudget = await Promise.all(
+      trips.map(async (trip) => {
+        const subTrip = await Subtrip.findOne({ tripId: trip._id }).select(
+          "budgetAllocated"
+        );
+
+        return {
+          ...trip.toObject(),
+          subTripBudgetAllocated: subTrip?.budgetAllocated || 0,
+        };
+      })
+    );
+
+    return res.status(200).json({
+      msg: "Warehouse products fetched successfully",
+      page,
+      limit,
+      totalItems,
+      totalPages: Math.ceil(totalItems / limit),
+      data: tripsWithBudget 
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
