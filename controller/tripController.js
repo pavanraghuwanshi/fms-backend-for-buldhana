@@ -2,7 +2,7 @@ const Trip = require("../model/tripModel");
 const Driver = require("../model/driverModel");
 const Subtrip = require("../model/subTripModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
-const Builty = require("../model/builtyModel");
+
 exports.createTrip = async (req, res) => {
   try {
     if (req.user.role !== "user") {
@@ -37,45 +37,8 @@ exports.createTrip = async (req, res) => {
   }
 };
 
-const buildTripQuery = (user, queryParams) => {
-  const { role, id: userId } = user;
-  const { supervisorId, status, search } = queryParams; // Add any other filter fields here
-
-  let query = {};
-
-  if (role === "superadmin") {
-    if (supervisorId) query.supervisorId = supervisorId;
-  } else if (role === "user") {
-    query.supervisorId = userId;
-  } else if (role === "driver") {
-    query.driverId = userId;
-  } else {
-    return null;
-  }
-
-  if (status) {
-    query.status = status;
-  }
-
-  if (search) {
-    query.$or = [
-      { tripId: { $regex: search, $options: "i" } },
-      { route: { $regex: search, $options: "i" } }
-    ];
-  }
-
-  return query;
-};
 exports.getAllTrips = async (req, res) => {
   try {
-    const query = buildTripQuery(req.user, req.query);
-
-    if (!query) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized access",
-      });
-    }
     let trips = [];
 
     if (req.user.role === "superadmin") {
@@ -97,7 +60,7 @@ exports.getAllTrips = async (req, res) => {
         })
         .sort({ createdAt: -1 });
     } else if (req.user.role === "user") {
-      trips = await Trip.find({ query })
+      trips = await Trip.find({ supervisorId: req.user.id })
         .populate({
           path: "driverId",
           select: "name deviceId",
@@ -112,7 +75,7 @@ exports.getAllTrips = async (req, res) => {
         })
         .sort({ createdAt: -1 });
     } else if (req.user.role === "driver") {
-      trips = await Trip.find({ query })
+      trips = await Trip.find({ driverId: req.user.id })
         .populate({
           path: "driverId",
           select: "name deviceId",
@@ -143,6 +106,10 @@ exports.getAllTrips = async (req, res) => {
     );
 
     return res.status(200).json(tripsWithBudget);
+
+
+
+
 
   } catch (error) {
     return res.status(500).json({
@@ -727,97 +694,6 @@ exports.getAllTripswithPegination = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message,
-    });
-  }
-};
-
-
-const getTripsWithFilters = async (req, res) => {
-  try {
-    const {
-      fromDate,
-      toDate,
-      driverName,
-      deviceName,
-      tpNo,
-      docNo,
-      search
-    } = req.query;
-
-    let tripMatch = {};
-    let builtyMatch = {};
-    let driverMatch = {};
-    let deviceMatch = {};
-
-    if (fromDate || toDate) {
-      tripMatch.date = {};
-      if (fromDate) tripMatch.date.$gte = new Date(fromDate);
-      if (toDate) tripMatch.date.$lte = new Date(toDate);
-    }
-   
-    if (tpNo) builtyMatch["builtyDetails.tpNo"] = tpNo;
-    if (docNo) builtyMatch["builtyDetails.docNo"] = docNo;
-    if (driverName) driverMatch["driverDetails.name"] = { $regex: driverName, $options: "i" }; // Assuming "name" key in Driver
-    if (deviceName) deviceMatch["deviceDetails.vehicleName"] = { $regex: deviceName, $options: "i" };
-
-    if (search) {
-      const searchRegex = { $regex: search, $options: "i" };
-      tripMatch.$or = [
-        { "builtyDetails.tpNo": searchRegex },
-        { "builtyDetails.docNo": searchRegex },
-        { "driverDetails.name": searchRegex },
-        { "vehicleName": searchRegex }
-      ];
-    }
-
-    const pipeline = [
-      { $match: Object.keys(tripMatch).includes('date') ? { date: tripMatch.date } : {} },
-
-      {
-        $lookup: {
-          from: "builties", 
-          localField: "builtyId",
-          foreignField: "_id",
-          as: "builtyDetails"
-        }
-      },
-      { $unwind: { path: "$builtyDetails", preserveNullAndEmptyArrays: true } },
-
-      {
-        $lookup: {
-          from: "drivers", 
-          localField: "driverId",
-          foreignField: "_id",
-          as: "driverDetails"
-        }
-      },
-      { $unwind: { path: "$driverDetails", preserveNullAndEmptyArrays: true } },
-
-      {
-        $match: {
-          ...builtyMatch,
-          ...driverMatch,
-          ...deviceMatch,
-          ...(tripMatch.$or ? { $or: tripMatch.$or } : {})
-        }
-      },
-
-      { $sort: { createdAt: -1 } }
-    ];
-
-    const trips = await Trip.aggregate(pipeline);
-
-    return res.status(200).json({
-      success: true,
-      count: trips.length,
-      data: trips
-    });
-
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error fetching filtered trips data",
-      error: error.message
     });
   }
 };
