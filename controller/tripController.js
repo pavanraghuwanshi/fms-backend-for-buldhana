@@ -2,7 +2,7 @@ const Trip = require("../model/tripModel");
 const Driver = require("../model/driverModel");
 const Subtrip = require("../model/subTripModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
-
+const Builty = require("../model/builtyModel");
 exports.createTrip = async (req, res) => {
   try {
     if (req.user.role !== "user") {
@@ -25,7 +25,7 @@ exports.createTrip = async (req, res) => {
       currentVehicle: payload.vehicleId,
       currentVehicleName: payload.vehicleName,
       currentTripId: trip._id,
-      deviceId:payload.vehicleId
+      deviceId: payload.vehicleId
     });
 
     return res.status(201).json(trip);
@@ -37,8 +37,45 @@ exports.createTrip = async (req, res) => {
   }
 };
 
+const buildTripQuery = (user, queryParams) => {
+  const { role, id: userId } = user;
+  const { supervisorId, status, search } = queryParams; // Add any other filter fields here
+
+  let query = {};
+
+  if (role === "superadmin") {
+    if (supervisorId) query.supervisorId = supervisorId;
+  } else if (role === "user") {
+    query.supervisorId = userId;
+  } else if (role === "driver") {
+    query.driverId = userId;
+  } else {
+    return null;
+  }
+
+  if (status) {
+    query.status = status;
+  }
+
+  if (search) {
+    query.$or = [
+      { tripId: { $regex: search, $options: "i" } },
+      { route: { $regex: search, $options: "i" } }
+    ];
+  }
+
+  return query;
+};
 exports.getAllTrips = async (req, res) => {
   try {
+    const query = buildTripQuery(req.user, req.query);
+
+    if (!query) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
     let trips = [];
 
     if (req.user.role === "superadmin") {
@@ -48,16 +85,20 @@ exports.getAllTrips = async (req, res) => {
       trips = await Trip.find(query)
         .populate({
           path: "driverId",
-          select: "name deviceId",
+          select: "name deviceId ",
           populate: {
             path: "deviceId",
             select: "vehicleNumber",
           },
         })
+        .populate({
+          path: "builtyId",
+          select: "tpNo docNo",
+        })
         .sort({ createdAt: -1 });
     } else if (req.user.role === "user") {
-      trips = await Trip.find({ supervisorId: req.user.id })
-       .populate({
+      trips = await Trip.find({ query })
+        .populate({
           path: "driverId",
           select: "name deviceId",
           populate: {
@@ -65,17 +106,21 @@ exports.getAllTrips = async (req, res) => {
             select: "vehicleNumber",
           },
         })
+        .populate({
+          path: "builtyId",
+          select: "tpNo docNo",
+        })
         .sort({ createdAt: -1 });
     } else if (req.user.role === "driver") {
-      trips = await Trip.find({ driverId: req.user.id })
-       .populate({
-        path: "driverId",
-        select: "name deviceId",
-        populate: {
-          path: "deviceId",
-          select: "vehicleNumber",
-        },
-      })
+      trips = await Trip.find({ query })
+        .populate({
+          path: "driverId",
+          select: "name deviceId",
+          populate: {
+            path: "deviceId",
+            select: "vehicleNumber",
+          },
+        })
         .sort({ createdAt: -1 });
     } else {
       return res.status(403).json({
@@ -98,6 +143,7 @@ exports.getAllTrips = async (req, res) => {
     );
 
     return res.status(200).json(tripsWithBudget);
+
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -175,8 +221,8 @@ exports.updateTrip = async (req, res) => {
 
         const vehicle = req.body.vehicleId
           ? await VehicleMaster.findById(req.body.vehicleId).select(
-              "vehicleNumber"
-            )
+            "vehicleNumber"
+          )
           : null;
 
         await Driver.findByIdAndUpdate(req.body.driverId, {
@@ -428,10 +474,10 @@ exports.tripCheckIn = async (req, res) => {
     }
 
     if (!driver.deviceId) {
-         console.log("Driver's current vehicle ID:", driver);
+      console.log("Driver's current vehicle ID:", driver);
       return res.status(400).json({
         success: false,
-     
+
         message: "No vehicle assigned to this driver",
       });
     }
@@ -527,6 +573,251 @@ exports.getDutySlipByTripId = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message,
+    });
+  }
+};
+
+
+const getPaginatedTrips = async (baseQuery, queryParams, isDriver = false) => {
+  let {
+    page = 1,
+    limit = 10,
+    fromDate,
+    toDate,
+    vehicle,
+    vehicleName,
+    tpNo,
+    docNo,
+    driverName,
+    search,
+  } = queryParams;
+
+  page = parseInt(page) || 1;
+  limit = parseInt(limit) || 10;
+
+  const filters = [];
+
+  if (fromDate || toDate) {
+    const dateFilter = {};
+    if (fromDate) dateFilter.$gte = new Date(fromDate);
+    if (toDate) {
+      const endOfDay = new Date(toDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      dateFilter.$lte = endOfDay;
+    }
+    filters.push({ createdAt: dateFilter });
+  }
+
+  const vehName = vehicle || vehicleName;
+  if (vehName) {
+    filters.push({ vehicleName: { $regex: vehName, $options: "i" } });
+  }
+
+  if (driverName) {
+    const drivers = await Driver.find({
+      name: { $regex: driverName, $options: "i" },
+    }).select("_id");
+    const driverIds = drivers.map((d) => d._id);
+    filters.push({ driverId: { $in: driverIds } });
+  }
+
+  if (tpNo || docNo) {
+    const builtyQuery = {};
+    if (tpNo) builtyQuery.tpNo = { $regex: tpNo, $options: "i" };
+    if (docNo) builtyQuery.docNo = { $regex: docNo, $options: "i" };
+
+    const builties = await Builty.find(builtyQuery).select("_id");
+    const builtyIds = builties.map((b) => b._id);
+    filters.push({ builtyId: { $in: builtyIds } });
+  }
+
+  if (search) {
+    const drivers = await Driver.find({
+      name: { $regex: search, $options: "i" },
+    }).select("_id");
+    const driverIds = drivers.map((d) => d._id);
+
+    const builties = await Builty.find({
+      $or: [
+        { tpNo: { $regex: search, $options: "i" } },
+        { docNo: { $regex: search, $options: "i" } },
+      ],
+    }).select("_id");
+    const builtyIds = builties.map((b) => b._id);
+
+    filters.push({
+      $or: [
+        { vehicleName: { $regex: search, $options: "i" } },
+        { driverId: { $in: driverIds } },
+        { builtyId: { $in: builtyIds } },
+      ],
+    });
+  }
+
+  const finalQuery =
+    filters.length > 0 ? { $and: [baseQuery, ...filters] } : baseQuery;
+  const totalItems = await Trip.countDocuments(finalQuery);
+  let queryBuilder = Trip.find(finalQuery)
+    .populate({
+      path: "driverId",
+      select: "name deviceId ",
+      populate: {
+        path: "deviceId",
+        select: "vehicleNumber",
+      },
+    });
+
+  if (!isDriver) {
+    queryBuilder = queryBuilder.populate({
+      path: "builtyId",
+      select: "tpNo docNo",
+    });
+  }
+
+  const trips = await queryBuilder
+    .sort({ createdAt: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit);
+
+  const tripsWithBudget = await Promise.all(
+    trips.map(async (trip) => {
+      const subTrip = await Subtrip.findOne({ tripId: trip._id }).select(
+        "budgetAllocated"
+      );
+
+      return {
+        ...trip.toObject(),
+        subTripBudgetAllocated: subTrip?.budgetAllocated || 0,
+      };
+    })
+  );
+
+  return {
+    msg: "Warehouses fetched successfully",
+    page,
+    limit,
+    totalItems,
+    totalPages: Math.ceil(totalItems / limit),
+    data: tripsWithBudget,
+  };
+};
+
+exports.getAllTripswithPegination = async (req, res) => {
+  try {
+    let result;
+
+    if (req.user.role === "superadmin") {
+      const { supervisorId } = req.query;
+      const query = supervisorId ? { supervisorId } : {};
+
+      result = await getPaginatedTrips(query, req.query);
+    } else if (req.user.role === "user") {
+      result = await getPaginatedTrips({ supervisorId: req.user.id }, req.query);
+    } else if (req.user.role === "driver") {
+      result = await getPaginatedTrips({ driverId: req.user.id }, req.query, true);
+    } else {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+const getTripsWithFilters = async (req, res) => {
+  try {
+    const {
+      fromDate,
+      toDate,
+      driverName,
+      deviceName,
+      tpNo,
+      docNo,
+      search
+    } = req.query;
+
+    let tripMatch = {};
+    let builtyMatch = {};
+    let driverMatch = {};
+    let deviceMatch = {};
+
+    if (fromDate || toDate) {
+      tripMatch.date = {};
+      if (fromDate) tripMatch.date.$gte = new Date(fromDate);
+      if (toDate) tripMatch.date.$lte = new Date(toDate);
+    }
+   
+    if (tpNo) builtyMatch["builtyDetails.tpNo"] = tpNo;
+    if (docNo) builtyMatch["builtyDetails.docNo"] = docNo;
+    if (driverName) driverMatch["driverDetails.name"] = { $regex: driverName, $options: "i" }; // Assuming "name" key in Driver
+    if (deviceName) deviceMatch["deviceDetails.vehicleName"] = { $regex: deviceName, $options: "i" };
+
+    if (search) {
+      const searchRegex = { $regex: search, $options: "i" };
+      tripMatch.$or = [
+        { "builtyDetails.tpNo": searchRegex },
+        { "builtyDetails.docNo": searchRegex },
+        { "driverDetails.name": searchRegex },
+        { "vehicleName": searchRegex }
+      ];
+    }
+
+    const pipeline = [
+      { $match: Object.keys(tripMatch).includes('date') ? { date: tripMatch.date } : {} },
+
+      {
+        $lookup: {
+          from: "builties", 
+          localField: "builtyId",
+          foreignField: "_id",
+          as: "builtyDetails"
+        }
+      },
+      { $unwind: { path: "$builtyDetails", preserveNullAndEmptyArrays: true } },
+
+      {
+        $lookup: {
+          from: "drivers", 
+          localField: "driverId",
+          foreignField: "_id",
+          as: "driverDetails"
+        }
+      },
+      { $unwind: { path: "$driverDetails", preserveNullAndEmptyArrays: true } },
+
+      {
+        $match: {
+          ...builtyMatch,
+          ...driverMatch,
+          ...deviceMatch,
+          ...(tripMatch.$or ? { $or: tripMatch.$or } : {})
+        }
+      },
+
+      { $sort: { createdAt: -1 } }
+    ];
+
+    const trips = await Trip.aggregate(pipeline);
+
+    return res.status(200).json({
+      success: true,
+      count: trips.length,
+      data: trips
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching filtered trips data",
+      error: error.message
     });
   }
 };
