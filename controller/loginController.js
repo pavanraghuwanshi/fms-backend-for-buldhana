@@ -1,7 +1,18 @@
 const Driver = require("../model/driverModel");
 const Vendor = require("../model/vendor");
 const jwt = require("jsonwebtoken");
-
+const { logAction } = require('../utils/logger');
+const mongoose = require('mongoose');
+const getMetadata = (req, userId = null) => ({
+  // If no userId, use a valid ObjectId or remove 'required: true' from schema
+  userId: userId ? new mongoose.Types.ObjectId(userId) : new mongoose.Types.ObjectId("000000000000000000000000"),
+  ipAddress: req.ip || req.connection.remoteAddress,
+  userAgent: req.headers['user-agent'] || 'unknown',
+  apiEndpoint: req.originalUrl,
+  requestMethod: req.method,
+  latitude: req.body.latitude ?? null,
+  longitude: req.body.longitude ?? null
+});
 exports.userLogin = async (req, res) => {
   const { contactNumber } = req.body;
 
@@ -34,14 +45,14 @@ const handleDriverLogin = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "30d" }
     );
-
+    await logAction({ ...getMetadata(req, driver._id), userType: 'driver', action: 'LOGIN_SUCCESS', module: 'AUTH', recordId: driver._id, status: 'SUCCESS' });
     return res.status(200).json({
       message: "Login successful",
       token,
       role: "driver"
     });
   } catch (error) {
-    console.error(error);
+    await logAction({ ...getMetadata(req), userType: 'driver', action: 'LOGIN_ERROR', module: 'AUTH', recordId: '000000000000000000000000', status: 'FAILED' });
     return res.status(500).json({ message: "Server error" + error.message });
   }
 };
@@ -85,7 +96,7 @@ const handleVendorLogin = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "30d" }
     );
-    
+await logAction({ ...getMetadata(req, vendor._id), userType: 'vendor', action: 'LOGIN_SUCCESS', module: 'AUTH', recordId: vendor._id, status: 'SUCCESS' });
     return res.status(200).json({
       message: "Vendor login successful",
       token,
@@ -94,6 +105,7 @@ const handleVendorLogin = async (req, res) => {
     });
 
   } catch (error) {
+    await logAction({ ...getMetadata(req), userType: 'vendor', action: 'LOGIN_ERROR', module: 'AUTH', recordId: '000000000000000000000000', status: 'FAILED' });
     return res.status(500).json({
       message: "Error vendor login",
       error: error.message,

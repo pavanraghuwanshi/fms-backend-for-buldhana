@@ -368,40 +368,6 @@ exports.vendorLogin = async (req, res) => {
   }
 };
 
-exports.updateFcmToken = async (req, res) => {
-  try {
-    const { vendorId, deviceId, fcmToken } = req.body;
-
-    if (!deviceId || !fcmToken) {
-      return res.status(400).json({ message: "deviceId and fcmToken are required" });
-    }
-
-    const vendor = await Vendor.findById(vendorId).select('+fcmTokens');
-    if (!vendor) return res.status(404).json({ message: "Vendor not found" });
-
-    const existingDeviceIndex = vendor.fcmTokens.findIndex(
-      (item) => item.deviceId === deviceId
-    );
-
-    if (existingDeviceIndex !== -1) {
-      if (vendor.fcmTokens[existingDeviceIndex].token === fcmToken) {
-        return res.status(200).json({ message: "Token already up to date" });
-      }
-      vendor.fcmTokens[existingDeviceIndex].token = fcmToken;
-      vendor.fcmTokens[existingDeviceIndex].createdAt = Date.now();
-    } else {
-      // Add new device entry
-      vendor.fcmTokens.push({ deviceId, token: fcmToken });
-    }
-
-    await vendor.save();
-    return res.status(200).json({ message: "FCM token updated successfully" });
-  } catch (error) {
-    console.error("FCM Update Error:", error);
-    return res.status(500).json({ message: "Internal server error", error: error.message });
-  }
-};
-
 exports.getVendorBuiltys = async (req, res) => {
   try {
     if (req.user.role !== "vendor") {
@@ -453,5 +419,64 @@ exports.getVendorBuiltys = async (req, res) => {
     return res.status(500).json({
       message: "Internal server error",
     });
+  }
+};
+
+
+exports.saveOrUpdateToken = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userType = req.user.role; 
+
+    const { deviceId, fcmToken } = req.body;
+
+    if (!deviceId || !fcmToken || !userId || !userType) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    let Model;
+    if (userType === 'driver') {
+      Model = Driver;
+    } else if (userType === 'vendor') {
+      Model = Vendor;
+    } else {
+      return res.status(403).json({ message: "Invalid user role for FCM storage" });
+    }
+
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+
+    await Model.updateOne(
+      { _id: userId },
+      { 
+        $pull: { 
+          fcmTokens: { 
+            $or: [
+              { updatedAt: { $lt: sixtyDaysAgo } },
+              { deviceId: deviceId }               
+            ] 
+          } 
+        } 
+      }
+    );
+
+
+    await Model.updateOne(
+      { _id: userId },
+      { 
+        $push: { 
+          fcmTokens: { 
+            deviceId: deviceId,
+            token: fcmToken,
+            updatedAt: Date.now()
+          } 
+        } 
+      }
+    );
+
+    return res.status(200).json({ message: "FCM token synced to user schema successfully" });
+
+  } catch (error) {
+    console.error("FCM Schema Save Error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

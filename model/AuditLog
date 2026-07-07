@@ -1,0 +1,25 @@
+const mongoose = require('mongoose');
+const { maintenanceDB } = require("../database/database");
+const auditLogSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+  userType: { type: String, required: true, enum: ['user', 'vendor', 'driver', 'worker', 'superadmin', 'System'] },
+  action: { type: String, required: true }, 
+  module: { type: String, required: true, index: true }, 
+  recordId: { type: mongoose.Schema.Types.ObjectId },
+  oldData: { type: mongoose.Schema.Types.Mixed },
+  newData: { type: mongoose.Schema.Types.Mixed }, 
+  ipAddress: { type: String, required: true },
+  userAgent: { type: String, required: true },
+  deviceId: { type: String },
+  apiEndpoint: { type: String, required: true },
+  requestMethod: { type: String, required: true, enum: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+  status: { type: String, required: true, enum: ['SUCCESS', 'FAILED'] },
+  loginId: { type: mongoose.Schema.Types.ObjectId }, 
+  latitude: { type: String },  
+  longitude: { type: String },
+  createdAt: { type: Date, default: Date.now, index: true }
+});
+
+const AuditLog = maintenanceDB.model('AuditLog', auditLogSchema);
+
+module.exports = AuditLog;

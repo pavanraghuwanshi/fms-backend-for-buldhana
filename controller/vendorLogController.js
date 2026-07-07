@@ -2,12 +2,13 @@ const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
 const VendorLog = require("../model/vendorLog");
+const Vendor = require("../model/vendor");
 const Driver = require("../model/driverModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Builty = require("../model/builtyModel");
 const Location = require("../model/location");
 const UPLOAD_BASE_URL = "/uploads/vendorlogs";
-
+const { logAction } = require('../utils/logger');
 const determineSupervisorId = (user, body) => {
   if (!user) return null;
   const { role, id, supervisor, supervisorId: userSupervisorId } = user;
@@ -130,6 +131,19 @@ exports.createLog = async (req, res) => {
     processFilePaths(req.files, logData);
 
     const log = await VendorLog.create(logData);
+    logAction({
+      userId: req.user?._id || req.user?.id || '60d5ec49f1b2c4001f8e4b8e',
+      userType: req.user.role || 'Vendor',
+      action: 'CREATE',
+      module: 'VendorLog',
+      recordId: log._id,
+      newData: log,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      status: 'SUCCESS'
+    });
 
     return res.status(201).json({
       success: true,
@@ -138,6 +152,17 @@ exports.createLog = async (req, res) => {
     });
 
   } catch (error) {
+    logAction({
+      userId: req.user?._id || 'SYSTEM',
+      userType: req.user?.role || 'System',
+      action: 'CREATE',
+      module: 'VendorLog',
+      recordId: null, // No ID created on failure
+      status: 'FAILED',
+      ipAddress: req.ip,
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method
+    });
     rollbackUploadedFiles(req.files);
     return handleApiError(error, res);
   }
@@ -196,12 +221,25 @@ exports.patchVendorLog = async (req, res) => {
       processFilePaths(req.files, updateData);
       oldFilesToDelete = getReplacedFilePaths(updateData, existingLog);
     }
-
+    const oldDataSnapshot = existingLog.toObject();
     Object.assign(existingLog, updateData);
     const updatedLog = await existingLog.save();
 
     deleteFilesSilently(oldFilesToDelete);
-
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user.role || 'Vendor',
+      action: 'UPDATE',
+      module: 'VendorLog',
+      recordId: logId,
+      oldData: oldDataSnapshot,
+      newData: updatedLog,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      status: 'SUCCESS'
+    });
     return res.status(200).json({
       success: true,
       message: "Log updated successfully.",
@@ -209,6 +247,18 @@ exports.patchVendorLog = async (req, res) => {
     });
 
   } catch (error) {
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user?.role || 'System',
+      action: 'UPDATE',
+      module: 'VendorLog',
+      recordId: req.params.id,
+      status: 'FAILED',
+      ipAddress: req.ip,
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      error: error.message
+    });
     rollbackUploadedFiles(req.files);
     return handleApiError(error, res);
   }
@@ -229,7 +279,7 @@ exports.getAllLogs = async (req, res) => {
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
 
-    const query = buildGetAllQuery(req.query, req.user);
+    const query = await buildGetAllQuery(req.query, req.user);
 
     if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
       query.createdBy = createdBy;
@@ -293,7 +343,7 @@ exports.getLogsByVendorId = async (req, res) => {
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
 
-    const query = buildGetAllQuery(req.query, req.user);
+    const query = await buildGetAllQuery(req.query, req.user);
 
     if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
       query.createdBy = createdBy;
@@ -363,6 +413,7 @@ exports.updateLog = async (req, res) => {
         message: "Unauthorized: You do not have permission to update this log.",
       });
     }
+    const oldDataSnapshot = existingLog.toObject();
 
     if (req.body.driverId === "null" || req.body.driverId === "undefined" || req.body.driverId === "") {
       req.body.driverId = null;
@@ -374,7 +425,7 @@ exports.updateLog = async (req, res) => {
     if (req.body.driverId !== undefined || req.body.vehicleId !== undefined) {
       const driverToValidate = req.body.driverId !== undefined ? req.body.driverId : existingLog.driverId;
       const vehicleToValidate = req.body.vehicleId !== undefined ? req.body.vehicleId : existingLog.vehicleId;
-      
+
       await validateForeignKeys(driverToValidate, vehicleToValidate, null);
     }
 
@@ -391,6 +442,20 @@ exports.updateLog = async (req, res) => {
     const updatedLog = await existingLog.save();
     deleteFilesSilently(oldFilesToDelete);
 
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user.role || 'User',
+      action: 'UPDATE',
+      module: 'VendorLog',
+      recordId: logId,
+      oldData: oldDataSnapshot,
+      newData: updatedLog,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      status: 'SUCCESS'
+    });
     return res.status(200).json({
       success: true,
       message: "Log updated successfully.",
@@ -398,6 +463,18 @@ exports.updateLog = async (req, res) => {
     });
 
   } catch (error) {
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user?.role || 'System',
+      action: 'UPDATE',
+      module: 'VendorLog',
+      recordId: logId,
+      status: 'FAILED',
+      ipAddress: req.ip,
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      error: error.message
+    });
     if (req.files) rollbackUploadedFiles(req.files);
     return handleApiError(error, res);
   }
@@ -453,10 +530,23 @@ exports.updateLogStatus = async (req, res) => {
         message: "Unauthorized: Your user ID does not match the supervisor ID of this log.",
       });
     }
-
+    const oldDataSnapshot = log.toObject();
     log.status = status;
     await log.save();
-
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user.role || 'User',
+      action: 'UPDATE_STATUS',
+      module: 'VendorLog',
+      recordId: logId,
+      oldData: oldDataSnapshot,
+      newData: updatedLog,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      status: 'SUCCESS'
+    });
     return res.status(200).json({
       success: true,
       message: "Log status updated successfully.",
@@ -464,11 +554,23 @@ exports.updateLogStatus = async (req, res) => {
     });
 
   } catch (error) {
+    logAction({
+      userId: req.user?._id || req.user?.id,
+      userType: req.user?.role || 'System',
+      action: 'UPDATE_STATUS',
+      module: 'VendorLog',
+      recordId: logId,
+      status: 'FAILED',
+      ipAddress: req.ip,
+      apiEndpoint: req.originalUrl,
+      requestMethod: req.method,
+      error: error.message
+    });
     return handleApiError(error, res);
   }
 };
 
-const buildGetAllQuery = (queryParams, user) => {
+const buildGetAllQuery = async (queryParams, user) => {
   const {
     status,
     search,
@@ -500,8 +602,31 @@ const buildGetAllQuery = (queryParams, user) => {
     query.createdBy = createdBy;
   }
 
-  if (search) {
-    query.$or = [{ description: { $regex: search, $options: "i" } }];
+  const cleanSearch = search?.trim();
+
+  if (cleanSearch) {
+    const searchRegex = { $regex: cleanSearch, $options: "i" };
+
+    const [drivers, vehicles, vendors, builtys] = await Promise.all([
+      Driver.find({ name: searchRegex }, '_id').lean(),
+      VehicleMaster.find({ $or: [{ vehicleNumber: searchRegex }, { make: searchRegex }] }, '_id').lean(),
+      Vendor.find({ vendorName: searchRegex }, '_id').lean(),
+      Builty.find({ tpNo: searchRegex }, '_id').lean()
+    ]);
+
+    const orConditions = [];
+
+    // OPTIMIZATION 3: Only map arrays and push to conditions if they actually contain data.
+    if (drivers.length) orConditions.push({ driverId: { $in: drivers.map(d => d._id) } });
+    if (vehicles.length) orConditions.push({ vehicleId: { $in: vehicles.map(v => v._id) } });
+    if (vendors.length) orConditions.push({ vendorId: { $in: vendors.map(v => v._id) } });
+    if (builtys.length) orConditions.push({ builtyId: { $in: builtys.map(b => b._id) } });
+
+    if (orConditions.length > 0) {
+      query.$or = orConditions;
+    } else {
+      query._id = { $in: [] };
+    }
   }
 
   if (fromDate || toDate) {
@@ -509,14 +634,14 @@ const buildGetAllQuery = (queryParams, user) => {
 
     if (fromDate) {
       const parsedFrom = new Date(fromDate);
-      if (!isNaN(parsedFrom)) {
+      if (!isNaN(parsedFrom.getTime())) {
         query.createdAt.$gte = parsedFrom;
       }
     }
 
     if (toDate) {
       const endDate = new Date(toDate);
-      if (!isNaN(endDate)) {
+      if (!isNaN(endDate.getTime())) {
         endDate.setUTCHours(23, 59, 59, 999);
         query.createdAt.$lte = endDate;
       }
@@ -543,7 +668,7 @@ exports.getSupervisorCreatedLogs = async (req, res) => {
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
 
-    const query = buildGetAllQuery(req.query, req.user);
+    const query = await buildGetAllQuery(req.query, req.user);
     query.createdBy = "supervisor";
 
     const [logs, total] = await Promise.all([
@@ -617,7 +742,7 @@ exports.getLogsByVendorIdCreatedBySup = async (req, res) => {
     const limitNumber = Number(limit);
     const skipIndex = (pageNumber - 1) * limitNumber;
 
-    const query = buildGetAllQuery(req.query, req.user);
+    const query = await buildGetAllQuery(req.query, req.user);
     query.createdBy = "supervisor";
     const [logs, total] = await Promise.all([
       VendorLog.find(query)
