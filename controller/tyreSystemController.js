@@ -403,7 +403,7 @@ exports.getTiresByVehicleId = async (req, res) => {
                if (
                     !driver ||
                     !driver.deviceId ||
-                    String(driver.deviceId) !== String(vehicle.deviceId?._id || vehicle.deviceId)
+                    String(driver.deviceId) !== String(vehicle._id)
                ) {
                     return res.status(403).json({
                          message: "Unauthorized: Tire does not belong to the driver's vehicle",
