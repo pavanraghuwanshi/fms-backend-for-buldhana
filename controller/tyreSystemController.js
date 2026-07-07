@@ -2,9 +2,7 @@ const Tire = require("../model/tyre.js");
 const Driver = require("../model/driverModel.js");
 const Trip = require("../model/tripModel.js");
 const { compressImage } = require("../utils/helperFunctions.js");
-const TyreBillImage = require("../model/tyreBillImage.js");
 const Vehicleexpense = require("../model/vehicleExpensesModel.js");
-const Device = require("../model/deviceModel.js");
 const VehicleExpenseImage = require("../model/vehicleExpenseImageModel.js");
 const VehicleMaster = require("../model/maintenanceDevice.model.js");
 
@@ -15,8 +13,9 @@ exports.addTire = async (req, res) => {
           if (!vehicleId) return res.status(400).json({ message: "Vehicle ID is required" });
 
           let driver = null;
+          let vehicle = null;
           if (req.user.role === "driver") {
-          driver = await Driver.findById(req.user.id).select("deviceId").lean();
+          driver = await Driver.findById(req.user.id).select("deviceId currentTripId").lean();
 
           if (!driver || !driver.deviceId || String(driver.deviceId) !== String(vehicleId)) {
           return res.status(400).json({
@@ -25,9 +24,22 @@ exports.addTire = async (req, res) => {
           }
           } else {
           driver = await Driver.findOne({ deviceId: vehicleId })
-          .select("currentTripId")
+          .select("currentTripId deviceId")
           .lean();
+
+          if (!driver) {
+          return res.status(400).json({
+               success: false,
+               message: "No driver assigned to this vehicle",
+          });
           }
+          }
+
+          vehicle = await VehicleMaster.findById(vehicleId)
+               .select("vehicleNumber categoryId")
+               .populate("categoryId", "categoryName")
+               .lean();
+          if (!vehicle) return res.status(404).json({ success: false, message: "Vehicle not found" });
 
           const billImg = req.files?.["billImg"]?.[0];
           let billImgId = null;
@@ -41,8 +53,8 @@ exports.addTire = async (req, res) => {
 
           const expense = new Vehicleexpense({
                driverId: req.user.role === "driver" ? req.user.id : driver._id,
-               vehicleId,
-               vehicleName: (await Driver.findOne({ currentVehicle: vehicleId }))?.currentVehicleName || "Unknown",
+               deviceId: vehicleId,
+               vehicleName: vehicle.vehicleNumber || "Unknown",
                amount,
                expenseType: "tyreWheel",
                date: installationDate,
@@ -59,7 +71,7 @@ exports.addTire = async (req, res) => {
           const tire = new Tire({
                vehicleId,
                expenseId: expense._id,
-               category: (await Device.findById(vehicleId))?.category || "Unknown",
+               category: vehicle.categoryId?.categoryName || "Unknown",
                position,
                tyreSerialNumber,
                brandName,
