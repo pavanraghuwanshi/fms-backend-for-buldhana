@@ -262,7 +262,9 @@ exports.deleteExpense = async (req, res) => {
 exports.getExpenseByVehicleId = async (req, res) => {
   try {
     const vehicleId = req.params.id;
-    const expenses = await Vehicleexpense.find({ vehicleId }).populate("driverId", "-_id name ").select("-__v").sort({ createdAt: -1 });
+    const expenses = await Vehicleexpense.find({
+      deviceId: vehicleId
+    }).populate("driverId", "-_id name ").select("-__v").sort({ createdAt: -1 });
     if (expenses.length > 0) {
       return res.status(200).json(
         expenses.map((item) => {
