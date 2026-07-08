@@ -405,35 +405,34 @@ exports.getDriverDocument = async (req, res) => {
 
 exports.getDriverStatus = async (req, res) => {
   try {
-    if (req.user.role !== "superadmin" && req.user.role !== "user") return res.status(403).json({ success: false, message: "Unauthorized access", });
+    if (req.user.role !== "superadmin" && req.user.role !== "user") {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
+
     let query = {};
+    if (req.user.role === "superadmin" && req.query.userId) {
+      query.supervisor = req.query.userId;
+    } else if (req.user.role === "user") {
+      query.supervisor = req.user.id;
+    }
 
-    // If superadmin and userId is provided in query, filter by userId
-    if (req.user.role === "superadmin" && req.query.userId) query.supervisor = req.query.userId;
-    else if (req.user.role === "user") query.supervisor = req.user.id
+    const drivers = await Driver.find(query)
+      .select('name contactNumber email supervisor deviceId currentVehicle')
+      .lean();
 
-    // Drivers with no assignedVehicle (null or undefined)
-    const availableDrivers = await Driver.find({
-      ...query,
-      $or: [
-        { currentVehicle: { $exists: false } },
-        { currentVehicle: null },
-      ],
-    }).select('name contactNumber email supervisor').lean();
+    const availableDrivers = drivers.filter(d => !d.deviceId);
+    const unavailableDrivers = drivers.filter(d => d.deviceId);
 
-    // Drivers with assignedVehicle as valid ObjectId
-    const unavailableDrivers = await Driver.find({
-      ...query,
-      currentVehicle: { $type: "objectId" },
-    }).select('name contactNumber email supervisor').lean();
-
-    return res.status(200).json({ success: true, availableDrivers, unavailableDrivers });
+    return res.status(200).json({ 
+      success: true, 
+      availableDrivers, 
+      unavailableDrivers 
+    });
   } catch (error) {
     console.error("Error in getDriverStatus:", error);
-    return res.status(500).json({ success: false, message: "Server error" + error.message });
+    return res.status(500).json({ success: false, message: "Server error: " + error.message });
   }
 };
-
 exports.leaveDashboard = async (req, res) => {
   try {
     if (req.user.role !== "driver") return res.status(403).json({ success: false, message: "Unauthorized access" });
@@ -441,7 +440,6 @@ exports.leaveDashboard = async (req, res) => {
     const now = new Date();
     const driverObjectId = new mongoose.Types.ObjectId(req.user.id);
 
-    // Current month range in UTC
     const firstDayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const lastDayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59));
     const firstDayIST = new Date(firstDayUTC.getTime());
@@ -452,7 +450,6 @@ exports.leaveDashboard = async (req, res) => {
       "july", "august", "september", "october", "november", "december"
     ];
 
-    // Prepare the last 5 months including current
     const leaveMonthRanges = [];
     for (let i = 4; i >= 0; i--) {
       const tempDate = new Date(now);
