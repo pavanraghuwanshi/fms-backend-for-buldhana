@@ -134,7 +134,7 @@ exports.getAllTires = async (req, res) => {
                }
 
                const vehicle = await VehicleMaster.findOne({
-                    deviceId: driver.deviceId,
+                    _id: driver.deviceId,
                }).select("_id");
 
                if (!vehicle) {
@@ -162,7 +162,11 @@ exports.getAllTires = async (req, res) => {
                _id: { $in: tireVehicleIds },
           })
                .select("vehicleNumber make deviceId")
-               .populate("deviceId", "name");
+                  .populate({
+                    path: "deviceId",
+                    select: "name ",
+                    options: { strictPopulate: false } // This overrides the error
+               });
 
           const vehicleMap = {};
 
