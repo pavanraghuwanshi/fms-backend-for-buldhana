@@ -118,7 +118,7 @@ exports.getDeviceById = async (req, res) => {
     const [device, vehicleDocument] = await Promise.all([
       VehicleMaster.findById(vehicleId)
         .select('vehicleNumber make categoryId')
-        .populate('categoryId', 'name'),
+        .populate('categoryId', 'categoryName'),
       VehicleDocument.findOne({ vehicleId }).select('documents'),
     ]);
 
