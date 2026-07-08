@@ -26,6 +26,10 @@ const ExpenseSchema = new mongoose.Schema(
       type: Number,
       required: [true, "Please enter amount"],
     },
+      bhattaDay: {
+      type: Number,
+      required: false,
+    },
     shopName: {
       type: String
     },

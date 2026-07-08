@@ -151,13 +151,13 @@ exports.getDriverProfile = async (req, res) => {
     if (req.user.role === "driver") {
       const driver = await Driver.findById(req.user.id).select("name email contactNumber profileImage currentVehicleName currentVehicle deviceId")
         .populate({
-        path: "deviceId",
-        select: "vehicleNumber categoryId categoryName",
-        populate: {
-          path: "categoryId",
-          select: "categoryName",
-        },
-      }); 
+          path: "deviceId",
+          select: "vehicleNumber categoryId categoryName",
+          populate: {
+            path: "categoryId",
+            select: "categoryName",
+          },
+        });
 
       if (!driver) return res.status(404).json({ message: "Driver not found" });
 
@@ -190,7 +190,7 @@ exports.getDriverById = async (req, res) => {
 
     const [driver, attendance, leaves] = await Promise.all([
       Driver.findById(req.params.id).select("name email contactNumber aadharNumber licenseNumber profileImage currentVehicleName createdAt deviceId").
-      populate("deviceId", "vehicleNumber"),
+        populate("deviceId", "vehicleNumber"),
       Attendance.aggregate([
         {
           $match: {
@@ -415,16 +415,19 @@ exports.getDriverStatus = async (req, res) => {
     // Drivers with no assignedVehicle (null or undefined)
     const availableDrivers = await Driver.find({
       ...query,
-      $or: [
-        { currentVehicle: { $exists: false } },
-        { currentVehicle: null },
+   $or: [
+       {isAssigned: false},
+       { deviceId: null }
       ],
     }).select('name contactNumber email supervisor').lean();
 
     // Drivers with assignedVehicle as valid ObjectId
     const unavailableDrivers = await Driver.find({
       ...query,
-      currentVehicle: { $type: "objectId" },
+      $or: [
+       {isAssigned: true},
+       { deviceId: { $ne: null } }
+      ],
     }).select('name contactNumber email supervisor').lean();
 
     return res.status(200).json({ success: true, availableDrivers, unavailableDrivers });
@@ -567,17 +570,17 @@ exports.getDriverDropdown = async (req, res) => {
       query.supervisor = req.user.id;
     }
 
-  if (search.trim()) {
-    query.$or = [
-      { name: { $regex: search.trim(), $options: "i" } }
-    ];
+    if (search.trim()) {
+      query.$or = [
+        { name: { $regex: search.trim(), $options: "i" } }
+      ];
 
-    if (/^\d+$/.test(search.trim())) {
-      query.$or.push({
-        contactNumber: Number(search.trim())
-      });
+      if (/^\d+$/.test(search.trim())) {
+        query.$or.push({
+          contactNumber: Number(search.trim())
+        });
+      }
     }
-  }
 
     const [drivers, total] = await Promise.all([
       Driver.find(query)
@@ -641,7 +644,7 @@ exports.getDriverDropdownall = async (req, res) => {
       const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
         { name: { $regex: escaped, $options: "i" } }
-       
+
       ];
     }
 
