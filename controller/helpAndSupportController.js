@@ -83,6 +83,16 @@ exports.getTickets = async (req, res) => {
                     ticket.supervisor = supervisor?.username || null;
                 });
             }
+        } else if (req.user.role === 'driver') {
+            tickets = await HelpAndSupport.find({ driver: userId })
+                .populate('driver', 'name')
+                .lean();
+
+            if (tickets.length > 0) {
+                tickets.forEach(ticket => {
+                    ticket.supervisorName = ticket.supervisor?.username || "Unknown Supervisor";
+                });
+            }
         }
         else {
             tickets = await HelpAndSupport.find({ driver: userId }).lean();
