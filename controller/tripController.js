@@ -164,7 +164,7 @@ exports.getAllTrips = async (req, res) => {
         })
         .populate({
           path: "builtyId",
-          select: "tpNo docNo",
+          select: "tpNo docNo consigneeName consignerName",
         })
         .sort({ createdAt: -1 });
     } else if (req.user.role === "user") {
@@ -179,7 +179,7 @@ exports.getAllTrips = async (req, res) => {
         })
         .populate({
           path: "builtyId",
-          select: "tpNo docNo",
+          select: "tpNo docNo consigneeName consignerName",
         })
         .sort({ createdAt: -1 });
     } else if (req.user.role === "driver") {
@@ -668,7 +668,7 @@ const getPaginatedTrips = async (finalQuery, queryParams, isDriver = false) => {
   if (!isDriver) {
     queryBuilder = queryBuilder.populate({
       path: "builtyId",
-      select: "tpNo docNo",
+      select: "tpNo docNo consigneeName consignerName",
     });
   }
 
@@ -700,26 +700,7 @@ const getPaginatedTrips = async (finalQuery, queryParams, isDriver = false) => {
   };
 };
 
-exports.getAllTripswithPegination = async (req, res) => {
-  try {
-    const query = await buildTripQuery(req.user, req.query);
 
-    if (!query) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized access",
-      });
-    }
-
-    const result = await getPaginatedTrips(query, req.query, req.user.role === "driver");
-    return res.status(200).json(result);
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
 
 exports.getAllTripswithPegination = async (req, res) => {
   try {
@@ -753,7 +734,7 @@ exports.getAllTripswithPegination = async (req, res) => {
         })
         .populate({
           path: "builtyId",
-          select: "tpNo docNo",
+          select: "tpNo docNo consigneeName consignerName",
         })
         .sort({ createdAt: -1 })
         .skip(skip)   // Applied pagination
@@ -770,7 +751,7 @@ exports.getAllTripswithPegination = async (req, res) => {
         })
         .populate({
           path: "builtyId",
-          select: "tpNo docNo",
+          select: "tpNo docNo consigneeName consignerName",
         })
         .sort({ createdAt: -1 })
         .skip(skip)   
