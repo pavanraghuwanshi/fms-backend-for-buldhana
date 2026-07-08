@@ -116,7 +116,9 @@ exports.getDeviceById = async (req, res) => {
   try {
     const vehicleId = req.params.id;
     const [device, vehicleDocument] = await Promise.all([
-      VehicleMaster.findById(vehicleId).select('name model category'),
+      VehicleMaster.findById(vehicleId)
+        .select('vehicleNumber make categoryId')
+        .populate('categoryId', 'name'),
       VehicleDocument.findOne({ vehicleId }).select('documents'),
     ]);
 
