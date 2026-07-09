@@ -103,11 +103,11 @@ exports.endDailyTrip = async (req, res) => {
       return res.status(404).json({ success: false, message: "Driver not found" });
     }
 
-    if (!driver.currentVehicle) {
+    if (!driver.deviceId) {
       return res.status(400).json({ success: false, message: "Driver does not have a vehicle" });
     }
 
-    const device = await Device.findById(driver.currentVehicle).select("-_id deviceId");
+    const device = await VehicleMaster.findById(driver.deviceId).select("_id vehicleNumber");
     if (!device) {
       return res.status(404).json({ success: false, message: "Device not found" });
     }
