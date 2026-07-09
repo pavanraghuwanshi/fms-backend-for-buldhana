@@ -2,7 +2,7 @@ const { default: mongoose } = require('mongoose');
 const History = require('../model/credenceHistoryModel');
 const DailyLog = require('../model/dailyLogModel');
 const DailyLogSignatureImage = require('../model/dailyLogSignatureImageModel'); // adjust path if needed
-const Device = require('../model/deviceModel');
+const VehicleMaster = require("../model/maintenanceDevice.model");
 const Driver = require('../model/driverModel');
 const { compressImage, getDuration } = require('../utils/helperFunctions');
 
@@ -28,14 +28,14 @@ exports.createDailyLog = async (req, res) => {
         if (!driver) {
             return res.status(404).json({ success: false, message: "Driver not found" });
         }
-        if (!driver.currentTripId) {
+        if (!driver.deviceId) {
             return res.status(400).json({ success: false, message: "Driver is not on a trip" });
         }
-        if (!driver.currentVehicle) {
+        if (!driver.deviceId) {
             return res.status(400).json({ success: false, message: "Driver does not have a vehicle" });
         }
 
-        const device = await Device.findById(driver.currentVehicle).select('-_id deviceId');
+        const device = await VehicleMaster.findById(driver.deviceId);
         if (!device) {
             return res.status(404).json({ success: false, message: "Device not found" });
         }
@@ -43,7 +43,7 @@ exports.createDailyLog = async (req, res) => {
         const getGPSDistance = async (deviceId, startDate, endDate) => {
             try {
                 const query = {
-                    deviceId: deviceId,
+                    deviceId: device._id,
                     createdAt: { $gte: new Date(startDate), $lte: new Date(endDate) },
                     "attributes.totalDistance": { $exists: true },
                 };
@@ -84,8 +84,8 @@ exports.createDailyLog = async (req, res) => {
 
         const newLog = await DailyLog.create({
             driverId: driverId,
-            vehicleId: driver.currentVehicle,
-            vehicleName: driver.currentVehicleName,
+            vehicleId: driver.deviceId,
+            vehicleName: device.vehicleNumber,
             startDate,
             endDate,
             logKM,
