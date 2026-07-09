@@ -2,7 +2,7 @@ const Driver = require("../model/driverModel.js");
 const Device = require("../model/deviceModel.js");
 const History = require("../model/credenceHistoryModel.js");
 const DailyTripByDriver = require("../model/DailyTripByDriverModel.js");
-
+const VehicleMaster = require("../model/maintenanceDevice.model");
 
 
 exports.startDailyTrip = async (req, res) => {
@@ -35,11 +35,12 @@ exports.startDailyTrip = async (req, res) => {
       return res.status(404).json({ success: false, message: "Driver not found" });
     }
 
-    if (!driver.currentVehicle) {
+    if (!driver.deviceId) {
       return res.status(400).json({ success: false, message: "Driver does not have a vehicle" });
     }
 
-    const device = await Device.findById(driver.currentVehicle).select("-_id deviceId");
+    const device = await VehicleMaster.findById(driver.deviceId).select("_id vehicleNumber");
+
     if (!device) {
       return res.status(404).json({ success: false, message: "Device not found" });
     }
@@ -55,17 +56,16 @@ exports.startDailyTrip = async (req, res) => {
         message: "Driver already has an ongoing trip. Please complete it first.",
       });
     }
-      const startTimeUTC = new Date();
-      const startTimeIST = new Date(startTimeUTC.getTime() + 5.5 * 60 * 60 * 1000);
+    const startTimeUTC = new Date();
+    const startTimeIST = new Date(startTimeUTC.getTime() + 5.5 * 60 * 60 * 1000);
 
     const newTrip = await DailyTripByDriver.create({
       driverId,
       supervisorId,
-      vehicleId: driver.currentVehicle,
+      vehicleId: device._id, // Use device._id here
       odometerStart,
-      startTime:startTimeIST
+      startTime: startTimeIST
     });
-
     return res.status(201).json({
       success: true,
       message: "Daily trip started successfully",
@@ -79,7 +79,7 @@ exports.startDailyTrip = async (req, res) => {
 
 
 exports.endDailyTrip = async (req, res) => {
-  const { id } = req.params; 
+  const { id } = req.params;
   try {
     if (req.user.role !== "driver" && req.user.role !== "user") {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
@@ -117,7 +117,7 @@ exports.endDailyTrip = async (req, res) => {
       return res.status(404).json({ success: false, message: "Trip not found" });
     }
 
-    if (trip.status==="completed") {
+    if (trip.status === "completed") {
       return res.status(400).json({ success: false, message: "This trip has already ended" });
     }
 
@@ -129,7 +129,7 @@ exports.endDailyTrip = async (req, res) => {
       try {
         const query = {
           deviceId: deviceId,
-          createdAt: { $gte:startTime, $lte: endTimeIST },
+          createdAt: { $gte: startTime, $lte: endTimeIST },
           "attributes.totalDistance": { $exists: true },
         };
 
@@ -154,7 +154,7 @@ exports.endDailyTrip = async (req, res) => {
     trip.endTime = endTimeIST;
     trip.odometerEnd = odometerEnd;
     trip.gpsKM = gpsKM;
-    trip.status ="completed"
+    trip.status = "completed"
 
     await trip.save();
 
@@ -171,13 +171,13 @@ exports.endDailyTrip = async (req, res) => {
 
 exports.getDailyTrips = async (req, res) => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      status, 
-      startDate, 
-      endDate, 
-      search ,
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      startDate,
+      endDate,
+      search,
     } = req.query;
 
     let driverId;
@@ -190,13 +190,13 @@ exports.getDailyTrips = async (req, res) => {
       driverId = req.user.id;
     } else if (req.user.role === "user") {
       driverId = req.query.driverId;
-      supervisorId=req.user.id
-      if(supervisorId) query.supervisorId=supervisorId;
-    }else {
-      if(supervisorId) query.supervisorId=supervisorId;
+      supervisorId = req.user.id
+      if (supervisorId) query.supervisorId = supervisorId;
+    } else {
+      if (supervisorId) query.supervisorId = supervisorId;
 
     }
-    
+
     if (driverId) query.driverId = driverId;
 
     if (status) query.status = status;
