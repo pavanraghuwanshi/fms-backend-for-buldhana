@@ -18,11 +18,11 @@ exports.createIssue = async (req, res) => {
         if (!description) return res.status(400).json({ error: 'description are required' });
 
         if (req.user.role === 'superadmin') {
-            const newIssue = new HelpAndSupport({ vehicle, ticketType, description });
+            const newIssue = new HelpAndSupport({ vehicle, ticketType, description, createdBy: req.user.role });
             await newIssue.save();
             return res.status(201).json({ message: 'Ticket Raised successfully' });
         } else if (req.user.role === 'user') {
-            const newIssue = new HelpAndSupport({ user, vehicle, ticketType, description });
+            const newIssue = new HelpAndSupport({ user, vehicle, ticketType, description, createdBy: req.user.role });
             await newIssue.save();
             return res.status(201).json({ message: 'Ticket Raised successfully' });
         } else if (req.user.role === 'driver') {
@@ -32,7 +32,8 @@ exports.createIssue = async (req, res) => {
                 supervisor: driver?.supervisor,
                 vehicle,
                 ticketType,
-                description
+                description,
+                createdBy: req.user.role
             });
             const driverdata = await newIssue.save();
             return res.status(201).json({ message: 'Ticket Raised successfully', data: driverdata });
@@ -45,7 +46,8 @@ exports.createIssue = async (req, res) => {
                 supervisor: worker?.supervisor,
                 vehicle,
                 ticketType,
-                description
+                description,
+                createdBy: req.user.role
             });
             const newData = await newIssue.save();
             return res.status(201).json({ message: 'Ticket Raised successfully', data: newData });
@@ -56,7 +58,8 @@ exports.createIssue = async (req, res) => {
                 supervisor: vendor?.supervisorId, 
                 vehicle,
                 ticketType,
-                description
+                description,
+                createdBy: req.user.role
             });
             const newData = await newIssue.save();
             return res.status(201).json({ message: 'Ticket Raised successfully', data: newData });

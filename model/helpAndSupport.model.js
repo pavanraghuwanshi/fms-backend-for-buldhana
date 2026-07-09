@@ -23,7 +23,10 @@ const HelpAndSupportSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
         },
-
+        createdBy: {
+            type: String,
+            enum: ["superadmin", "user", "driver", "worker", "vendor"]
+        },
         vehicle: {
             type: String,
         },
