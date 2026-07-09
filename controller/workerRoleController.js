@@ -201,7 +201,10 @@ const PERMISSION_TEMPLATE = {
         vehicleExp: { create: false, read: false, update: false, delete: false },
         dailyLog: { create: false, read: false, update: false, delete: false },
         serviceLog: { create: false, read: false, update: false, delete: false },
-        inspection: { create: false, read: false, update: false, delete: false }
+        inspection: { create: false, read: false, update: false, delete: false },
+        vendorsRep: { create: false, read: false, update: false, delete: false },
+        supervisorTPRep: { create: false, read: false, update: false, delete: false },
+        tpTripLogs: { create: false, read: false, update: false, delete: false }
     },
     dailyTrips: { create: false, read: false, update: false, delete: false },
     goodReceipts: {
@@ -209,7 +212,7 @@ const PERMISSION_TEMPLATE = {
         road: { create: false, read: false, update: false, delete: false }
     },
     dailyPass: {
-        builty: {create: false, read: false, update: false, delete: false}
+        builty: { create: false, read: false, update: false, delete: false }
     },
     transportPass: {
         receipt: { create: false, read: false, update: false, delete: false },

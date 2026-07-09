@@ -12,12 +12,12 @@ const createCrudPermissions = () => ({
 });
 
 const WorkerRoleSchema = new mongoose.Schema({
-  assignedWorkers: [{ 
-    type: mongoose.Schema.Types.ObjectId, 
+  assignedWorkers: [{
+    type: mongoose.Schema.Types.ObjectId,
     ref: "Worker",
-    index: true 
+    index: true
   }],
-  
+
   // 1. Static Core Permissions (Validated and Structured)
   permissions: {
     masters: {
@@ -45,7 +45,10 @@ const WorkerRoleSchema = new mongoose.Schema({
       vehicleExp: createCrudPermissions(),
       dailyLog: createCrudPermissions(),
       serviceLog: createCrudPermissions(),
-      inspection: createCrudPermissions()
+      inspection: createCrudPermissions(),
+      vendorsRep: createCrudPermissions(),
+      supervisorTPRep: createCrudPermissions(),
+      tpTripLogs: createCrudPermissions(),
     },
     dailyTrips: createCrudPermissions(),
     goodReceipts: {
@@ -82,9 +85,9 @@ const WorkerRoleSchema = new mongoose.Schema({
     of: mongoose.Schema.Types.Mixed,
     default: {}
   }
-}, { 
-  timestamps: true, 
-  minimize: false 
+}, {
+  timestamps: true,
+  minimize: false
 });
 
 const WorkerRole = maintenanceDB.model('WorkerRole', WorkerRoleSchema);
