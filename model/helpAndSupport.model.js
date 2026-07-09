@@ -11,10 +11,19 @@ const HelpAndSupportSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "Driver",
         },
+         worker: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Worker",
+        },
+        vendor: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Vendor",
+        },
         supervisor: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
         },
+
         vehicle: {
             type: String,
         },
