@@ -8,10 +8,19 @@ exports.workerLogin = async (req, res) => {
     try {
         const { phone, password } = req.body;
         if (!phone || !password) return res.status(400).json({ message: "Phone and password are required" });
-
-        const worker = await Worker.findOne({ phone });
-        if (!worker) return res.status(404).json({ message: "Worker not found" });
-
+        let worker;
+        try {
+            worker = await Worker.findOne({ phone });
+        } catch (dbError) {
+            // This catches the CastError if the input doesn't match the schema type
+            return res.status(400).json({
+                success: false,
+                message: "Invalid credentials"
+            });
+        }
+        if (!worker) {
+            return res.status(404).json({ success: false, message: "Worker not found" });
+        }
         const isMatch = comparePassword(password, worker.password);
         if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
 
