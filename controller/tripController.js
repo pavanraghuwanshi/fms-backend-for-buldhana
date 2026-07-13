@@ -700,8 +700,6 @@ const getPaginatedTrips = async (finalQuery, queryParams, isDriver = false) => {
   };
 };
 
-
-
 exports.getAllTripswithPegination = async (req, res) => {
   try {
     const query = await buildTripQuery(req.user, req.query);
@@ -790,7 +788,7 @@ exports.getAllTripswithPegination = async (req, res) => {
     );
 
     return res.status(200).json({
-      msg: "Warehouse products fetched successfully",
+      msg: "Logs fetched successfully",
       page,
       limit,
       totalItems,
@@ -802,6 +800,64 @@ exports.getAllTripswithPegination = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message,
+    });
+  }
+};
+
+exports.getInProgressTrips = async (req, res) => {
+  try {
+    const query = await buildTripQuery(req.user, req.query);
+    if (!query) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
+
+    query.status = "in-progress";
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const skip = (page - 1) * limit;
+
+    const [total, trips] = await Promise.all([
+      Trip.countDocuments(query),
+      Trip.find(query)
+        .populate("driverId", "name") // Populates driver object to get .name and ._id
+        .populate("builtyIds", "docNo")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean() 
+    ]);
+
+    const formattedTrips = trips.map((trip) => ({
+      tripId: trip._id, // Renamed _id to tripId
+      driverId: trip.driverId?._id, // Included driverId
+      driverName: trip.driverId?.name || "N/A", // Populated driver name
+      vehicleName: trip.vehicleName,
+      vehicleId: trip.vehicleId,
+      startLocation: trip.startLocation, // Included startLocation
+      endLocation: trip.endLocation,     // Included endLocation
+      docNos: Array.isArray(trip.builtyIds) 
+        ? trip.builtyIds.filter(Boolean).map((b) => b.docNo) 
+        : [],
+      status: trip.status,
+      date: trip.date
+    }));
+
+    return res.status(200).json({
+      message: "In-progress trips fetched successfully",
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+      trips: formattedTrips,
+    });
+  } catch (error) {
+    console.error("Error in getInProgressTrips:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An internal server error occurred.",
     });
   }
 };

@@ -9,7 +9,8 @@ const Trip = require("../model/tripModel");
 const Location = require("../model/location");
 const Vehicleexpense = require("../model/vehicleExpensesModel");
 const VendorLog = require("../model/vendorLog");
-
+const WalletLedger = require("../model/WalletLedger");
+const { addLedgerEntryOnBuiltyAdd, withdrawFundsForVehicle, updateFirstLedgerDeposit, getLedgerSummaryByBuilty, getLedgerEntriesByBuilty } = require("./ledgerController");
 const roleModelMap = {
   school: "School",
   branch: "Branch",
@@ -23,7 +24,11 @@ const upsertBuiltyExpense = async ({
   amount,
   description,
 }) => {
-  if (amount === undefined) return;
+  // LOG: Check if amount exists
+  if (amount === undefined) {
+    console.log(`[SKIP] No withdrawal: amount is undefined for ${expenseType}`);
+    return;
+  }
 
   const finalAmount = Number(amount || 0);
 
@@ -34,6 +39,7 @@ const upsertBuiltyExpense = async ({
 
   const oldExpense = await Vehicleexpense.findOne(filter);
 
+  // LOG: Check for deletion/zero cases
   if (finalAmount <= 0) {
     if (oldExpense) {
       if (trip?._id) {
@@ -41,10 +47,11 @@ const upsertBuiltyExpense = async ({
           $inc: { spentAmount: -Number(oldExpense.amount || 0) },
         });
       }
-
       await Vehicleexpense.deleteOne(filter);
+      console.log(`[LOG] Expense deleted/zeroed out for ${expenseType}. No withdrawal made.`);
+    } else {
+      console.log(`[SKIP] No withdrawal: finalAmount is <= 0 and no old expense to delete for ${expenseType}`);
     }
-
     return;
   }
 
@@ -65,12 +72,27 @@ const upsertBuiltyExpense = async ({
       });
     }
 
+    // LOG: Check if amounts are actually different
+    if (finalAmount !== Number(oldExpense.amount)) {
+      await withdrawFundsForVehicle({
+        driverId: builty.driverId,
+        supervisorId: builty.supervisorId,
+        vehicleId: builty.vehicleId,
+        amount: finalAmount,
+        tripId: trip?._id,
+        builtyId: builty._id,
+        actionBy: builty.createdBy,
+        expenseId: oldExpense._id
+      });
+      console.log(`[SUCCESS] Withdrawal triggered for UPDATE of ${expenseType}`);
+    } else {
+      console.log(`[SKIP] No withdrawal: new amount (${finalAmount}) matches old amount (${oldExpense.amount}) for ${expenseType}`);
+    }
     return;
-
-
   }
 
-  await Vehicleexpense.create({
+  // FIX: Capture the created document so we have an ID
+  const newExpense = await Vehicleexpense.create({
     driverId: builty.driverId || null,
     vehicleId: builty.vehicleId || null,
     vehicleName: builty.vehicleNumber || "",
@@ -86,20 +108,38 @@ const upsertBuiltyExpense = async ({
     builtyId: builty._id,
   });
 
+  // LOG: Check for Trip ID
   if (trip?._id) {
     await Trip.findByIdAndUpdate(trip._id, {
       $inc: { spentAmount: finalAmount },
     });
+    console.log("New Expense Created:", finalAmount);
+
+    await withdrawFundsForVehicle({
+      driverId: builty.driverId,
+      supervisorId: builty.supervisorId,
+      vehicleId: builty.vehicleId,
+      amount: finalAmount,
+      tripId: trip._id,
+      builtyId: builty._id,
+      actionBy: builty.createdBy,
+      expenseId: newExpense._id
+    });
+    console.log(`[SUCCESS] Withdrawal triggered for NEW creation of ${expenseType}`);
+  } else {
+    console.log(`[SKIP] No withdrawal: New expense created for ${expenseType}, but no trip ID found to link withdrawal.`);
   }
 };
 
-const syncBuiltyAutoExpenses = async ({ builty, body, allowedTypes }) => {
-  const trip = await Trip.findOne({ builtyId: builty._id });
+const syncBuiltyAutoExpenses = async ({ builty, body, allowedTypes, trip }) => {
+  const tripId = trip?._id || trip;
+  const tripObject = tripId ? { _id: tripId } : null;
 
   if (allowedTypes.includes("loading")) {
+
     await upsertBuiltyExpense({
       builty,
-      trip,
+      trip: tripObject,
       expenseType: "Loading Charge",
       amount: body.loadingCharge,
       description: "Auto expense from builty loadingCharge",
@@ -107,7 +147,7 @@ const syncBuiltyAutoExpenses = async ({ builty, body, allowedTypes }) => {
 
     await upsertBuiltyExpense({
       builty,
-      trip,
+      trip: tripObject,
       expenseType: "Load Kata Charge",
       amount: body.loadKataCharge,
       description: "Auto expense from builty loadKataCharge",
@@ -115,9 +155,10 @@ const syncBuiltyAutoExpenses = async ({ builty, body, allowedTypes }) => {
   }
 
   if (allowedTypes.includes("unloading")) {
+
     await upsertBuiltyExpense({
       builty,
-      trip,
+      trip: tripObject,
       expenseType: "Unloading Charge",
       amount: body.unLoadingCharge,
       description: "Auto expense from builty unLoadingCharge",
@@ -125,7 +166,7 @@ const syncBuiltyAutoExpenses = async ({ builty, body, allowedTypes }) => {
 
     await upsertBuiltyExpense({
       builty,
-      trip,
+      trip: tripObject,
       expenseType: "Unloading Kata Charge",
       amount: body.unloadingKataCharge,
       description: "Auto expense from builty unloadingKataCharge",
@@ -216,13 +257,13 @@ exports.createBuilty = async (req, res) => {
       if (!vehicle) {
         return res.status(404).json({ message: "Vehicle not found" });
       }
-
-      if (vehicle.isAssigned) {
-        return res.status(400).json({
-          message: "Vehicle is already assigned to another active builty",
-        });
+      if (!payload.tripId) {
+        if (vehicle.isAssigned) {
+          return res.status(400).json({
+            message: "Vehicle is already assigned to another active builty",
+          });
+        }
       }
-
       payload.vehicleNumber = vehicle.vehicleNumber;
       payload.grossVehicleWeight = vehicle.grossVehicleWeight;
     }
@@ -275,26 +316,7 @@ exports.createBuilty = async (req, res) => {
         .select("name locationName")
         .lean();
 
-      createdTrip = await Trip.create({
-        driverId: payload.driverId,
-        vehicleId: payload.vehicleId,
-        vehicleName: payload.vehicleNumber,
-        supervisorId: req.user.id,
-        builtyId: builty._id,
-        startLocation:
-          pickupLocation?.name ||
-          pickupLocation?.locationName ||
-          payload.pickupLocationId.toString(),
-        endLocation:
-          destinationLocation?.name ||
-          destinationLocation?.locationName ||
-          payload.destinationLocationId.toString(),
-        materialType: payload.products?.[0]?.productName || "",
-        transportMode: "transport",
-        budgetAllocated: payload.vehicleExpenseAmount || 0,
-        status: "in-progress",
-      });
-
+      createdTrip = await linkBuiltyToTrip({ payload, builty, req });
       await Driver.findByIdAndUpdate(payload.driverId, {
         $set: {
           currentTripId: createdTrip._id,
@@ -306,6 +328,7 @@ exports.createBuilty = async (req, res) => {
       builty,
       body: payload,
       allowedTypes: ["loading"],
+      trip: createdTrip
     });
 
     if (payload.vendorId) {
@@ -373,6 +396,65 @@ exports.createBuilty = async (req, res) => {
       message: "Error creating builty",
       error: error.message,
     });
+  }
+};
+
+const linkBuiltyToTrip = async ({ payload, builty, req }) => {
+  try {
+    let trip;
+
+    if (payload.tripId) {
+      // UPDATE EXISTING TRIP
+      trip = await Trip.findByIdAndUpdate(
+        payload.tripId,
+        { $addToSet: { builtyIds: builty._id } },
+        { new: true }
+      );
+
+      if (!trip) {
+        throw new Error(`Trip with ID ${payload.tripId} not found`);
+      }
+    } else {
+      // CREATE NEW TRIP
+      const pickup = await Location.findById(payload.pickupLocationId).select("name locationName").lean();
+      const dest = await Location.findById(payload.destinationLocationId).select("name locationName").lean();
+
+      trip = await Trip.create({
+        driverId: payload.driverId,
+        vehicleId: payload.vehicleId,
+        vehicleName: payload.vehicleNumber,
+        supervisorId: req.user.id,
+        builtyIds: [builty._id],
+        startLocation: pickup?.name || pickup?.locationName || payload.pickupLocationId.toString(),
+        endLocation: dest?.name || dest?.locationName || payload.destinationLocationId.toString(),
+        materialType: payload.products?.[0]?.productName || "",
+        transportMode: "transport",
+        budgetAllocated: payload.vehicleExpenseAmount || 0,
+        status: "in-progress",
+      });
+
+      await Driver.findByIdAndUpdate(payload.driverId, { $set: { currentTripId: trip._id } });
+    }
+
+    // Handle Ledger Entry if expense amount is provided
+    if (payload.vehicleExpenseAmount && Number(payload.vehicleExpenseAmount) > 0) {
+      await addLedgerEntryOnBuiltyAdd({
+        driverId: payload.driverId,
+        supervisorId: payload.supervisorId,
+        vehicleId: payload.vehicleId,
+        type: "DEPOSIT",
+        amount: Number(payload.vehicleExpenseAmount),
+        tripId: trip._id,
+        builtyId: builty._id,
+        actionBy: req.user.id
+      });
+    }
+
+    return trip;
+  } catch (error) {
+    console.error("Error in linkBuiltyToTrip helper:", error);
+    // Re-throw the error so the controller knows the operation failed
+    throw error;
   }
 };
 
@@ -636,6 +718,32 @@ exports.updateBuilty = async (req, res) => {
       new: true,
       runValidators: true,
     });
+    const trip = await Trip.findOne({ builtyIds: id, status: "in-progress" });
+    if (payload.vehicleExpenseAmount !== undefined) {
+      const newAmount = Number(payload.vehicleExpenseAmount);
+
+      // Check if the amount is actually different before updating
+      const existingEntry = await WalletLedger.findOne({
+        builtyId: id,
+        type: 'DEPOSIT'
+      }).sort({ createdAt: 1 });
+
+      if (existingEntry && existingEntry.amount !== newAmount) {
+        await updateFirstLedgerDeposit({
+          builtyId: id,
+          newAmount: newAmount,
+          actionBy: req.user.id
+        });
+      }
+    }
+    await syncBuiltyAutoExpenses({
+      builty: updatedBuilty,
+      body: payload, // Use the updated payload
+      allowedTypes: ["loading", "unloading"], // Sync all types
+      trip: trip
+    });
+
+
 
     if (
       builty.vehicleId &&
@@ -740,7 +848,24 @@ exports.updateBuilty = async (req, res) => {
         }
       );
     }
-
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user.role || 'User',
+        action: 'UPDATE',
+        module: 'Builty',
+        recordId: id,
+        oldData: builty.toObject(),
+        newData: updatedBuilty.toObject(),
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed, but update succeeded:", logError);
+    }
     return res.status(200).json({
       message: "Builty updated successfully",
       builty: updatedBuilty,
@@ -816,12 +941,13 @@ exports.dispatchBuilty = async (req, res) => {
     if (!builty) {
       return res.status(404).json({ message: "Builty not found" });
     }
+    const oldBuiltySnapshot = builty.toObject();
 
-    if (builty.status !== "Created") {
-      return res.status(400).json({
-        message: "Only created builty can be dispatched",
-      });
-    }
+    // if (builty.status !== "Created") {
+    //   return res.status(400).json({
+    //     message: "Only created builty can be dispatched",
+    //   });
+    // }
 
     builty.loadingEmptyWeight = Number(loadingEmptyWeight);
     builty.loadingLoadedWeight = Number(loadingLoadedWeight);
@@ -887,23 +1013,50 @@ exports.dispatchBuilty = async (req, res) => {
 
     builty.status = "Dispatched";
 
-    if (builty.driverId && builty.vehicleId) {
-      await Trip.findOneAndUpdate(
-        {
-          driverId: builty.driverId,
-          vehicleId: builty.vehicleId,
-          builtyId: builty._id,
-          status: "in-progress",
-        },
+    // if (builty.driverId && builty.vehicleId) {
+    //   await Trip.findOneAndUpdate(
+    //     {
+    //       driverId: builty.driverId,
+    //       vehicleId: builty.vehicleId,
+    //       builtyId: builty._id,
+    //       status: "in-progress",
+
+    //     },
+    //     {
+    //       $set: {
+    //         driverCheckIn: true,
+    //         startOdometerReading: Number(startOdometerReading),
+    //       },
+    //     },
+    //     {
+    //       new: true,
+    //     }
+    //   );
+    // }
+
+    // const updatedBuilty = await builty.save();
+
+    // await syncBuiltyAutoExpenses({
+    //   builty,
+    //   body: req.body,
+    //   allowedTypes: ["loading"],
+    // });
+
+    const trip = await Trip.findOne({
+      builtyIds: builty._id,
+      status: "in-progress",
+    });
+
+    if (trip) {
+      await Trip.findByIdAndUpdate(
+        trip._id,
         {
           $set: {
             driverCheckIn: true,
             startOdometerReading: Number(startOdometerReading),
           },
         },
-        {
-          new: true,
-        }
+        { new: true }
       );
     }
 
@@ -913,8 +1066,50 @@ exports.dispatchBuilty = async (req, res) => {
       builty,
       body: req.body,
       allowedTypes: ["loading"],
+      trip: trip
     });
+    //
+    if (req.body.vehicleExpenseAmount !== undefined) {
+      const newAmount = Number(req.body.vehicleExpenseAmount);
+      const builtyId = req.params.id;
+      const tripId = trip ? trip._id : null;
 
+      const query = { builtyId, type: 'DEPOSIT' };
+      if (tripId) query.tripId = tripId;
+
+      const existingEntry = await WalletLedger.findOne(query).sort({ createdAt: 1 });
+
+      if (existingEntry) {
+        if (existingEntry.amount !== newAmount) {
+          await updateFirstLedgerDeposit({
+            tripId: tripId,
+            builtyId: builtyId,
+            newAmount: newAmount,
+            actionBy: req.user.id
+          });
+        }
+      }
+    }
+
+    // ... proceed to logAction and return response ...
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user.role || 'User',
+        action: 'DISPATCH',
+        module: 'Builty',
+        recordId: builty._id,
+        oldData: oldBuiltySnapshot,
+        newData: updatedBuilty.toObject(),
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for dispatch:", logError);
+    }
     return res.status(200).json({
       message: "Builty dispatched successfully",
       builty,
@@ -956,6 +1151,7 @@ exports.completeBuilty = async (req, res) => {
       return res.status(404).json({ message: "Builty not found" });
     }
 
+
     if (builty.status !== "Dispatched") {
       return res.status(400).json({
         message: "Only dispatched builty can be completed",
@@ -983,7 +1179,7 @@ exports.completeBuilty = async (req, res) => {
         allowedDiscountWeight,
       });
     }
-
+    const oldBuiltySnapshot = builty.toObject();
     builty.deliveryLoadedWeight = Number(deliveryLoadedWeight);
     builty.deliveryEmptyWeight = Number(deliveryEmptyWeight);
     builty.deliveryMaterialWeight = deliveryMaterialWeight;
@@ -999,7 +1195,7 @@ exports.completeBuilty = async (req, res) => {
     builty.status = "Completed";
     builty.completedAt = new Date();
 
-    await builty.save();
+    const updatedBuilty = await builty.save();
     await syncBuiltyAutoExpenses({
       builty,
       body: req.body,
@@ -1019,7 +1215,24 @@ exports.completeBuilty = async (req, res) => {
         },
       });
     }
-
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user.role || 'User',
+        action: 'COMPLETE',
+        module: 'Builty',
+        recordId: builty._id,
+        oldData: oldBuiltySnapshot,
+        newData: updatedBuilty.toObject(),
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for completion:", logError);
+    }
     return res.status(200).json({
       message: "Builty completed successfully",
       builty,
@@ -1203,13 +1416,21 @@ exports.getBuiltys = async (req, res) => {
       .lean();
 
     const total = await Builty.countDocuments(query);
-
+    const builtysWithLedger = await Promise.all(
+      builtys.map(async (builty) => {
+        const summary = await getLedgerSummaryByBuilty(builty._id);
+        return {
+          ...builty,
+          ...summary
+        };
+      })
+    );
     return res.status(200).json({
       message: "Builtys fetched successfully",
       total,
       page: Number(page),
       limit: Number(limit),
-      builtys,
+      builtys: builtysWithLedger,
     });
   } catch (error) {
     return res.status(500).json({
@@ -1277,5 +1498,85 @@ const handleVendorAssignment = async ({
     });
   } catch (err) {
     console.error("Error creating vendor log entry:", err);
+  }
+};
+
+exports.getMiniBuiltysRollWise = async (req, res) => {
+  try {
+    if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const {
+      page = 1,
+      limit = 10,
+      search,
+    } = req.query;
+    const query = {};
+
+    if (req.user.role === "user") {
+      query.supervisorId = req.user.id;
+    } else if (req.user.role === "worker") {
+      query.supervisorId = req.user.supervisor;
+    } else if (req.user.role === "driver") {
+      query.driverId = req.user.id;
+    }
+
+    if (search) {
+      query.tpNo = { $regex: search, $options: "i" };
+    }
+
+    const builtys = await Builty.find(query)
+      .select("tpNo docNo driverId vehicleId vehicleNumber")
+      .populate("driverId", "name")
+      .sort({ createdAt: -1 })
+      .skip((Number(page) - 1) * Number(limit))
+      .limit(Number(limit))
+      .lean();
+
+    const total = await Builty.countDocuments(query);
+
+    return res.status(200).json({
+      message: "tp list fetched successfully",
+      page: Number(page),
+      limit: Number(limit),
+      totalItems: total,
+      totalPages: Math.ceil(total / Number(limit)),
+      builtys,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching builtys",
+      error: error.message,
+    });
+  }
+};
+exports.getLedgerBuiltyById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 10, search, type } = req.query;
+
+    // Run Financial Summary & Ledger Pagination in parallel
+    const [summary, ledgerData] = await Promise.all([
+      getLedgerSummaryByBuilty(id),
+      getLedgerEntriesByBuilty(id, { page, limit, search, type })
+    ]);
+
+    // Return in the specific format requested
+    return res.status(200).json({
+      message: "Ledger entries fetched successfully",
+      total: ledgerData.total,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: ledgerData.totalPages,
+      ...summary, // Flattens deposite, withdraw, netBalance into the root
+      ledger: ledgerData.entries
+    });
+
+  } catch (error) {
+    console.error(`[Controller Error] getLedgerBuiltyById: ${error.message}`);
+    return res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
   }
 };

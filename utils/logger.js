@@ -2,7 +2,6 @@ const AuditLog = require('../model/AuditLog');
 
 const logAction = async (logData) => {
     try {
-        console.log("Audit log attempt for:", logData);
 
         await AuditLog.create({
             userId: logData.userId,

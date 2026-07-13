@@ -61,7 +61,6 @@ exports.getDevices = async (req, res) => {
 
     let filter = {};
 
-    // 🔎 search filter
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
@@ -72,7 +71,6 @@ exports.getDevices = async (req, res) => {
       ];
     }
 
-    // 🔥 roleType based filtering
     if (roleType === "school") {
       filter.schoolId = id;
     }

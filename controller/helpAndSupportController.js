@@ -72,7 +72,6 @@ exports.createIssue = async (req, res) => {
 
 
 const attachSupervisorNames = async (tickets) => {
-    // 1. Collect both supervisor and user IDs to cover all scenarios
     const idsToLookup = new Set();
     tickets.forEach(t => {
         if (t.supervisor) idsToLookup.add(t.supervisor.toString());

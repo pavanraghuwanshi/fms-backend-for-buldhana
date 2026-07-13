@@ -119,3 +119,46 @@ exports.updateBuiltyTemplate = async (req, res) => {
     });
   }
 };
+
+exports.deleteBuiltyTemplate = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "Invalid Template ID format",
+      });
+    }
+
+    if (req.user.role !== "user") {
+      return res.status(403).json({
+        message: "Access denied: Only users can delete templates.",
+      });
+    }
+
+    const template = await BuiltyTemplate.findById(id);
+
+    if (!template) {
+      return res.status(404).json({
+        message: "Template not found",
+      });
+    }
+
+    // if (template.supervisorId.toString() !== req.user.id) {
+    //   return res.status(403).json({
+    //     message: "You are not authorized to delete this template.",
+    //   });
+    // }
+
+    await BuiltyTemplate.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      message: "Template deleted successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error deleting template",
+      error: error.message,
+    });
+  }
+};
