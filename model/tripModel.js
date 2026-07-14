@@ -22,11 +22,11 @@ const tripSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    // builtyId: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "Builty",
-    //   default: null,
-    // },
+    builtyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Builty",
+      default: null,
+    },
     builtyIds: [
       {
         type: mongoose.Schema.Types.ObjectId,
