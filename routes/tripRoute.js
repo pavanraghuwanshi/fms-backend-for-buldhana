@@ -1,5 +1,5 @@
 const express = require("express");
-const { createTrip, getAllTrips, updateTrip, deleteTrip, getTripByVehicleId, getTripByDriverId, getTripAnalyticsByTripId, tripCheckIn, getDutySlipByTripId, getAllTripswithPegination, getInProgressTrips} = require("../controller/tripController");
+const { createTrip, getAllTrips, updateTrip, deleteTrip, getTripByVehicleId, getTripByDriverId, getTripAnalyticsByTripId, tripCheckIn, getDutySlipByTripId, getAllTripswithPegination, getInProgressTrips, getTripsForDropdown } = require("../controller/tripController");
 const { authenticateToken } = require("../middleware/authMiddleware");
 const router = express.Router();
 
@@ -7,6 +7,8 @@ router.post("/create", authenticateToken, createTrip);
 router.post("/check-in", authenticateToken, tripCheckIn);
 router.get("/get", authenticateToken, getAllTrips);
 router.get("/get-with-pagination", authenticateToken, getAllTripswithPegination);
+router.get("/dropdown-for-all-trips", authenticateToken, getTripsForDropdown);
+
 router.get("/get-in-progress", authenticateToken, getInProgressTrips);
 router.get("/get-dutySlip-by-trip-id/:id", authenticateToken, getDutySlipByTripId);
 router.get("/get-trip-by-vehicle-id/:id", authenticateToken, getTripByVehicleId);

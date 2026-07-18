@@ -1580,3 +1580,142 @@ exports.getLedgerBuiltyById = async (req, res) => {
     });
   }
 };
+
+exports.getBuiltysByTripId = async (req, res) => {
+  try {
+    if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const { tripId } = req.params;
+    if (!tripId) {
+      return res.status(400).json({ message: "Trip ID is required" });
+    }
+
+    const trip = await Trip.findById(tripId).select("builtyId builtyIds").lean();
+    if (!trip) {
+      return res.status(404).json({ message: "Trip not found" });
+    }
+
+    // Collect all unique builty IDs associated with this trip
+    const builtyIds = new Set();
+    if (trip.builtyId) builtyIds.add(trip.builtyId.toString());
+    if (Array.isArray(trip.builtyIds)) {
+      trip.builtyIds.forEach(id => {
+        if (id) builtyIds.add(id.toString());
+      });
+    }
+
+    const uniqueBuiltyIds = Array.from(builtyIds);
+
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      status,
+      supervisorId,
+      supervisorModel,
+      startDate,
+      endDate,
+
+      consignerId,
+      consigneeId,
+      vehicleId,
+      transporterId,
+      commissionAgentId,
+      driverId,
+      workerId,
+      createdBy,
+
+      bookingMode,
+      vehicleOwnership,
+      advanceMode,
+    } = req.query;
+
+    const query = { _id: { $in: uniqueBuiltyIds } };
+
+    if (req.user.role === "user") {
+      query.supervisorId = req.user.id;
+    } else if (req.user.role === "worker") {
+      query.supervisorId = req.user.supervisor;
+    } else if (req.user.role === "driver") {
+      query.driverId = req.user.id;
+    }
+
+    if (supervisorModel) query.supervisorModel = supervisorModel;
+    if (status) query.status = status;
+
+    if (consignerId) query.consignerId = consignerId;
+    if (consigneeId) query.consigneeId = consigneeId;
+    if (vehicleId) query.vehicleId = vehicleId;
+    if (transporterId) query.transporterId = transporterId;
+    if (commissionAgentId) query.commissionAgentId = commissionAgentId;
+    if (driverId) query.driverId = driverId;
+    if (workerId) query.workerId = workerId;
+    if (createdBy) query.createdBy = createdBy;
+
+    if (bookingMode) query.bookingMode = bookingMode;
+    if (vehicleOwnership) query.vehicleOwnership = vehicleOwnership;
+    if (advanceMode) query.advanceMode = advanceMode;
+
+    if (startDate && endDate) {
+      query.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
+      };
+    }
+
+    if (search) {
+      query.$or = [
+        { tpNo: { $regex: search, $options: "i" } },
+        { consignerName: { $regex: search, $options: "i" } },
+        { consigneeName: { $regex: search, $options: "i" } },
+        { vehicleNumber: { $regex: search, $options: "i" } },
+        { destinationLocation: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const [total, builtys] = await Promise.all([
+      Builty.countDocuments(query),
+      Builty.find(query)
+        .populate("consignerId", "name contactNumber contactPerson")
+        .populate("consigneeId", "name contactNumber contactPerson")
+        .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
+        .populate("transporterId", "transporterName contactPerson contactNumber")
+        .populate("commissionAgentId", "name contactNumber contactPerson")
+        .populate("driverId", "name contactNumber")
+        .populate("pickupLocationId", "locationName latitude longitude")
+        .populate("destinationLocationId", "locationName latitude longitude")
+        .populate("vendorId", "vendorName contactPerson contactNumber")
+        .populate("invoice")
+        .sort({ createdAt: -1 })
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit))
+        .lean()
+    ]);
+
+    const builtysWithLedger = await Promise.all(
+      builtys.map(async (builty) => {
+        const summary = await getLedgerSummaryByBuilty(builty._id);
+        return {
+          ...builty,
+          ...summary
+        };
+      })
+    );
+
+    return res.status(200).json({
+      message: "Builtys fetched successfully",
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(total / Number(limit)),
+      builtys: builtysWithLedger,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching builtys for trip",
+      error: error.message,
+    });
+  }
+};

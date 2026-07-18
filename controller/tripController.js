@@ -3,6 +3,8 @@ const Driver = require("../model/driverModel");
 const Subtrip = require("../model/subTripModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Builty = require("../model/builtyModel");
+const WalletLedger = require("../model/WalletLedger");
+
 exports.createTrip = async (req, res) => {
   try {
     if (req.user.role !== "user") {
@@ -27,7 +29,19 @@ exports.createTrip = async (req, res) => {
       currentTripId: trip._id,
       deviceId: payload.vehicleId
     });
-
+    const initialDeposit = new WalletLedger({
+      driverId: trip.driverId,
+      supervisorId: trip.supervisorId,
+      vehicleId: trip.vehicleId,
+      type: "DEPOSIT",
+      amount: trip.budgetAllocated || 0, // Positive for deposit
+      balanceAfter: trip.budgetAllocated || 0, // First entry, so balance is the deposit
+      tripId: trip._id,
+      builtyId: trip.builtyId || null,
+      actionBy: req.user.id,
+      date: new Date()
+    });
+    await initialDeposit.save();
     return res.status(201).json(trip);
   } catch (error) {
     return res.status(400).json({
@@ -261,6 +275,37 @@ exports.updateTrip = async (req, res) => {
         });
       }
 
+      if (trip.status === "cancelled") {
+        // Delete all ledger entries related to this trip if cancelled
+        await WalletLedger.deleteMany({ tripId: trip._id });
+      } else {
+        // Find and update the first DEPOSIT entry of this trip in the ledger
+        const firstDepositEntry = await WalletLedger.findOne({ tripId: trip._id, type: "DEPOSIT" }).sort({ createdAt: 1 });
+        if (firstDepositEntry) {
+          firstDepositEntry.driverId = trip.driverId;
+          firstDepositEntry.vehicleId = trip.vehicleId;
+          firstDepositEntry.amount = trip.budgetAllocated || 0;
+          firstDepositEntry.balanceAfter = trip.budgetAllocated || 0;
+          firstDepositEntry.builtyId = trip.builtyId || null;
+          firstDepositEntry.actionBy = req.user.id;
+          await firstDepositEntry.save();
+        } else {
+          const initialDeposit = new WalletLedger({
+            driverId: trip.driverId,
+            supervisorId: req.user.id,
+            vehicleId: trip.vehicleId,
+            type: "DEPOSIT",
+            amount: trip.budgetAllocated || 0,
+            balanceAfter: trip.budgetAllocated || 0,
+            tripId: trip._id,
+            builtyId: trip.builtyId || null,
+            actionBy: req.user.id,
+            date: new Date()
+          });
+          await initialDeposit.save();
+        }
+      }
+
       if (req.body.vehicleId) {
         const vehicle = await VehicleMaster.findById(req.body.vehicleId).select(
           "vehicleNumber"
@@ -416,6 +461,9 @@ exports.deleteTrip = async (req, res) => {
         message: "Trip not found",
       });
     }
+
+    // Delete all ledger entries related to this trip
+    await WalletLedger.deleteMany({ tripId: trip._id });
 
     await Driver.findByIdAndUpdate(trip.driverId, {
       currentVehicle: null,
@@ -711,6 +759,8 @@ exports.getAllTripswithPegination = async (req, res) => {
       });
     }
 
+    query.status = { $ne: "cancelled" };
+
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
     const skip = (page - 1) * limit;
@@ -752,8 +802,8 @@ exports.getAllTripswithPegination = async (req, res) => {
           select: "tpNo docNo consigneeName consignerName",
         })
         .sort({ createdAt: -1 })
-        .skip(skip)   
-        .limit(limit); 
+        .skip(skip)
+        .limit(limit);
     } else if (req.user.role === "driver") {
       trips = await Trip.find(query)
         .populate({
@@ -765,8 +815,8 @@ exports.getAllTripswithPegination = async (req, res) => {
           },
         })
         .sort({ createdAt: -1 })
-        .skip(skip)  
-        .limit(limit); 
+        .skip(skip)
+        .limit(limit);
     } else {
       return res.status(403).json({
         success: false,
@@ -780,9 +830,24 @@ exports.getAllTripswithPegination = async (req, res) => {
           "budgetAllocated"
         );
 
+        const ledgerEntries = await WalletLedger.find({ tripId: trip._id }).lean();
+        let deposite = 0;
+        let withdraw = 0;
+        for (const entry of ledgerEntries) {
+          if (entry.type === "DEPOSIT") {
+            deposite += entry.amount || 0;
+          } else if (entry.type === "WITHDRAW") {
+            withdraw += Math.abs(entry.amount || 0);
+          }
+        }
+        const netBalance = deposite - withdraw;
+
         return {
           ...trip.toObject(),
           subTripBudgetAllocated: subTrip?.budgetAllocated || 0,
+          deposite,
+          withdraw,
+          netBalance,
         };
       })
     );
@@ -793,7 +858,7 @@ exports.getAllTripswithPegination = async (req, res) => {
       limit,
       totalItems,
       totalPages: Math.ceil(totalItems / limit),
-      data: tripsWithBudget 
+      data: tripsWithBudget
     });
 
   } catch (error) {
@@ -825,23 +890,48 @@ exports.getInProgressTrips = async (req, res) => {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .lean() 
+        .lean()
     ]);
 
-    const formattedTrips = trips.map((trip) => ({
-      tripId: trip._id, // Renamed _id to tripId
-      driverId: trip.driverId?._id, // Included driverId
-      driverName: trip.driverId?.name || "N/A", // Populated driver name
-      vehicleName: trip.vehicleName,
-      vehicleId: trip.vehicleId,
-      startLocation: trip.startLocation, // Included startLocation
-      endLocation: trip.endLocation,     // Included endLocation
-      docNos: Array.isArray(trip.builtyIds) 
-        ? trip.builtyIds.filter(Boolean).map((b) => b.docNo) 
-        : [],
-      status: trip.status,
-      date: trip.date
-    }));
+    const formattedTrips = await Promise.all(
+      trips.map(async (trip) => {
+        const ledgerEntries = await WalletLedger.find({ tripId: trip._id }).lean();
+        let deposite = null;
+        let withdraw = null;
+        let netBalance = null;
+
+        if (ledgerEntries.length > 0) {
+          deposite = 0;
+          withdraw = 0;
+          for (const entry of ledgerEntries) {
+            if (entry.type === "DEPOSIT") {
+              deposite += entry.amount || 0;
+            } else if (entry.type === "WITHDRAW") {
+              withdraw += Math.abs(entry.amount || 0);
+            }
+          }
+          netBalance = deposite - withdraw;
+        }
+
+        return {
+          tripId: trip._id, // Renamed _id to tripId
+          driverId: trip.driverId?._id, // Included driverId
+          driverName: trip.driverId?.name || "N/A", // Populated driver name
+          vehicleName: trip.vehicleName,
+          vehicleId: trip.vehicleId,
+          startLocation: trip.startLocation, // Included startLocation
+          endLocation: trip.endLocation,
+          docNos: Array.isArray(trip.builtyIds)
+            ? trip.builtyIds.filter(Boolean).map((b) => b.docNo)
+            : [],
+          status: trip.status,
+          date: trip.date,
+          deposite,
+          withdraw,
+          netBalance
+        };
+      })
+    );
 
     return res.status(200).json({
       message: "In-progress trips fetched successfully",
@@ -855,6 +945,64 @@ exports.getInProgressTrips = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in getInProgressTrips:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An internal server error occurred.",
+    });
+  }
+};
+
+exports.getTripsForDropdown = async (req, res) => {
+  try {
+    const query = await buildTripQuery(req.user, req.query);
+    if (!query) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
+
+    query.status = { $in: ["completed", "in-progress"] };
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const skip = (page - 1) * limit;
+
+    const [total, trips] = await Promise.all([
+      Trip.countDocuments(query),
+      Trip.find(query)
+        .populate("driverId", "name") // Populates driver object to get .name and ._id
+        .populate("builtyIds", "docNo")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+    ]);
+
+    const formattedTrips = trips.map((trip) => ({
+      tripId: trip._id, // Renamed _id to tripId
+      driverId: trip.driverId?._id, // Included driverId
+      driverName: trip.driverId?.name || "N/A", // Populated driver name
+      vehicleName: trip.vehicleName,
+      vehicleId: trip.vehicleId,
+      startLocation: trip.startLocation, // Included startLocation
+      endLocation: trip.endLocation,
+      docNos: Array.isArray(trip.builtyIds)
+        ? trip.builtyIds.filter(Boolean).map((b) => b.docNo)
+        : [],
+      status: trip.status,
+      date: trip.date
+    }));
+
+    return res.status(200).json({
+      message: "Trips fetched successfully",
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+      trips: formattedTrips,
+    });
+  } catch (error) {
+    console.error("Error in getTripsForDropdown:", error);
     return res.status(500).json({
       success: false,
       message: "An internal server error occurred.",

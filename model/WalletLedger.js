@@ -34,7 +34,7 @@ const ledgerSchema = new mongoose.Schema(
 
     // Traceability (Linked to your operational models)
     tripId: { type: mongoose.Schema.Types.ObjectId, ref: 'Trip', required: true },
-    builtyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Builty', required: true },
+    builtyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Builty', required: false },
     expenseId: { type: mongoose.Schema.Types.ObjectId, refPath: 'expenseModel', default: null },
     expenseModel: { type: String, enum: ['DriverExpense', 'Vehicleexpense'], default: null },
 

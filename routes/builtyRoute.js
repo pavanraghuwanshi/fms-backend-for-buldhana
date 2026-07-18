@@ -11,6 +11,7 @@ router.get("/ledger/:id", authenticateToken, builtyController.getLedgerBuiltyByI
 
 
 router.get("/:id", authenticateToken, builtyController.getBuiltyById);
+router.get("/get-by-trip/:tripId", authenticateToken, builtyController.getBuiltysByTripId);
 router.put("/update/:id", authenticateToken, builtyController.updateBuilty);
 router.put("/dispatch/:id", authenticateToken, builtyController.dispatchBuilty);
 router.put("/complete/:id",  authenticateToken,  builtyController.completeBuilty);

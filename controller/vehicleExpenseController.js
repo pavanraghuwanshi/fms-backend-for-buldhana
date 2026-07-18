@@ -3,12 +3,15 @@ const Driver = require("../model/driverModel.js");
 const Trip = require("../model/tripModel.js");
 const { compressImage } = require("../utils/helperFunctions.js");
 const Tyre = require("../model/tyre.js");
+const WalletLedger = require("../model/WalletLedger");
 const TyreBillImage = require("../model/tyreBillImage.js");
 const Service = require("../model/serviceModel.js");
 const ServiceBillImage = require("../model/serviceImageModel.js");
 const DriverExpense = require("../model/driverExpenseModel.js");
 const VehicleExpenseImage = require("../model/vehicleExpenseImageModel.js");
 const DriverExpenseImage = require("../model/driverExpenseImageModel.js");
+const { withdrawFundsForDriver, updateLedgerForAmountChange } = require("./ledgerController.js");
+const mongoose = require("mongoose");
 
 exports.addExpense = async (req, res) => {
   try {
@@ -50,12 +53,26 @@ exports.addExpense = async (req, res) => {
       builtyId: trip?.builtyId || null
     });
     await expense.save();
+
+    await withdrawFundsForDriver({
+      driverId: driverId,
+      supervisorId: driver.supervisor, // Assuming driver model has supervisor field
+      vehicleId: driver.deviceId._id,
+      amount: amount,
+      tripId: driver.currentTripId,
+      builtyId: trip?.builtyId || null,
+      actionBy: req.user.id,
+      expenseModel: "Vehicleexpense", // Matches the collection name
+      expenseId: expense._id
+    });
+
     await Trip.findByIdAndUpdate(driver.currentTripId, { $inc: { spentAmount: amount } });
     return res.status(201).json({ success: true, message: "Expense added successfully", expense });
   } catch (error) {
     return res.status(500).json({ success: false, message: "Error adding expense", error: error.message });
   }
 };
+
 
 exports.getAllExpenses = async (req, res) => {
   try {
@@ -195,6 +212,18 @@ exports.updateExpense = async (req, res) => {
       await Trip.findByIdAndUpdate(existingExpense.driverId.currentTripId, {
         $inc: { spentAmount: amountDifference },
       });
+
+      // Added the ledger update logic here
+      try {
+        await updateLedgerForAmountChange(
+          req.params.id,    // expenseId
+          amount,           // newAmount
+          req.user.id       // actionBy
+        );
+        console.log("Ledger updated successfully");
+      } catch (error) {
+        console.error("Ledger update failed:", error.message);
+      }
     }
 
     return res.json({
@@ -246,7 +275,17 @@ exports.deleteExpense = async (req, res) => {
 
     // Now finally delete the main expense
     await Vehicleexpense.findByIdAndDelete(expenseId);
+    const ledgerEntry = await WalletLedger.findOne({
+      expenseId: new mongoose.Types.ObjectId(expenseId)
+    });
 
+    // 3. Delete only if it exists
+    if (ledgerEntry) {
+      await WalletLedger.deleteOne({ _id: ledgerEntry._id });
+      console.log("Ledger entry found and deleted.");
+    } else {
+      console.log("No ledger entry found for this expenseId.");
+    }
     return res.json({ success: true, message: "Expense deleted successfully" });
 
   } catch (error) {

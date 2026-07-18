@@ -1,9 +1,10 @@
 const DriverExpenseImage = require("../model/driverExpenseImageModel.js");
+const WalletLedger = require("../model/WalletLedger"); 
 const DriverExpense = require("../model/driverExpenseModel.js");
 const Driver = require("../model/driverModel.js");
 const Trip = require("../model/tripModel.js");
 const { compressImage } = require("../utils/helperFunctions.js");
-
+const { withdrawFundsForDriver, updateLedgerForAmountChange } = require("./ledgerController.js");
 exports.addExpense = async (req, res) => {
   try {
     if (req.user.role !== "driver" && req.user.role !== "user") return res.status(403).json({ success: false, message: "Unauthorized access" });
@@ -46,7 +47,10 @@ exports.addExpense = async (req, res) => {
       }
     }
     const trip = await Trip.findById(driver.currentTripId);
-
+    const providedBuiltyId = req.body.builtyId;
+    const activeBuiltyId = providedBuiltyId ||
+      trip?.builtyId ||
+      (trip?.builtyIds && trip.builtyIds.length > 0 ? trip.builtyIds[trip.builtyIds.length - 1] : null);
     const newExpense = new DriverExpense({
       driverId,
       vehicleId: driver.deviceId._id,
@@ -60,7 +64,7 @@ exports.addExpense = async (req, res) => {
       paymentMode,
       lat,
       long,
-      builtyId: trip?.builtyId || null
+      builtyId: activeBuiltyId
     });
 
     await newExpense.save();
@@ -68,17 +72,54 @@ exports.addExpense = async (req, res) => {
     await Trip.findByIdAndUpdate(driver.currentTripId, {
       $inc: { spentAmount: amount },
     });
-
+    await handleWalletWithdrawal(req, trip, driver, newExpense);
     return res.status(201).json(newExpense);
   } catch (error) {
     console.error(error.message);
     return res.status(500).json({ message: "Error saving expense", error: error.message });
   }
 };
+const handleWalletWithdrawal = async (req, trip, driver, newExpense) => {
+  try {
+    const providedBuiltyId = req.body.builtyId;
+    const activeBuiltyId = providedBuiltyId ||
+      trip?.builtyId ||
+      (trip?.builtyIds && trip.builtyIds.length > 0 ? trip.builtyIds[trip.builtyIds.length - 1] : null);
 
+    // 2. Only proceed if payment mode is cash
+    if (req.body.paymentMode === "cash") {
+      const withdrawalPayload = {
+        driverId: newExpense.driverId,
+        supervisorId: trip.supervisorId,
+        vehicleId: driver.deviceId._id,
+        amount: newExpense.amount,
+        tripId: driver.currentTripId,
+        builtyId: activeBuiltyId,
+        actionBy: req.user.id,
+        expenseId: newExpense._id
+      };
+
+      console.log("Attempting to withdraw funds with payload:", withdrawalPayload);
+
+      // 3. Call the function and await the result
+      const result = await withdrawFundsForDriver(withdrawalPayload);
+
+      console.log("Successfully added WalletLedger entry:", result._id);
+    } else {
+      console.log("Skipping wallet withdrawal: paymentMode is not 'cash'. Current mode:", req.body.paymentMode);
+    }
+  } catch (error) {
+    // 4. If an error occurs (e.g., Insufficient funds or DB failure), log it clearly
+    console.error("ERROR: Failed to add WalletLedger entry.");
+    console.error("Error Message:", error.message);
+  }
+};
 exports.updateExpense = async (req, res) => {
   try {
     if (req.user.role !== "driver" && req.user.role !== "user") return res.status(403).json({ success: false, message: "Unauthorized access" });
+
+    console.log("Request Body:", req.body);
+    console.log("Expense ID from params:", req.params.id);
 
     const { amount, shopName, location, description, date, paymentMode, lat, long } = req.body;
     let driverId;
@@ -103,36 +144,21 @@ exports.updateExpense = async (req, res) => {
 
     if (billImg) {
       const mime = billImg.mimetype;
-
       if (mime.startsWith("image/")) {
         const { base64Data, contentType } = await compressImage(billImg);
-
         if (billImgId) {
-          await DriverExpenseImage.findByIdAndUpdate(billImgId, {
-            base64Data,
-            contentType
-          });
+          await DriverExpenseImage.findByIdAndUpdate(billImgId, { base64Data, contentType });
         } else {
-          const newImage = new DriverExpenseImage({
-            base64Data,
-            contentType
-          });
+          const newImage = new DriverExpenseImage({ base64Data, contentType });
           const savedImg = await newImage.save();
           billImgId = savedImg._id;
         }
       } else if (mime === "application/pdf") {
         const base64PDF = billImg.buffer.toString("base64");
-
         if (billImgId) {
-          await DriverExpenseImage.findByIdAndUpdate(billImgId, {
-            base64Data: base64PDF,
-            contentType: mime,
-          });
+          await DriverExpenseImage.findByIdAndUpdate(billImgId, { base64Data: base64PDF, contentType: mime });
         } else {
-          const pdfDoc = new DriverExpenseImage({
-            base64Data: base64PDF,
-            contentType: mime,
-          });
+          const pdfDoc = new DriverExpenseImage({ base64Data: base64PDF, contentType: mime });
           await pdfDoc.save();
           billImgId = pdfDoc._id;
         }
@@ -157,18 +183,34 @@ exports.updateExpense = async (req, res) => {
 
     await DriverExpense.findByIdAndUpdate(req.params.id, updateData);
 
-    const amountDifference =
-      amount !== undefined ? Number(amount) - Number(existingExpense.amount || 0) : 0;
+    // --- Ledger Logic with added logs ---
+    const newAmount = amount !== undefined ? Number(amount) : undefined;
+    const oldAmount = Number(existingExpense.amount || 0);
+    const amountDifference = newAmount !== undefined ? newAmount - oldAmount : 0;
 
-    if (amount !== undefined && amountDifference !== 0) {
+    console.log(`[DEBUG] New Amount: ${newAmount}, Old Amount: ${oldAmount}, Diff: ${amountDifference}`);
+
+    if (newAmount !== undefined && amountDifference !== 0) {
+      console.log("[DEBUG] Updating Trip and Ledger...");
+
       await Trip.findByIdAndUpdate(existingExpense.driverId.currentTripId, {
         $inc: { spentAmount: amountDifference },
       });
+
+      try {
+        await updateLedgerForAmountChange(req.params.id, newAmount, req.user.id);
+        console.log("Ledger updated successfully.");
+      } catch (ledgerError) {
+        console.warn(`[Ledger Warning] Ledger update failed for Expense ${req.params.id}: ${ledgerError.message}`);
+      }
+      
+    } else {
+      console.log("[DEBUG] Ledger update skipped: Amount not changed or not provided.");
     }
 
     return res.json({ success: true, message: "Expense updated successfully" });
   } catch (error) {
-    console.error(error.message);
+    console.error("Error in updateExpense:", error.message);
     return res.status(500).json({ message: "Error updating expense", error: error.message });
   }
 };
@@ -189,6 +231,18 @@ exports.deleteExpense = async (req, res) => {
     }
 
     if (expense.billImg) await DriverExpenseImage.findByIdAndDelete(expense.billImg);
+
+    // 2. Search for the ledger entry first
+    const ledgerEntry = await WalletLedger.findOne({ 
+      expenseId: req.params.id, 
+      expenseModel: 'DriverExpense' 
+    });
+
+    // 3. Delete only if it exists
+    if (ledgerEntry) {
+      await WalletLedger.deleteOne({ _id: ledgerEntry._id });
+      console.log("Ledger entry found and deleted.");
+    }
 
     await Trip.findByIdAndUpdate(expense.driverId.currentTripId, {
       $inc: { spentAmount: -Number(expense.amount || 0) },
