@@ -886,7 +886,7 @@ exports.getInProgressTrips = async (req, res) => {
       Trip.countDocuments(query),
       Trip.find(query)
         .populate("driverId", "name") // Populates driver object to get .name and ._id
-        .populate("builtyIds", "docNo")
+        .populate("builtyIds", "docNo tpNo")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -921,9 +921,8 @@ exports.getInProgressTrips = async (req, res) => {
           vehicleId: trip.vehicleId,
           startLocation: trip.startLocation, // Included startLocation
           endLocation: trip.endLocation,
-          docNos: Array.isArray(trip.builtyIds)
-            ? trip.builtyIds.filter(Boolean).map((b) => b.docNo)
-            : [],
+          docNo: trip.builtyIds?.[0]?.docNo || "N/A",
+          tpNo: trip.builtyIds?.[0]?.tpNo || "N/A",
           status: trip.status,
           date: trip.date,
           deposite,
@@ -969,7 +968,7 @@ exports.getTripsForDropdown = async (req, res) => {
       Trip.countDocuments(query),
       Trip.find(query)
         .populate("driverId", "name") // Populates driver object to get .name and ._id
-        .populate("builtyIds", "docNo")
+        .populate("builtyIds", "docNo tpNo")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -984,9 +983,8 @@ exports.getTripsForDropdown = async (req, res) => {
       vehicleId: trip.vehicleId,
       startLocation: trip.startLocation, // Included startLocation
       endLocation: trip.endLocation,
-      docNos: Array.isArray(trip.builtyIds)
-        ? trip.builtyIds.filter(Boolean).map((b) => b.docNo)
-        : [],
+      docNo: trip.builtyIds?.[0]?.docNo || "N/A",
+      tpNo: trip.builtyIds?.[0]?.tpNo || "N/A",
       status: trip.status,
       date: trip.date
     }));
