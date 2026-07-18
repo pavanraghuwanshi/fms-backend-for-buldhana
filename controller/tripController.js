@@ -784,6 +784,7 @@ exports.getAllTripswithPegination = async (req, res) => {
           path: "builtyId",
           select: "tpNo docNo consigneeName consignerName",
         })
+        .populate("builtyIds", "docNo tpNo")
         .sort({ createdAt: -1 })
         .skip(skip)   // Applied pagination
         .limit(limit); // Applied pagination
@@ -801,6 +802,7 @@ exports.getAllTripswithPegination = async (req, res) => {
           path: "builtyId",
           select: "tpNo docNo consigneeName consignerName",
         })
+        .populate("builtyIds", "docNo tpNo")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);
@@ -814,6 +816,7 @@ exports.getAllTripswithPegination = async (req, res) => {
             select: "vehicleNumber",
           },
         })
+        .populate("builtyIds", "docNo tpNo")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);
@@ -848,6 +851,8 @@ exports.getAllTripswithPegination = async (req, res) => {
           deposite,
           withdraw,
           netBalance,
+          docNo: trip.builtyIds?.[0]?.docNo || "N/A",
+          tpNo: trip.builtyIds?.[0]?.tpNo || "N/A",
         };
       })
     );
@@ -877,6 +882,7 @@ exports.getInProgressTrips = async (req, res) => {
     }
 
     query.status = "in-progress";
+    query["builtyIds.0"] = { $exists: true };
 
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
