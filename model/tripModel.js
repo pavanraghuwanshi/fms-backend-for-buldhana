@@ -22,6 +22,11 @@ const tripSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    tripId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
     builtyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Builty",
@@ -100,6 +105,12 @@ const tripSchema = new mongoose.Schema(
     coastPerKm: {
       type: Number,
       default: 0,
+    },
+    loadingDate: {
+      type: Date,
+    },
+    unloadingDate: {
+      type: Date,
     },
   },
   {

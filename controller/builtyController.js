@@ -419,7 +419,11 @@ const linkBuiltyToTrip = async ({ payload, builty, req }) => {
       const pickup = await Location.findById(payload.pickupLocationId).select("name locationName").lean();
       const dest = await Location.findById(payload.destinationLocationId).select("name locationName").lean();
 
+      const crypto = require("crypto");
+      const generatedTripId = `TRIP-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+
       trip = await Trip.create({
+        tripId: generatedTripId,
         driverId: payload.driverId,
         vehicleId: payload.vehicleId,
         vehicleName: payload.vehicleNumber,

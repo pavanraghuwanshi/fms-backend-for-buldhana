@@ -14,12 +14,23 @@ exports.createTrip = async (req, res) => {
       });
     }
 
-    const payload = req.body;
+    const { loadingDate, unloadingDate, ...payload } = req.body;
+
+    const crypto = require("crypto");
+    const generatedTripId = `TRIP-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 
     const trip = new Trip({
       ...payload,
+      tripId: generatedTripId,
       supervisorId: req.user.id,
     });
+
+    if (loadingDate) {
+      trip.loadingDate = loadingDate;
+    }
+    if (unloadingDate) {
+      trip.unloadingDate = unloadingDate;
+    }
 
     await trip.save();
 
@@ -403,6 +414,14 @@ exports.updateTrip = async (req, res) => {
         updatedField.endOdometerReading = Number(req.body.endOdometerReading);
       }
 
+      if (req.body.unloadingDate !== undefined) {
+        updatedField.unloadingDate = req.body.unloadingDate;
+      }
+
+      if (req.body.loadingDate !== undefined) {
+        updatedField.loadingDate = req.body.loadingDate;
+      }
+
       const updatedTrip = await Trip.findByIdAndUpdate(
         tripId,
         { $set: updatedField },
@@ -430,6 +449,166 @@ exports.updateTrip = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "Trip status updated successfully",
+        trip: updatedTrip,
+      });
+    }
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+exports.completeTrip = async (req, res) => {
+  try {
+    if (!["user", "driver"].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
+
+    const tripId = req.params.tripId;
+    const { endOdometerReading } = req.body;
+
+    const tripCheck = await Trip.findById(tripId).select("status driverId supervisorId builtyId builtyIds");
+    if (!tripCheck) {
+      return res.status(404).json({
+        success: false,
+        message: "Trip not found",
+      });
+    }
+
+    if (tripCheck.status === "completed") {
+      return res.status(400).json({
+        success: false,
+        message: "Trip is already completed",
+      });
+    }
+
+    if (tripCheck.status === "cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Trip is cancelled and cannot be completed",
+      });
+    }
+
+    // Check associated builties status
+    const builtyIdsToCheck = [];
+    if (tripCheck.builtyId) {
+      builtyIdsToCheck.push(tripCheck.builtyId);
+    }
+    if (tripCheck.builtyIds && tripCheck.builtyIds.length > 0) {
+      builtyIdsToCheck.push(...tripCheck.builtyIds);
+    }
+
+    const uniqueBuiltyIds = [...new Set(builtyIdsToCheck.map(id => id.toString()))];
+    if (uniqueBuiltyIds.length > 0) {
+      const activeBuilties = await Builty.find({
+        _id: { $in: uniqueBuiltyIds },
+        status: { $nin: ["Completed", "Cancelled"] }
+      }).select("status tpNo").lean();
+
+      if (activeBuilties.length > 0) {
+        const uncompletedTpNos = activeBuilties.map(b => b.tpNo || b._id).join(", ");
+        return res.status(400).json({
+          success: false,
+          message: `Cannot complete trip: One or more associated builties are not completed (${uncompletedTpNos})`,
+        });
+      }
+    }
+
+    const subtrips = await Subtrip.find({ tripId }).select("status").lean();
+    if (subtrips.some((subtrip) => subtrip.status === "in-progress")) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot complete trip: One or more subtrips are in-progress",
+      });
+    }
+
+    let trip;
+
+    if (req.user.role === "user") {
+      trip = await Trip.findOneAndUpdate(
+        { _id: tripId, supervisorId: req.user.id },
+        {
+          $set: {
+            status: "completed",
+            ...(endOdometerReading !== undefined && { endOdometerReading: Number(endOdometerReading) }),
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
+
+      if (!trip) {
+        return res.status(404).json({
+          success: false,
+          message: "Trip not found",
+        });
+      }
+
+      await Driver.findByIdAndUpdate(trip.driverId, {
+        currentVehicle: null,
+        currentVehicleName: null,
+        currentTripId: null,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Trip completed successfully",
+        trip,
+      });
+    }
+
+    if (req.user.role === "driver") {
+      if (String(tripCheck.driverId) !== String(req.user.id)) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not assigned to this trip",
+        });
+      }
+
+      if (endOdometerReading === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: "endOdometerReading is required to complete trip",
+        });
+      }
+
+      const updatedTrip = await Trip.findByIdAndUpdate(
+        tripId,
+        {
+          $set: {
+            status: "completed",
+            endOdometerReading: Number(endOdometerReading),
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
+
+      if (!updatedTrip) {
+        return res.status(404).json({
+          success: false,
+          message: "Trip not found",
+        });
+      }
+
+      await Driver.findByIdAndUpdate(tripCheck.driverId, {
+        currentVehicle: null,
+        currentVehicleName: null,
+        currentTripId: null,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Trip completed successfully",
         trip: updatedTrip,
       });
     }
@@ -922,6 +1101,7 @@ exports.getInProgressTrips = async (req, res) => {
 
         return {
           tripId: trip._id, // Renamed _id to tripId
+          uniqueTripId: trip.tripId, // Added uniqueTripId
           driverId: trip.driverId?._id, // Included driverId
           driverName: trip.driverId?.name || "N/A", // Populated driver name
           vehicleName: trip.vehicleName,
