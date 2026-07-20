@@ -1428,11 +1428,12 @@ exports.getBuiltys = async (req, res) => {
             { builtyId: builty._id },
             { builtyIds: builty._id }
           ]
-        }).select("_id").lean();
+        }).select("_id tripId").lean();
         return {
           ...builty,
           ...summary,
-          tripId: trip ? trip._id : null
+          tripId: trip ? trip._id : null,
+          uniqueTripId: trip ? (trip.tripId || "N/A") : null
         };
       })
     );
@@ -1474,13 +1475,14 @@ exports.getBuiltyById = async (req, res) => {
         { builtyId: builty._id },
         { builtyIds: builty._id }
       ]
-    }).select("_id").lean();
+    }).select("_id tripId").lean();
 
     return res.status(200).json({
       message: "Builty fetched successfully",
       builty: {
         ...builty,
-        tripId: trip ? trip._id : null
+        tripId: trip ? trip._id : null,
+        uniqueTripId: trip ? (trip.tripId || "N/A") : null
       },
     });
   } catch (error) {
@@ -1717,10 +1719,14 @@ exports.getBuiltysByTripId = async (req, res) => {
 
     const builtysWithLedger = await Promise.all(
       builtys.map(async (builty) => {
-        const summary = await getLedgerSummaryByBuilty(builty._id);
+        const [summary, ledgerData] = await Promise.all([
+          getLedgerSummaryByBuilty(builty._id),
+          getLedgerEntriesByBuilty(builty._id, { page: 1, limit: 100 })
+        ]);
         return {
           ...builty,
-          ...summary
+          ...summary,
+          ledger: ledgerData.entries
         };
       })
     );
