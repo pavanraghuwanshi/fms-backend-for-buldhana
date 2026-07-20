@@ -22,6 +22,11 @@ const tripSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    tripId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
     builtyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Builty",

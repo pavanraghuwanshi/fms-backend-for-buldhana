@@ -16,8 +16,12 @@ exports.createTrip = async (req, res) => {
 
     const { loadingDate, unloadingDate, ...payload } = req.body;
 
+    const crypto = require("crypto");
+    const generatedTripId = `TRIP-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+
     const trip = new Trip({
       ...payload,
+      tripId: generatedTripId,
       supervisorId: req.user.id,
     });
 
@@ -1097,6 +1101,7 @@ exports.getInProgressTrips = async (req, res) => {
 
         return {
           tripId: trip._id, // Renamed _id to tripId
+          uniqueTripId: trip.tripId, // Added uniqueTripId
           driverId: trip.driverId?._id, // Included driverId
           driverName: trip.driverId?.name || "N/A", // Populated driver name
           vehicleName: trip.vehicleName,
