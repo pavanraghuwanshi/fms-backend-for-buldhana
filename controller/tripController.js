@@ -14,12 +14,19 @@ exports.createTrip = async (req, res) => {
       });
     }
 
-    const payload = req.body;
+    const { loadingDate, unloadingDate, ...payload } = req.body;
 
     const trip = new Trip({
       ...payload,
       supervisorId: req.user.id,
     });
+
+    if (loadingDate) {
+      trip.loadingDate = loadingDate;
+    }
+    if (unloadingDate) {
+      trip.unloadingDate = unloadingDate;
+    }
 
     await trip.save();
 
@@ -403,6 +410,14 @@ exports.updateTrip = async (req, res) => {
         updatedField.endOdometerReading = Number(req.body.endOdometerReading);
       }
 
+      if (req.body.unloadingDate !== undefined) {
+        updatedField.unloadingDate = req.body.unloadingDate;
+      }
+
+      if (req.body.loadingDate !== undefined) {
+        updatedField.loadingDate = req.body.loadingDate;
+      }
+
       const updatedTrip = await Trip.findByIdAndUpdate(
         tripId,
         { $set: updatedField },
@@ -430,6 +445,141 @@ exports.updateTrip = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "Trip status updated successfully",
+        trip: updatedTrip,
+      });
+    }
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+exports.completeTrip = async (req, res) => {
+  try {
+    if (!["user", "driver"].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
+
+    const tripId = req.params.tripId;
+    const { endOdometerReading } = req.body;
+
+    const tripCheck = await Trip.findById(tripId).select("status driverId supervisorId");
+    if (!tripCheck) {
+      return res.status(404).json({
+        success: false,
+        message: "Trip not found",
+      });
+    }
+
+    if (tripCheck.status === "completed") {
+      return res.status(400).json({
+        success: false,
+        message: "Trip is already completed",
+      });
+    }
+
+    if (tripCheck.status === "cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Trip is cancelled and cannot be completed",
+      });
+    }
+
+    const subtrips = await Subtrip.find({ tripId }).select("status").lean();
+    if (subtrips.some((subtrip) => subtrip.status === "in-progress")) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot complete trip: One or more subtrips are in-progress",
+      });
+    }
+
+    let trip;
+
+    if (req.user.role === "user") {
+      trip = await Trip.findOneAndUpdate(
+        { _id: tripId, supervisorId: req.user.id },
+        {
+          $set: {
+            status: "completed",
+            ...(endOdometerReading !== undefined && { endOdometerReading: Number(endOdometerReading) }),
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
+
+      if (!trip) {
+        return res.status(404).json({
+          success: false,
+          message: "Trip not found",
+        });
+      }
+
+      await Driver.findByIdAndUpdate(trip.driverId, {
+        currentVehicle: null,
+        currentVehicleName: null,
+        currentTripId: null,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Trip completed successfully",
+        trip,
+      });
+    }
+
+    if (req.user.role === "driver") {
+      if (String(tripCheck.driverId) !== String(req.user.id)) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not assigned to this trip",
+        });
+      }
+
+      if (endOdometerReading === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: "endOdometerReading is required to complete trip",
+        });
+      }
+
+      const updatedTrip = await Trip.findByIdAndUpdate(
+        tripId,
+        {
+          $set: {
+            status: "completed",
+            endOdometerReading: Number(endOdometerReading),
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
+
+      if (!updatedTrip) {
+        return res.status(404).json({
+          success: false,
+          message: "Trip not found",
+        });
+      }
+
+      await Driver.findByIdAndUpdate(tripCheck.driverId, {
+        currentVehicle: null,
+        currentVehicleName: null,
+        currentTripId: null,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Trip completed successfully",
         trip: updatedTrip,
       });
     }
