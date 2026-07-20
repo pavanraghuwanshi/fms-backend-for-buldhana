@@ -901,7 +901,8 @@ exports.getInProgressTrips = async (req, res) => {
 
     const formattedTrips = await Promise.all(
       trips.map(async (trip) => {
-        const ledgerEntries = await WalletLedger.find({ tripId: trip._id }).lean();
+        const driverId = trip.driverId?._id || trip.driverId;
+        const ledgerEntries = driverId ? await WalletLedger.find({ driverId }).lean() : [];
         let deposite = null;
         let withdraw = null;
         let netBalance = null;
@@ -1010,6 +1011,158 @@ exports.getTripsForDropdown = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "An internal server error occurred.",
+    });
+  }
+};
+
+exports.getDriverLedgerHistory = async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    const { page = 1, limit = 10, search, type } = req.query;
+
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 10;
+    const skipNum = (pageNum - 1) * limitNum;
+
+    const mongoose = require("mongoose");
+
+    // 1. Calculate overall financial summary for this driver
+    const summary = await WalletLedger.aggregate([
+      { $match: { driverId: new mongoose.Types.ObjectId(driverId) } },
+      {
+        $group: {
+          _id: "$driverId",
+          totalDeposits: {
+            $sum: { $cond: [{ $eq: ["$type", "DEPOSIT"] }, "$amount", 0] }
+          },
+          totalWithdrawals: {
+            $sum: { $cond: [{ $eq: ["$type", "WITHDRAW"] }, { $abs: "$amount" }, 0] }
+          }
+        }
+      }
+    ]);
+
+    const deposite = summary[0]?.totalDeposits || 0;
+    const withdraw = summary[0]?.totalWithdrawals || 0;
+    const netBalance = deposite - withdraw;
+
+    // 2. Fetch Paginated Ledger Entries with populated details
+    const matchQuery = { driverId: new mongoose.Types.ObjectId(driverId) };
+    if (type) matchQuery.type = type;
+
+    const pipeline = [
+      { $match: matchQuery },
+      
+      // Join Driver
+      { $lookup: { from: "drivers", localField: "driverId", foreignField: "_id", as: "driver" } },
+      { $unwind: { path: "$driver", preserveNullAndEmptyArrays: true } },
+      
+      // Join VehicleMaster
+      { $lookup: { from: "vehiclemasters", localField: "vehicleId", foreignField: "_id", as: "vehicle" } },
+      { $unwind: { path: "$vehicle", preserveNullAndEmptyArrays: true } },
+      
+      // Join Trip
+      { $lookup: { from: "trips", localField: "tripId", foreignField: "_id", as: "trip" } },
+      { $unwind: { path: "$trip", preserveNullAndEmptyArrays: true } },
+      
+      // Join Builty
+      { $lookup: { from: "builtys", localField: "builtyId", foreignField: "_id", as: "builty" } },
+      { $unwind: { path: "$builty", preserveNullAndEmptyArrays: true } },
+      
+      // Join Polymorphic Expenses
+      {
+        $lookup: {
+          from: "vehicleexpenses",
+          let: { eId: "$expenseId", eModel: "$expenseModel" },
+          pipeline: [{ $match: { $expr: { $and: [{ $eq: ["$_id", "$$eId"] }, { $eq: ["$$eModel", "Vehicleexpense"] }] } } }],
+          as: "vehExp"
+        }
+      },
+      {
+        $lookup: {
+          from: "driverexpenses",
+          let: { eId: "$expenseId", eModel: "$expenseModel" },
+          pipeline: [{ $match: { $expr: { $and: [{ $eq: ["$_id", "$$eId"] }, { $eq: ["$$eModel", "DriverExpense"] }] } } }],
+          as: "drvExp"
+        }
+      },
+      {
+        $addFields: {
+          expenseData: { $arrayElemAt: [{ $concatArrays: ["$vehExp", "$drvExp"] }, 0] }
+        }
+      },
+      
+      // Search Filter
+      ...(search ? [{
+        $match: {
+          $or: [
+            { "vehicle.vehicleNumber": { $regex: search, $options: "i" } },
+            { "trip.vehicleName": { $regex: search, $options: "i" } },
+            { "builty.tpNo": { $regex: search, $options: "i" } },
+            { "builty.docNo": { $regex: search, $options: "i" } }
+          ]
+        }
+      }] : []),
+
+      // Final Projection
+      {
+        $project: {
+          _id: 1,
+          type: 1,
+          amount: 1,
+          balanceAfter: 1,
+          date: 1,
+          expenseModel: 1,
+          createdAt: 1,
+          driver: { _id: "$driver._id", name: "$driver.name" },
+          vehicle: { _id: "$vehicle._id", vehicleNumber: "$vehicle.vehicleNumber" },
+          trip: { _id: "$trip._id", vehicleName: "$trip.vehicleName", startLocation: "$trip.startLocation", endLocation: "$trip.endLocation" },
+          builty: { _id: "$builty._id", tpNo: "$builty.tpNo", docNo: "$builty.docNo" },
+          spentOn: {
+            $cond: {
+              if: { $eq: ["$expenseModel", "Vehicleexpense"] },
+              then: "vehicle",
+              else: {
+                $cond: {
+                  if: { $eq: ["$expenseModel", "DriverExpense"] },
+                  then: "himself",
+                  else: "N/A"
+                }
+              }
+            }
+          },
+          expenseData: {
+            $cond: { if: { $eq: ["$expenseData", null] }, then: "$$REMOVE", else: "$expenseData" }
+          }
+        }
+      },
+      { $sort: { date: -1, createdAt: -1 } }
+    ];
+
+    const [entries, totalResult] = await Promise.all([
+      WalletLedger.aggregate([...pipeline, { $skip: skipNum }, { $limit: limitNum }]),
+      WalletLedger.aggregate([...pipeline, { $count: "total" }])
+    ]);
+
+    const total = totalResult[0]?.total || 0;
+
+    return res.status(200).json({
+      message: "Driver ledger history fetched successfully",
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+      deposite,
+      withdraw,
+      netBalance,
+      ledger: entries
+    });
+
+  } catch (error) {
+    console.error("Error in getDriverLedgerHistory:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An internal server error occurred."
     });
   }
 };
