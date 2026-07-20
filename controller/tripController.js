@@ -468,7 +468,7 @@ exports.completeTrip = async (req, res) => {
     const tripId = req.params.tripId;
     const { endOdometerReading } = req.body;
 
-    const tripCheck = await Trip.findById(tripId).select("status driverId supervisorId");
+    const tripCheck = await Trip.findById(tripId).select("status driverId supervisorId builtyId builtyIds");
     if (!tripCheck) {
       return res.status(404).json({
         success: false,
@@ -488,6 +488,31 @@ exports.completeTrip = async (req, res) => {
         success: false,
         message: "Trip is cancelled and cannot be completed",
       });
+    }
+
+    // Check associated builties status
+    const builtyIdsToCheck = [];
+    if (tripCheck.builtyId) {
+      builtyIdsToCheck.push(tripCheck.builtyId);
+    }
+    if (tripCheck.builtyIds && tripCheck.builtyIds.length > 0) {
+      builtyIdsToCheck.push(...tripCheck.builtyIds);
+    }
+
+    const uniqueBuiltyIds = [...new Set(builtyIdsToCheck.map(id => id.toString()))];
+    if (uniqueBuiltyIds.length > 0) {
+      const activeBuilties = await Builty.find({
+        _id: { $in: uniqueBuiltyIds },
+        status: { $nin: ["Completed", "Cancelled"] }
+      }).select("status tpNo").lean();
+
+      if (activeBuilties.length > 0) {
+        const uncompletedTpNos = activeBuilties.map(b => b.tpNo || b._id).join(", ");
+        return res.status(400).json({
+          success: false,
+          message: `Cannot complete trip: One or more associated builties are not completed (${uncompletedTpNos})`,
+        });
+      }
     }
 
     const subtrips = await Subtrip.find({ tripId }).select("status").lean();
