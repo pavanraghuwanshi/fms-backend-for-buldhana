@@ -1419,9 +1419,16 @@ exports.getBuiltys = async (req, res) => {
     const builtysWithLedger = await Promise.all(
       builtys.map(async (builty) => {
         const summary = await getLedgerSummaryByBuilty(builty._id);
+        const trip = await Trip.findOne({
+          $or: [
+            { builtyId: builty._id },
+            { builtyIds: builty._id }
+          ]
+        }).select("_id").lean();
         return {
           ...builty,
-          ...summary
+          ...summary,
+          tripId: trip ? trip._id : null
         };
       })
     );
@@ -1458,9 +1465,19 @@ exports.getBuiltyById = async (req, res) => {
       return res.status(404).json({ message: "Builty not found" });
     }
 
+    const trip = await Trip.findOne({
+      $or: [
+        { builtyId: builty._id },
+        { builtyIds: builty._id }
+      ]
+    }).select("_id").lean();
+
     return res.status(200).json({
       message: "Builty fetched successfully",
-      builty,
+      builty: {
+        ...builty,
+        tripId: trip ? trip._id : null
+      },
     });
   } catch (error) {
     return res.status(500).json({
@@ -1574,9 +1591,9 @@ exports.getLedgerBuiltyById = async (req, res) => {
 
   } catch (error) {
     console.error(`[Controller Error] getLedgerBuiltyById: ${error.message}`);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
-      message: "Internal server error" 
+      message: "Internal server error"
     });
   }
 };
