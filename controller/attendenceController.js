@@ -3,6 +3,7 @@ const Attendance = require("../model/attendanceModel");
 const Driver = require("../model/driverModel.js");
 const Image_attendance = require("../model/image_attendanceModel.js");
 const { compressImage } = require("../utils/helperFunctions");
+const { notifySupervisorAttendance } = require("../services/notificationService");
 
 exports.markAttendanceByDriver = async (req, res) => {
   try {
@@ -43,6 +44,13 @@ exports.markAttendanceByDriver = async (req, res) => {
       ...(attendanceImageId && { attendanceImageId }),
     });
     await presentAttendance.save();
+
+    const driver = await Driver.findById(driverId).select("name supervisor");
+    if (driver?.supervisor) {
+      notifySupervisorAttendance(driver.supervisor, driver, presentAttendance).catch((error) => {
+        console.error("Async attendance notification error:", error);
+      });
+    }
 
     return res.status(200).json({ message: `Attendance marked successfully for date ${today} `,  attendanceId: presentAttendance._id, });
   } catch (error) {
