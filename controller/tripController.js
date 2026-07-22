@@ -75,6 +75,7 @@ const buildTripQuery = async (user, queryParams) => {
     tpNo,
     docNo,
     driverName,
+    uniqueTripId,
   } = queryParams;
 
   let query = {};
@@ -94,6 +95,10 @@ const buildTripQuery = async (user, queryParams) => {
   }
 
   const filters = [];
+
+  if (uniqueTripId) {
+    filters.push({ tripId: { $regex: uniqueTripId, $options: "i" } });
+  }
 
   if (fromDate || toDate) {
     const dateFilter = {};
@@ -470,7 +475,21 @@ exports.completeTrip = async (req, res) => {
     }
 
     const tripId = req.params.tripId;
-    const { endOdometerReading } = req.body;
+    const { endOdometerReading, unloadingStartDate, unloadingEndDate } = req.body;
+
+    if (unloadingStartDate === undefined || unloadingStartDate === "") {
+      return res.status(400).json({
+        success: false,
+        message: "unloadingStartDate is required to complete trip",
+      });
+    }
+
+    if (unloadingEndDate === undefined || unloadingEndDate === "") {
+      return res.status(400).json({
+        success: false,
+        message: "unloadingEndDate is required to complete trip",
+      });
+    }
 
     const tripCheck = await Trip.findById(tripId).select("status driverId supervisorId builtyId builtyIds");
     if (!tripCheck) {
@@ -535,6 +554,8 @@ exports.completeTrip = async (req, res) => {
         {
           $set: {
             status: "completed",
+            unloadingStartDate: new Date(unloadingStartDate),
+            unloadingEndDate: new Date(unloadingEndDate),
             ...(endOdometerReading !== undefined && { endOdometerReading: Number(endOdometerReading) }),
           },
         },
@@ -585,6 +606,8 @@ exports.completeTrip = async (req, res) => {
           $set: {
             status: "completed",
             endOdometerReading: Number(endOdometerReading),
+            unloadingStartDate: new Date(unloadingStartDate),
+            unloadingEndDate: new Date(unloadingEndDate),
           },
         },
         {

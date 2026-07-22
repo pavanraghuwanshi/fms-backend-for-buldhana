@@ -262,6 +262,11 @@ const builtySchema = new mongoose.Schema(
       default: 0,
     },
 
+    endOdometerReading: {
+      type: Number,
+      default: 0,
+    },
+
     weightPerBag: {
       type: Number,
       default: 0,

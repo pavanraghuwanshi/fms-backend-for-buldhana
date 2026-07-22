@@ -106,6 +106,19 @@ const tripSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    loadingStartDate: {
+      type: Date,
+    },
+    loadingEndDate: {
+      type: Date,
+    },
+    unloadingStartDate: {
+      type: Date,
+    },
+    unloadingEndDate: {
+      type: Date,
+    },
+
     loadingDate: {
       type: Date,
     },

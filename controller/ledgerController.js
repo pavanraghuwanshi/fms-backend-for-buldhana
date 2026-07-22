@@ -263,7 +263,7 @@ exports.getLedgerSummaryByBuilty = async (builtyId) => {
 };
 
 
-exports.getLedgerEntriesByBuilty = async (builtyId, { page = 1, limit = 10, search, type }) => {
+exports.getLedgerEntriesByBuilty = async (builtyId, { search, type } = {}) => {
   const objectId = new mongoose.Types.ObjectId(builtyId);
   const matchQuery = { builtyId: objectId };
   if (type) matchQuery.type = type;
@@ -312,34 +312,25 @@ exports.getLedgerEntriesByBuilty = async (builtyId, { page = 1, limit = 10, sear
       }
     }] : []),
 
-    // 5. Final Projection (The "Clean" Response)
+    // 5. Final Projection (Excluding date, createdAt, driver, and vehicle)
     {
       $project: {
         _id: 1,
         type: 1,
         amount: 1,
-        date: 1,
         expenseModel: 1,
-        createdAt: 1,
-        driver: { _id: 1, name: 1, contactNumber: 1 },
-        vehicle: { _id: 1, vehicleNumber: 1 },
         expenseData: {
           $cond: { if: { $eq: ["$expenseData", null] }, then: "$$REMOVE", else: "$expenseData" }
         }
       }
-    },
-
+    }
   ];
 
-  // Execute
-  const [data, totalResult] = await Promise.all([
-    WalletLedger.aggregate([...pipeline, { $skip: (Number(page) - 1) * Number(limit) }, { $limit: Number(limit) }]),
-    WalletLedger.aggregate([...pipeline, { $count: "total" }])
-  ]);
+  // Execute without pagination ($skip and $limit)
+  const data = await WalletLedger.aggregate(pipeline);
 
   return {
     entries: data,
-    total: totalResult[0]?.total || 0,
-    totalPages: Math.ceil((totalResult[0]?.total || 0) / limit)
+    total: data.length
   };
 };

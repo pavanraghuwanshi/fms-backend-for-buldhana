@@ -130,7 +130,7 @@ const upsertBuiltyExpense = async ({
     console.log(`[SKIP] No withdrawal: New expense created for ${expenseType}, but no trip ID found to link withdrawal.`);
   }
 };
-
+ 
 const syncBuiltyAutoExpenses = async ({ builty, body, allowedTypes, trip }) => {
   const tripId = trip?._id || trip;
   const tripObject = tripId ? { _id: tripId } : null;
@@ -402,12 +402,20 @@ exports.createBuilty = async (req, res) => {
 const linkBuiltyToTrip = async ({ payload, builty, req }) => {
   try {
     let trip;
+    
+    // Explicitly grab the dates from payload or req.body
+    const explicitLoadingStartDate = payload.loadingStartDate || req.body.loadingStartDate;
+    const explicitLoadingEndDate = payload.loadingEndDate || req.body.loadingEndDate;
 
     if (payload.tripId) {
       // UPDATE EXISTING TRIP
       trip = await Trip.findByIdAndUpdate(
         payload.tripId,
-        { $addToSet: { builtyIds: builty._id } },
+        { 
+          $addToSet: { builtyIds: builty._id },
+          ...(explicitLoadingStartDate && { loadingStartDate: explicitLoadingStartDate }),
+          ...(explicitLoadingEndDate && { loadingEndDate: explicitLoadingEndDate })
+        },
         { new: true }
       );
 
@@ -435,6 +443,9 @@ const linkBuiltyToTrip = async ({ payload, builty, req }) => {
         transportMode: "transport",
         budgetAllocated: payload.vehicleExpenseAmount || 0,
         status: "in-progress",
+        // Properly populated here:
+        loadingStartDate: explicitLoadingStartDate || null,
+        loadingEndDate: explicitLoadingEndDate || null,
       });
 
       await Driver.findByIdAndUpdate(payload.driverId, { $set: { currentTripId: trip._id } });
@@ -457,7 +468,6 @@ const linkBuiltyToTrip = async ({ payload, builty, req }) => {
     return trip;
   } catch (error) {
     console.error("Error in linkBuiltyToTrip helper:", error);
-    // Re-throw the error so the controller knows the operation failed
     throw error;
   }
 };
@@ -722,7 +732,13 @@ exports.updateBuilty = async (req, res) => {
       new: true,
       runValidators: true,
     });
-    const trip = await Trip.findOne({ builtyIds: id, status: "in-progress" });
+    const trip = await Trip.findOne({
+      $or: [
+        { builtyIds: id },
+        { builtyId: id }
+      ],
+      status: "in-progress"
+    });
     if (payload.vehicleExpenseAmount !== undefined) {
       const newAmount = Number(payload.vehicleExpenseAmount);
 
@@ -823,29 +839,44 @@ exports.updateBuilty = async (req, res) => {
         .select("name locationName")
         .lean();
 
+      const tripUpdateData = {
+        driverId: payload.driverId,
+        vehicleId: payload.vehicleId,
+        vehicleName: payload.vehicleNumber,
+        supervisorId: req.user.id,
+        startLocation:
+          pickupLocation?.name ||
+          pickupLocation?.locationName ||
+          payload.pickupLocationId.toString(),
+        endLocation:
+          destinationLocation?.name ||
+          destinationLocation?.locationName ||
+          payload.destinationLocationId.toString(),
+        materialType: payload.products?.[0]?.productName || "",
+        transportMode: "transport",
+        budgetAllocated: payload.vehicleExpenseAmount || 0,
+      };
+
+      if (payload.loadingStartDate) {
+        tripUpdateData.loadingStartDate = payload.loadingStartDate;
+      }
+      if (payload.loadingEndDate) {
+        tripUpdateData.loadingEndDate = payload.loadingEndDate;
+      }
+      if (payload.unloadingStartDate) {
+        tripUpdateData.unloadingStartDate = payload.unloadingStartDate;
+      }
+      if (payload.unloadingEndDate) {
+        tripUpdateData.unloadingEndDate = payload.unloadingEndDate;
+      }
+
       updatedTrip = await Trip.findOneAndUpdate(
         {
           driverId: payload.driverId,
           status: "in-progress",
         },
         {
-          $set: {
-            driverId: payload.driverId,
-            vehicleId: payload.vehicleId,
-            vehicleName: payload.vehicleNumber,
-            supervisorId: req.user.id,
-            startLocation:
-              pickupLocation?.name ||
-              pickupLocation?.locationName ||
-              payload.pickupLocationId.toString(),
-            endLocation:
-              destinationLocation?.name ||
-              destinationLocation?.locationName ||
-              payload.destinationLocationId.toString(),
-            materialType: payload.products?.[0]?.productName || "",
-            transportMode: "transport",
-            budgetAllocated: payload.vehicleExpenseAmount || 0,
-          },
+          $set: tripUpdateData,
         },
         {
           new: true,
@@ -1632,8 +1663,6 @@ exports.getBuiltysByTripId = async (req, res) => {
     const uniqueBuiltyIds = Array.from(builtyIds);
 
     const {
-      page = 1,
-      limit = 10,
       search,
       status,
       supervisorId,
@@ -1701,19 +1730,21 @@ exports.getBuiltysByTripId = async (req, res) => {
     const [total, builtys] = await Promise.all([
       Builty.countDocuments(query),
       Builty.find(query)
-        .populate("consignerId", "name contactNumber contactPerson")
-        .populate("consigneeId", "name contactNumber contactPerson")
-        .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
+      .select("-createdAt -updatedAt -__v -createdByRole -createdBy -consigneeId -supervisorModel -consignerId -vendorId -vehicleId -pickupLocationId -destinationLocationId -supervisorId -permittedGVW -vendorType -description -vehicleOwnership")
+        // .populate("consignerId", "name contactNumber contactPerson")
+        // .populate("consigneeId", "name contactNumber contactPerson")
+        // .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
         .populate("transporterId", "transporterName contactPerson contactNumber")
         .populate("commissionAgentId", "name contactNumber contactPerson")
-        .populate("driverId", "name contactNumber")
-        .populate("pickupLocationId", "locationName latitude longitude")
-        .populate("destinationLocationId", "locationName latitude longitude")
-        .populate("vendorId", "vendorName contactPerson contactNumber")
-        .populate("invoice")
+         .populate("driverId", "name")
+        // .populate("pickupLocationId", "locationName latitude longitude")
+        // .populate("destinationLocationId", "locationName latitude longitude")
+        // .populate("vendorId", "vendorName contactPerson contactNumber")
+        .populate(
+          "invoice", 
+          "totalAmount paidAmount pendingAmount paymentStatus"
+        )
         .sort({ createdAt: -1 })
-        .skip((Number(page) - 1) * Number(limit))
-        .limit(Number(limit))
         .lean()
     ]);
 
@@ -1721,7 +1752,7 @@ exports.getBuiltysByTripId = async (req, res) => {
       builtys.map(async (builty) => {
         const [summary, ledgerData] = await Promise.all([
           getLedgerSummaryByBuilty(builty._id),
-          getLedgerEntriesByBuilty(builty._id, { page: 1, limit: 100 })
+          getLedgerEntriesByBuilty(builty._id)
         ]);
         return {
           ...builty,
@@ -1734,9 +1765,6 @@ exports.getBuiltysByTripId = async (req, res) => {
     return res.status(200).json({
       message: "Builtys fetched successfully",
       total,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(total / Number(limit)),
       builtys: builtysWithLedger,
     });
   } catch (error) {
