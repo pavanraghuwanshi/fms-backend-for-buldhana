@@ -307,19 +307,19 @@ exports.createDailyBuilty = async (req, res) => {
       return res.status(400).json({ message: "dropLocation is required" });
     }
 
-      const existingDailyBuilty = await DailyBuilty.findOne({
-        driverId: payload.driverId,
-        vehicleId: payload.vehicleId,
-        supervisorId: payload.supervisorId,
-        status: "Created",
-      });
+    const existingDailyBuilty = await DailyBuilty.findOne({
+      driverId: payload.driverId,
+      vehicleId: payload.vehicleId,
+      supervisorId: payload.supervisorId,
+      status: "Created",
+    });
 
-      if (existingDailyBuilty) {
-        return res.status(400).json({
-          message:
-            "Previous daily builty is not completed. Please complete or cancel it before creating a new one.",
-        });
-      }
+    if (existingDailyBuilty) {
+      return res.status(400).json({
+        message:
+          "Previous daily builty is not completed. Please complete or cancel it before creating a new one.",
+      });
+    }
 
     const counter = await BuiltyCounter.findOneAndUpdate(
       {
