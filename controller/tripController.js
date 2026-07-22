@@ -475,7 +475,7 @@ exports.completeTrip = async (req, res) => {
     }
 
     const tripId = req.params.tripId;
-    const { endOdometerReading, unloadingStartDate } = req.body;
+    const { endOdometerReading, unloadingStartDate, unloadingEndDate } = req.body;
 
     if (unloadingStartDate === undefined || unloadingStartDate === "") {
       return res.status(400).json({
