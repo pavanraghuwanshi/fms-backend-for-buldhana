@@ -1,5 +1,6 @@
 const admin = require('../config/firebaseConfig');
 const Vendor = require('../model/vendor');
+const Driver = require('../model/driverModel');
 const School = require('../model/school');
 const Branch = require('../model/branch');
 const BranchGroup = require('../model/branchGroup');
@@ -55,6 +56,45 @@ const notifyVendor = async (vendorId, builtyData) => {
     
   } catch (error) {
     console.error(`[Notification] Critical error for vendor ${vendorId}:`, error);
+  }
+};
+
+const notifyDriverBuiltyAssignment = async (driverId, builtyData) => {
+  try {
+    const driver = await Driver.findById(driverId).select('+fcmTokens');
+
+    if (!driver?.fcmTokens?.length) {
+      console.warn(`[Notification] No registered FCM tokens found for driver: ${driverId}. Skipping.`);
+      return;
+    }
+
+    const tokens = driver.fcmTokens.map((item) => item.token).filter(Boolean);
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title: 'New Builty Assigned',
+        body: `Builty ${builtyData.tpNo} has been assigned to you.`
+      },
+      data: {
+        type: 'NEW_BUILTY_ASSIGNED',
+        builtyId: builtyData._id.toString(),
+        tpNo: builtyData.tpNo
+      }
+    });
+
+    console.log(`[Notification] Driver Builty dispatch complete. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+
+    const failedTokens = response.responses
+      .map((resp, index) => (!resp.success ? tokens[index] : null))
+      .filter(Boolean);
+
+    if (failedTokens.length) {
+      await Driver.findByIdAndUpdate(driverId, {
+        $pull: { fcmTokens: { token: { $in: failedTokens } } }
+      });
+    }
+  } catch (error) {
+    console.error(`[Notification] Critical Builty notification error for driver ${driverId}:`, error);
   }
 };
 
@@ -115,4 +155,4 @@ const notifySupervisorAttendance = async (supervisorId, driver, attendance) => {
   }
 };
 
-module.exports = { notifyVendor, notifySupervisorAttendance };
+module.exports = { notifyVendor, notifyDriverBuiltyAssignment, notifySupervisorAttendance };

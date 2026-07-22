@@ -3,7 +3,7 @@ const Builty = require("../model/builtyModel");
 const BuiltyCounter = require("../model/builtyCounterModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Driver = require("../model/driverModel");
-const { notifyVendor } = require('../services/notificationService');
+const { notifyVendor, notifyDriverBuiltyAssignment } = require('../services/notificationService');
 const { logAction } = require('../utils/logger');
 const Trip = require("../model/tripModel");
 const Location = require("../model/location");
@@ -358,6 +358,10 @@ exports.createBuilty = async (req, res) => {
           isAssigned: true,
           deviceId: payload.vehicleId || null,
         },
+      });
+
+      notifyDriverBuiltyAssignment(payload.driverId, builty).catch((err) => {
+        console.error("Async driver Builty notification error:", err);
       });
     }
     logAction({
@@ -728,6 +732,9 @@ exports.updateBuilty = async (req, res) => {
     delete payload.createdBy;
     delete payload.createdByRole;
 
+    const isDriverNewlyAssigned = payload.driverId &&
+      String(builty.driverId || "") !== String(payload.driverId);
+
     const updatedBuilty = await Builty.findByIdAndUpdate(id, payload, {
       new: true,
       runValidators: true,
@@ -811,6 +818,12 @@ exports.updateBuilty = async (req, res) => {
           isAssigned: true,
           deviceId: payload.vehicleId,
         },
+      });
+    }
+
+    if (isDriverNewlyAssigned) {
+      notifyDriverBuiltyAssignment(payload.driverId, updatedBuilty).catch((err) => {
+        console.error("Async driver Builty notification error:", err);
       });
     }
 
