@@ -1743,7 +1743,7 @@ exports.getBuiltysByTripId = async (req, res) => {
     const [total, builtys] = await Promise.all([
       Builty.countDocuments(query),
       Builty.find(query)
-      .select("-createdAt -updatedAt -__v -createdByRole -createdBy -consigneeId -supervisorModel -consignerId -vendorId -vehicleId -pickupLocationId -destinationLocationId -supervisorId -permittedGVW -vendorType -description -vehicleOwnership")
+      .select("-createdAt -updatedAt -__v -createdByRole -createdBy -consigneeId -supervisorModel -consignerId -vendorId -vehicleId -pickupLocationId -destinationLocationId -supervisorId -permittedGVW -vendorType -description")
         // .populate("consignerId", "name contactNumber contactPerson")
         // .populate("consigneeId", "name contactNumber contactPerson")
         // .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
