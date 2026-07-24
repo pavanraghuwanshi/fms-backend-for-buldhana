@@ -1472,12 +1472,15 @@ exports.getBuiltys = async (req, res) => {
             { builtyId: builty._id },
             { builtyIds: builty._id }
           ]
-        }).select("_id tripId").lean();
+        }).select("_id tripId loadingStartDate loadingEndDate").lean();
         return {
           ...builty,
           ...summary,
           tripId: trip ? trip._id : null,
-          uniqueTripId: trip ? (trip.tripId || "N/A") : null
+          uniqueTripId: trip ? (trip.tripId || "N/A") : null,
+          loadingStartDate: trip ? (trip.loadingStartDate || null) : null,
+          loadingEndDate: trip ? (trip.lloadingEndDate || null) : null
+
         };
       })
     );
@@ -1944,7 +1947,6 @@ exports.getBuiltysByTripId = async (req, res) => {
       return res.status(400).json({ message: "Trip ID is required" });
     }
 
-    // Select the requested trip details along with vehicleId and builty references
     const trip = await Trip.findById(tripId)
       .select("tripId vehicleId builtyId builtyIds loadingStartDate loadingEndDate unloadingStartDate unloadingEndDate createdAt")
       .lean();
@@ -1953,10 +1955,8 @@ exports.getBuiltysByTripId = async (req, res) => {
       return res.status(404).json({ message: "Trip not found" });
     }
 
-    // Fetch extra details via helper function
     const extendedDetails = await getExtendedTripDetails(trip, Builty);
 
-    // Collect all unique builty IDs associated with this trip
     const builtyIds = new Set();
     if (trip.builtyId) builtyIds.add(trip.builtyId.toString());
     if (Array.isArray(trip.builtyIds)) {
@@ -2069,7 +2069,9 @@ exports.getBuiltysByTripId = async (req, res) => {
         unloadingEndDate: trip.unloadingEndDate,
         startOdometerReading: extendedDetails.startOdometerReading,
         endOdometerReading: extendedDetails.endOdometerReading,
-        nextTripFuel: extendedDetails.nextTripFuel
+        nextTripFuel: extendedDetails.nextTripFuel,
+        totalBhattaDays: extendedDetails.totalBhattaDays,
+        currentBhattaDays: extendedDetails.currentBhattaDays
       },
       total,
       builtys: builtysWithLedger,
@@ -2157,9 +2159,37 @@ async function getExtendedTripDetails(trip, Builty) {
     if (lastBuilty) endOdometerReading = lastBuilty.endOdometerReading || 0;
   }
 
+  // Bhatta Days Calculation
+  let totalBhattaDays = null;
+  let currentBhattaDays = null;
+
+  if (trip.loadingStartDate) {
+    const start = new Date(trip.loadingStartDate);
+    const now = new Date();
+    
+    // Calculate current bhatta days from loadingStartDate up to today (or unloadingEndDate if completed)
+    const effectiveEndForCurrent = trip.unloadingEndDate ? new Date(trip.unloadingEndDate) : now;
+    
+    if (!isNaN(start.getTime()) && !isNaN(effectiveEndForCurrent.getTime())) {
+      const diffTimeCurrent = effectiveEndForCurrent - start;
+      currentBhattaDays = Math.max(0, Math.ceil(diffTimeCurrent / (1000 * 60 * 60 * 24))) + 1; // +1 to include start day
+    }
+
+    // Calculate total bhatta days only if unloadingEndDate is present
+    if (trip.unloadingEndDate) {
+      const end = new Date(trip.unloadingEndDate);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        const diffTimeTotal = end - start;
+        totalBhattaDays = Math.max(0, Math.ceil(diffTimeTotal / (1000 * 60 * 60 * 24))) + 1; // +1 to include start day
+      }
+    }
+  }
+
   return {
     nextTripFuel: nextTripInfo,
     startOdometerReading,
-    endOdometerReading
+    endOdometerReading,
+    totalBhattaDays,
+    currentBhattaDays
   };
 }
