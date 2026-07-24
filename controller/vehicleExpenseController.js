@@ -17,7 +17,7 @@ exports.addExpense = async (req, res) => {
   try {
     if (req.user.role !== "driver" && req.user.role !== "user") return res.status(403).json({ success: false, message: "Unauthorized access" });
     let driverId;
-    const { amount, expenseType, date, vendor, description, paymentMode, location, lat, long } = req.body;
+    const { amount, expenseType, date, vendor, fuel, description, paymentMode, location, lat, long } = req.body;
 
     if (req.user.role === "driver") driverId = req.user.id;
     else if (req.user.role === "user") driverId = req.body.driverId;
@@ -44,6 +44,7 @@ exports.addExpense = async (req, res) => {
       expenseType,
       date,
       vendor,
+      fuel: fuel !== undefined ? fuel : undefined,
       description,
       billImg: billImgId,
       paymentMode,

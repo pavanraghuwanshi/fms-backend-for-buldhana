@@ -5,8 +5,7 @@ const Driver = require("../model/driverModel");
 const { compressImage } = require("../utils/helperFunctions");
 const Device = require("../model/deviceModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
-
-
+const Trip = require("../model/tripModel");
 
 exports.createDriver = async (req, res) => {
   try {
@@ -529,8 +528,6 @@ exports.leaveDashboard = async (req, res) => {
   }
 };
 
-
-
 exports.getDriverDropdown = async (req, res) => {
   try {
     const role = req.user.role;
@@ -665,5 +662,88 @@ exports.getDriverDropdownall = async (req, res) => {
   } catch (error) {
     console.error("Error in getDriverDropdownall:", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+
+exports.getDriverBhattaDays = async (req, res) => {
+  try {
+    // Determine the driver ID based on user role
+    let driverId;
+    if (req.user.role === "driver") {
+      driverId = req.user.id;
+    } else if (req.user.role === "user" || req.user.role === "superadmin") {
+      driverId = req.params.driverId || req.body.driverId;
+    }
+
+    if (!driverId) {
+      return res.status(400).json({ success: false, message: "Driver ID is required" });
+    }
+
+    // Find the driver
+    const driver = await Driver.findById(driverId).select("currentTripId name isAssigned");
+    if (!driver) {
+      return res.status(404).json({ success: false, message: "Driver not found" });
+    }
+
+    // Check if currentTripId is present AND isAssigned is true
+    if (!driver.currentTripId || driver.isAssigned !== true) {
+      return res.status(200).json({
+        success: true,
+        message: "No trip assigned to the driver",
+        hasActiveTrip: false,
+        bhattaDays: 0,
+      });
+    }
+
+    // Find the trip details
+    const trip = await Trip.findById(driver.currentTripId).select("tripId loadingStartDate startLocation endLocation status");
+    if (!trip || !trip.loadingStartDate) {
+      return res.status(200).json({
+        success: true,
+        message: "Active trip found, but loading start date is not set",
+        hasActiveTrip: true,
+        bhattaDays: 0,
+        tripDetails: trip || null,
+      });
+    }
+
+    // Compare loading start date with today's date
+    const loadingDate = new Date(trip.loadingStartDate);
+    const currentDate = new Date();
+
+    // Reset time components to midnight to calculate full calendar days accurately
+    loadingDate.setHours(0, 0, 0, 0);
+    currentDate.setHours(0, 0, 0, 0);
+
+    const diffTime = currentDate.getTime() - loadingDate.getTime();
+    let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    
+    // Ensure bhatta days don't fall below 1 if it's the same day
+    if (diffDays < 1) {
+      diffDays = 1;
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Driver bhatta days calculated successfully",
+      hasActiveTrip: true,
+      loadingStartDate: trip.loadingStartDate,
+      currentDate: new Date(),
+      bhattaDays: diffDays,
+      tripDetails: {
+        tripId: trip.tripId,
+        startLocation: trip.startLocation,
+        endLocation: trip.endLocation,
+        status: trip.status,
+      },
+    });
+
+  } catch (error) {
+    console.error("Error fetching driver bhatta days:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching driver bhatta days",
+      error: error.message,
+    });
   }
 };

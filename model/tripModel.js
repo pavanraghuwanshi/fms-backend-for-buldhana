@@ -10,7 +10,7 @@ const tripSchema = new mongoose.Schema(
     },
     vehicleId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Device",
+      ref: "VehicleMaster",
       required: [true, "Vehicle is required please select vehicle"],
     },
     vehicleName: {

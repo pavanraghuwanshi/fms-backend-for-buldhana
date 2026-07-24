@@ -21,10 +21,10 @@ const vehicleMasterSchema = new mongoose.Schema(
       trim: true,
     },
     isAssigned: {
-    type: Boolean,
-    default: false,
-    index: true,
-  },
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     grossVehicleWeight: {
       type: Number,
       required: false,
@@ -36,16 +36,16 @@ const vehicleMasterSchema = new mongoose.Schema(
       required: false,
     },
 
-      supervisorId: {
-        type: mongoose.Schema.Types.ObjectId,
-        refPath: "supervisorModel",
-        required: true,
-      },
-      supervisorModel: {
-        type: String,
-        required: true,
-        enum: ["School", "Branch", "BranchGroup"],
-      },
+    supervisorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      refPath: "supervisorModel",
+      required: true,
+    },
+    supervisorModel: {
+      type: String,
+      required: true,
+      enum: ["School", "Branch", "BranchGroup"],
+    },
   },
   { timestamps: true }
 );

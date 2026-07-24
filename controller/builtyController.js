@@ -94,7 +94,7 @@ const upsertBuiltyExpense = async ({
   // FIX: Capture the created document so we have an ID
   const newExpense = await Vehicleexpense.create({
     driverId: builty.driverId || null,
-    vehicleId: builty.vehicleId || null,
+    deviceId: builty.vehicleId || null,
     vehicleName: builty.vehicleNumber || "",
     amount: finalAmount,
     expenseType,
@@ -1648,6 +1648,291 @@ exports.getLedgerBuiltyById = async (req, res) => {
   }
 };
 
+// exports.getBuiltysByTripId = async (req, res) => {
+//   try {
+//     if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
+//       return res.status(403).json({ message: "Access denied" });
+//     }
+
+//     const { tripId } = req.params;
+//     if (!tripId) {
+//       return res.status(400).json({ message: "Trip ID is required" });
+//     }
+
+//     const trip = await Trip.findById(tripId).select("builtyId builtyIds").lean();
+//     if (!trip) {
+//       return res.status(404).json({ message: "Trip not found" });
+//     }
+
+//     // Collect all unique builty IDs associated with this trip
+//     const builtyIds = new Set();
+//     if (trip.builtyId) builtyIds.add(trip.builtyId.toString());
+//     if (Array.isArray(trip.builtyIds)) {
+//       trip.builtyIds.forEach(id => {
+//         if (id) builtyIds.add(id.toString());
+//       });
+//     }
+
+//     const uniqueBuiltyIds = Array.from(builtyIds);
+
+//     const {
+//       search,
+//       status,
+//       supervisorId,
+//       supervisorModel,
+//       startDate,
+//       endDate,
+
+//       consignerId,
+//       consigneeId,
+//       vehicleId,
+//       transporterId,
+//       commissionAgentId,
+//       driverId,
+//       workerId,
+//       createdBy,
+
+//       bookingMode,
+//       vehicleOwnership,
+//       advanceMode,
+//     } = req.query;
+
+//     const query = { _id: { $in: uniqueBuiltyIds } };
+
+//     if (req.user.role === "user") {
+//       query.supervisorId = req.user.id;
+//     } else if (req.user.role === "worker") {
+//       query.supervisorId = req.user.supervisor;
+//     } else if (req.user.role === "driver") {
+//       query.driverId = req.user.id;
+//     }
+
+//     if (supervisorModel) query.supervisorModel = supervisorModel;
+//     if (status) query.status = status;
+
+//     if (consignerId) query.consignerId = consignerId;
+//     if (consigneeId) query.consigneeId = consigneeId;
+//     if (vehicleId) query.vehicleId = vehicleId;
+//     if (transporterId) query.transporterId = transporterId;
+//     if (commissionAgentId) query.commissionAgentId = commissionAgentId;
+//     if (driverId) query.driverId = driverId;
+//     if (workerId) query.workerId = workerId;
+//     if (createdBy) query.createdBy = createdBy;
+
+//     if (bookingMode) query.bookingMode = bookingMode;
+//     if (vehicleOwnership) query.vehicleOwnership = vehicleOwnership;
+//     if (advanceMode) query.advanceMode = advanceMode;
+
+//     if (startDate && endDate) {
+//       query.date = {
+//         $gte: new Date(startDate),
+//         $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
+//       };
+//     }
+
+//     if (search) {
+//       query.$or = [
+//         { tpNo: { $regex: search, $options: "i" } },
+//         { consignerName: { $regex: search, $options: "i" } },
+//         { consigneeName: { $regex: search, $options: "i" } },
+//         { vehicleNumber: { $regex: search, $options: "i" } },
+//         { destinationLocation: { $regex: search, $options: "i" } },
+//       ];
+//     }
+
+//     const [total, builtys] = await Promise.all([
+//       Builty.countDocuments(query),
+//       Builty.find(query)
+//       .select("-createdAt -updatedAt -__v -createdByRole -createdBy -consigneeId -supervisorModel -consignerId -vendorId -vehicleId -pickupLocationId -destinationLocationId -supervisorId -permittedGVW -vendorType -description -vehicleOwnership")
+//         // .populate("consignerId", "name contactNumber contactPerson")
+//         // .populate("consigneeId", "name contactNumber contactPerson")
+//         // .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
+//         .populate("transporterId", "transporterName contactPerson contactNumber")
+//         .populate("commissionAgentId", "name contactNumber contactPerson")
+//          .populate("driverId", "name")
+//         // .populate("pickupLocationId", "locationName latitude longitude")
+//         // .populate("destinationLocationId", "locationName latitude longitude")
+//         // .populate("vendorId", "vendorName contactPerson contactNumber")
+//         .populate(
+//           "invoice", 
+//           "totalAmount paidAmount pendingAmount paymentStatus"
+//         )
+//         .sort({ createdAt: -1 })
+//         .lean()
+//     ]);
+
+//     const builtysWithLedger = await Promise.all(
+//       builtys.map(async (builty) => {
+//         const [summary, ledgerData] = await Promise.all([
+//           getLedgerSummaryByBuilty(builty._id),
+//           getLedgerEntriesByBuilty(builty._id)
+//         ]);
+//         return {
+//           ...builty,
+//           ...summary,
+//           ledger: ledgerData.entries
+//         };
+//       })
+//     );
+
+//     return res.status(200).json({
+//       message: "Builtys fetched successfully",
+//       total,
+//       builtys: builtysWithLedger,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Error fetching builtys for trip",
+//       error: error.message,
+//     });
+//   }
+// };
+
+// exports.getBuiltysByTripId = async (req, res) => {
+//   try {
+//     if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
+//       return res.status(403).json({ message: "Access denied" });
+//     }
+
+//     const { tripId } = req.params;
+//     if (!tripId) {
+//       return res.status(400).json({ message: "Trip ID is required" });
+//     }
+
+//     // Select the requested trip details along with builty references
+//     const trip = await Trip.findById(tripId)
+//       .select("tripId builtyId builtyIds loadingStartDate loadingEndDate unloadingStartDate unloadingEndDate")
+//       .lean();
+      
+//     if (!trip) {
+//       return res.status(404).json({ message: "Trip not found" });
+//     }
+
+//     // Collect all unique builty IDs associated with this trip
+//     const builtyIds = new Set();
+//     if (trip.builtyId) builtyIds.add(trip.builtyId.toString());
+//     if (Array.isArray(trip.builtyIds)) {
+//       trip.builtyIds.forEach(id => {
+//         if (id) builtyIds.add(id.toString());
+//       });
+//     }
+
+//     const uniqueBuiltyIds = Array.from(builtyIds);
+
+//     const {
+//       search,
+//       status,
+//       supervisorId,
+//       supervisorModel,
+//       startDate,
+//       endDate,
+
+//       consignerId,
+//       consigneeId,
+//       vehicleId,
+//       transporterId,
+//       commissionAgentId,
+//       driverId,
+//       workerId,
+//       createdBy,
+
+//       bookingMode,
+//       vehicleOwnership,
+//       advanceMode,
+//     } = req.query;
+
+//     const query = { _id: { $in: uniqueBuiltyIds } };
+
+//     if (req.user.role === "user") {
+//       query.supervisorId = req.user.id;
+//     } else if (req.user.role === "worker") {
+//       query.supervisorId = req.user.supervisor;
+//     } else if (req.user.role === "driver") {
+//       query.driverId = req.user.id;
+//     }
+
+//     if (supervisorModel) query.supervisorModel = supervisorModel;
+//     if (status) query.status = status;
+
+//     if (consignerId) query.consignerId = consignerId;
+//     if (consigneeId) query.consigneeId = consigneeId;
+//     if (vehicleId) query.vehicleId = vehicleId;
+//     if (transporterId) query.transporterId = transporterId;
+//     if (commissionAgentId) query.commissionAgentId = commissionAgentId;
+//     if (driverId) query.driverId = driverId;
+//     if (workerId) query.workerId = workerId;
+//     if (createdBy) query.createdBy = createdBy;
+
+//     if (bookingMode) query.bookingMode = bookingMode;
+//     if (vehicleOwnership) query.vehicleOwnership = vehicleOwnership;
+//     if (advanceMode) query.advanceMode = advanceMode;
+
+//     if (startDate && endDate) {
+//       query.date = {
+//         $gte: new Date(startDate),
+//         $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
+//       };
+//     }
+
+//     if (search) {
+//       query.$or = [
+//         { tpNo: { $regex: search, $options: "i" } },
+//         { consignerName: { $regex: search, $options: "i" } },
+//         { consigneeName: { $regex: search, $options: "i" } },
+//         { vehicleNumber: { $regex: search, $options: "i" } },
+//         { destinationLocation: { $regex: search, $options: "i" } },
+//       ];
+//     }
+
+//     const [total, builtys] = await Promise.all([
+//       Builty.countDocuments(query),
+//       Builty.find(query)
+//         .select("-createdAt -updatedAt -__v -createdByRole -createdBy -consigneeId -supervisorModel -consignerId -vendorId -vehicleId -pickupLocationId -destinationLocationId -supervisorId -permittedGVW -vendorType -description -vehicleOwnership")
+//         .populate("transporterId", "transporterName contactPerson contactNumber")
+//         .populate("commissionAgentId", "name contactNumber contactPerson")
+//         .populate("driverId", "name")
+//         .populate(
+//           "invoice", 
+//           "totalAmount paidAmount pendingAmount paymentStatus"
+//         )
+//         .sort({ createdAt: -1 })
+//         .lean()
+//     ]);
+
+//     const builtysWithLedger = await Promise.all(
+//       builtys.map(async (builty) => {
+//         const [summary, ledgerData] = await Promise.all([
+//           getLedgerSummaryByBuilty(builty._id),
+//           getLedgerEntriesByBuilty(builty._id)
+//         ]);
+//         return {
+//           ...builty,
+//           ...summary,
+//           ledger: ledgerData.entries
+//         };
+//       })
+//     );
+
+//     return res.status(200).json({
+//       message: "Builtys fetched successfully",
+//       tripDetails: {
+//         tripId: trip.tripId,
+//         loadingStartDate: trip.loadingStartDate,
+//         loadingEndDate: trip.loadingEndDate,
+//         unloadingStartDate: trip.unloadingStartDate,
+//         unloadingEndDate: trip.unloadingEndDate,
+//       },
+//       total,
+//       builtys: builtysWithLedger,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Error fetching builtys for trip",
+//       error: error.message,
+//     });
+//   }
+// };
+
 exports.getBuiltysByTripId = async (req, res) => {
   try {
     if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
@@ -1659,10 +1944,17 @@ exports.getBuiltysByTripId = async (req, res) => {
       return res.status(400).json({ message: "Trip ID is required" });
     }
 
-    const trip = await Trip.findById(tripId).select("builtyId builtyIds").lean();
+    // Select the requested trip details along with vehicleId and builty references
+    const trip = await Trip.findById(tripId)
+      .select("tripId vehicleId builtyId builtyIds loadingStartDate loadingEndDate unloadingStartDate unloadingEndDate createdAt")
+      .lean();
+      
     if (!trip) {
       return res.status(404).json({ message: "Trip not found" });
     }
+
+    // Fetch extra details via helper function
+    const extendedDetails = await getExtendedTripDetails(trip, Builty);
 
     // Collect all unique builty IDs associated with this trip
     const builtyIds = new Set();
@@ -1682,7 +1974,6 @@ exports.getBuiltysByTripId = async (req, res) => {
       supervisorModel,
       startDate,
       endDate,
-
       consignerId,
       consigneeId,
       vehicleId,
@@ -1691,7 +1982,6 @@ exports.getBuiltysByTripId = async (req, res) => {
       driverId,
       workerId,
       createdBy,
-
       bookingMode,
       vehicleOwnership,
       advanceMode,
@@ -1743,16 +2033,10 @@ exports.getBuiltysByTripId = async (req, res) => {
     const [total, builtys] = await Promise.all([
       Builty.countDocuments(query),
       Builty.find(query)
-      .select("-createdAt -updatedAt -__v -createdByRole -createdBy -consigneeId -supervisorModel -consignerId -vendorId -vehicleId -pickupLocationId -destinationLocationId -supervisorId -permittedGVW -vendorType -description -vehicleOwnership")
-        // .populate("consignerId", "name contactNumber contactPerson")
-        // .populate("consigneeId", "name contactNumber contactPerson")
-        // .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
+        .select("-createdAt -updatedAt -__v -createdByRole -createdBy -consigneeId -supervisorModel -consignerId -vendorId -vehicleId -pickupLocationId -destinationLocationId -supervisorId -permittedGVW -vendorType -description -vehicleOwnership")
         .populate("transporterId", "transporterName contactPerson contactNumber")
         .populate("commissionAgentId", "name contactNumber contactPerson")
-         .populate("driverId", "name")
-        // .populate("pickupLocationId", "locationName latitude longitude")
-        // .populate("destinationLocationId", "locationName latitude longitude")
-        // .populate("vendorId", "vendorName contactPerson contactNumber")
+        .populate("driverId", "name")
         .populate(
           "invoice", 
           "totalAmount paidAmount pendingAmount paymentStatus"
@@ -1777,6 +2061,16 @@ exports.getBuiltysByTripId = async (req, res) => {
 
     return res.status(200).json({
       message: "Builtys fetched successfully",
+      tripDetails: {
+        tripId: trip.tripId,
+        loadingStartDate: trip.loadingStartDate,
+        loadingEndDate: trip.loadingEndDate,
+        unloadingStartDate: trip.unloadingStartDate,
+        unloadingEndDate: trip.unloadingEndDate,
+        startOdometerReading: extendedDetails.startOdometerReading,
+        endOdometerReading: extendedDetails.endOdometerReading,
+        nextTripFuel: extendedDetails.nextTripFuel
+      },
       total,
       builtys: builtysWithLedger,
     });
@@ -1787,3 +2081,85 @@ exports.getBuiltysByTripId = async (req, res) => {
     });
   }
 };
+
+
+async function getExtendedTripDetails(trip, Builty) {
+  let nextTripInfo = {
+    message: "No next trip found for this vehicle",
+    nextTripId: null,
+    firstBuiltyId: null,
+    fuel: 0
+  };
+
+  if (trip.vehicleId) {
+    const nextTrip = await Trip.findOne({
+      vehicleId: trip.vehicleId,
+      _id: { $ne: trip._id },
+      createdAt: { $gt: trip.createdAt }
+    })
+    .sort({ createdAt: 1 })
+    .select("tripId builtyId builtyIds")
+    .lean();
+
+    if (nextTrip) {
+      const nextTripBuiltyIds = [];
+      if (nextTrip.builtyId) nextTripBuiltyIds.push(nextTrip.builtyId);
+      if (Array.isArray(nextTrip.builtyIds)) {
+        nextTripBuiltyIds.push(...nextTrip.builtyIds);
+      }
+
+      if (nextTripBuiltyIds.length > 0) {
+        const firstBuiltyOfNextTrip = await Builty.findById(nextTripBuiltyIds[0])
+          .select("fuel")
+          .lean();
+
+        if (firstBuiltyOfNextTrip) {
+          nextTripInfo = {
+            message: "Fuel fetched successfully from next trip's first builty",
+            nextTripId: nextTrip.tripId || nextTrip._id,
+            firstBuiltyId: nextTripBuiltyIds[0],
+            fuel: firstBuiltyOfNextTrip.fuel || 0
+          };
+        } else {
+          nextTripInfo = {
+            message: "Next trip exists, but the first builty was not found",
+            nextTripId: nextTrip.tripId || nextTrip._id,
+            firstBuiltyId: nextTripBuiltyIds[0],
+            fuel: 0
+          };
+        }
+      } else {
+        nextTripInfo = {
+          message: "Next trip exists, but no builtys are attached to it",
+          nextTripId: nextTrip.tripId || nextTrip._id,
+          firstBuiltyId: null,
+          fuel: 0
+        };
+      }
+    }
+  }
+
+  // Get start odometer from the current trip's first builty and end odometer from the last builty
+  let startOdometerReading = 0;
+  let endOdometerReading = 0;
+
+  const currentBuiltyIds = [];
+  if (trip.builtyId) currentBuiltyIds.push(trip.builtyId);
+  if (Array.isArray(trip.builtyIds)) currentBuiltyIds.push(...trip.builtyIds);
+
+  if (currentBuiltyIds.length > 0) {
+    const [firstBuilty, lastBuilty] = await Promise.all([
+      Builty.findById(currentBuiltyIds[0]).select("startOdometerReading").lean(),
+      Builty.findById(currentBuiltyIds[currentBuiltyIds.length - 1]).select("endOdometerReading").lean()
+    ]);
+
+    if (firstBuilty) startOdometerReading = firstBuilty.startOdometerReading || 0;
+    if (lastBuilty) endOdometerReading = lastBuilty.endOdometerReading || 0;
+  }
+
+  return {
+    nextTripFuel: nextTripInfo,
+    startOdometerReading,
+    endOdometerReading
+  };
+}

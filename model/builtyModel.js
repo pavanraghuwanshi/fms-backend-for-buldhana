@@ -74,7 +74,8 @@ const builtySchema = new mongoose.Schema(
     shortageDeductionRate: { type: Number, default: 0 },
     description: { type: String },
     vendorType: { type: String },
-
+    fuel: { type: Number, default: 0 },
+    helperAmount: { type: Number, required: false},
     // booking mode is not used
     bookingMode: {
       type: String,

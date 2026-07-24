@@ -4,6 +4,7 @@ const Subtrip = require("../model/subTripModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Builty = require("../model/builtyModel");
 const WalletLedger = require("../model/WalletLedger");
+const Device = require("../model/deviceModel");
 
 exports.createTrip = async (req, res) => {
   try {
@@ -1093,8 +1094,17 @@ exports.getInProgressTrips = async (req, res) => {
     const [total, trips] = await Promise.all([
       Trip.countDocuments(query),
       Trip.find(query)
-        .populate("driverId", "name") // Populates driver object to get .name and ._id
-        .populate("builtyIds", "docNo tpNo")
+        .populate("driverId", "name") 
+        .populate("vehicleId", "vehicleNumber") // <-- Uncommented and populating vehicle ID
+        .populate({
+          path: "builtyIds",
+          select: "docNo tpNo transporterId commissionAgentId", 
+          populate: [
+            // Populating nested references inside Builty (Adjust "name" to your actual schema fields)
+            { path: "transporterId", select: "name contactNumber" }, 
+            { path: "commissionAgentId", select: "name contactNumber" } 
+          ]
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -1122,17 +1132,27 @@ exports.getInProgressTrips = async (req, res) => {
           netBalance = deposite - withdraw;
         }
 
+        // Safely extract the first Builty to get doc details and agents
+        const primaryBuilty = trip.builtyIds?.[0];
+
         return {
-          tripId: trip._id, // Renamed _id to tripId
-          uniqueTripId: trip.tripId, // Added uniqueTripId
-          driverId: trip.driverId?._id, // Included driverId
-          driverName: trip.driverId?.name || "N/A", // Populated driver name
-          vehicleName: trip.vehicleName,
-          vehicleId: trip.vehicleId,
-          startLocation: trip.startLocation, // Included startLocation
+          tripId: trip._id,
+          uniqueTripId: trip.tripId,
+          driverId: trip.driverId?._id,
+          driverName: trip.driverId?.name || "N/A",
+
+          vehicleId: trip.vehicleId?._id || trip.vehicleId, 
+          vehicleNumber: trip.vehicleId?.vehicleNumber || "N/A", // From populated vehicleId
+
+          startLocation: trip.startLocation,
           endLocation: trip.endLocation,
-          docNo: trip.builtyIds?.[0]?.docNo || "N/A",
-          tpNo: trip.builtyIds?.[0]?.tpNo || "N/A",
+          
+          // <-- Builty info mapped here
+          docNo: primaryBuilty?.docNo || "N/A",
+          tpNo: primaryBuilty?.tpNo || "N/A",
+          transporter: primaryBuilty?.transporterId || null,
+          commissionAgent: primaryBuilty?.commissionAgentId || null,
+          
           status: trip.status,
           date: trip.date,
           deposite,
