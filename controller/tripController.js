@@ -1102,7 +1102,7 @@ exports.getInProgressTrips = async (req, res) => {
           populate: [
             // Populating nested references inside Builty (Adjust "name" to your actual schema fields)
             { path: "transporterId", select: "name contactNumber" },
-            { path: "commissionAgentId", select: "name contactNumber" }
+            { path: "commissionAgentId", select: "agentName contactNumber" }
           ]
         })
         .sort({ createdAt: -1 })
@@ -1155,7 +1155,7 @@ exports.getInProgressTrips = async (req, res) => {
         // Format commission agent object
         const commissionAgentData = primaryBuilty?.commissionAgentId ? {
           _id: primaryBuilty.commissionAgentId._id,
-          name: primaryBuilty.commissionAgentId.name || "N/A",
+          name: primaryBuilty.commissionAgentId.agentName || "N/A",
           contactNumber: primaryBuilty.commissionAgentId.contactNumber || "N/A"
         } : null;
 
