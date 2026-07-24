@@ -1479,7 +1479,7 @@ exports.getBuiltys = async (req, res) => {
           tripId: trip ? trip._id : null,
           uniqueTripId: trip ? (trip.tripId || "N/A") : null,
           loadingStartDate: trip ? (trip.loadingStartDate || null) : null,
-          loadingEndDate: trip ? (trip.lloadingEndDate || null) : null
+          loadingEndDate: trip ? (trip.loadingEndDate || null) : null
 
         };
       })
