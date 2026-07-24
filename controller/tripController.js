@@ -1094,15 +1094,15 @@ exports.getInProgressTrips = async (req, res) => {
     const [total, trips] = await Promise.all([
       Trip.countDocuments(query),
       Trip.find(query)
-        .populate("driverId", "name") 
-        .populate("vehicleId", "vehicleNumber") // <-- Uncommented and populating vehicle ID
+        .populate("driverId", "name")
+        .populate("vehicleId", "vehicleNumber grossVehicleWeight") // <-- Uncommented and populating vehicle ID
         .populate({
           path: "builtyIds",
-          select: "docNo tpNo transporterId commissionAgentId", 
+          select: "docNo tpNo transporterId commissionAgentId",
           populate: [
             // Populating nested references inside Builty (Adjust "name" to your actual schema fields)
-            { path: "transporterId", select: "name contactNumber" }, 
-            { path: "commissionAgentId", select: "name contactNumber" } 
+            { path: "transporterId", select: "name contactNumber" },
+            { path: "commissionAgentId", select: "name contactNumber" }
           ]
         })
         .sort({ createdAt: -1 })
@@ -1132,27 +1132,53 @@ exports.getInProgressTrips = async (req, res) => {
           netBalance = deposite - withdraw;
         }
 
-        // Safely extract the first Builty to get doc details and agents
+        // Safely extract the first Builty
         const primaryBuilty = trip.builtyIds?.[0];
+
+        // Format vehicle object
+        const vehicleData = trip.vehicleId && typeof trip.vehicleId === "object" ? {
+          _id: trip.vehicleId._id,
+          vehicleNumber: trip.vehicleId.vehicleNumber || "N/A",
+          grossVehicleWeight: trip.vehicleId.grossVehicleWeight || 0
+        } : {
+          _id: trip.vehicleId || null,
+          vehicleNumber: "N/A",
+          grossVehicleWeight: 0
+        };
+        // Format transporter object
+        const transporterData = primaryBuilty?.transporterId ? {
+          _id: primaryBuilty.transporterId._id,
+          name: primaryBuilty.transporterId.name || "N/A",
+          contactNumber: primaryBuilty.transporterId.contactNumber || "N/A"
+        } : null;
+
+        // Format commission agent object
+        const commissionAgentData = primaryBuilty?.commissionAgentId ? {
+          _id: primaryBuilty.commissionAgentId._id,
+          name: primaryBuilty.commissionAgentId.name || "N/A",
+          contactNumber: primaryBuilty.commissionAgentId.contactNumber || "N/A"
+        } : null;
 
         return {
           tripId: trip._id,
           uniqueTripId: trip.tripId,
-          driverId: trip.driverId?._id,
+          driverId: trip.driverId?._id || null,
           driverName: trip.driverId?.name || "N/A",
 
-          vehicleId: trip.vehicleId?._id || trip.vehicleId, 
-          vehicleNumber: trip.vehicleId?.vehicleNumber || "N/A", // From populated vehicleId
+          // Formatted Vehicle Object
+          vehicle: vehicleData,
+          vehicleName: trip.vehicleName || "N/A",
 
           startLocation: trip.startLocation,
           endLocation: trip.endLocation,
-          
-          // <-- Builty info mapped here
+
           docNo: primaryBuilty?.docNo || "N/A",
           tpNo: primaryBuilty?.tpNo || "N/A",
-          transporter: primaryBuilty?.transporterId || null,
-          commissionAgent: primaryBuilty?.commissionAgentId || null,
-          
+
+          // Formatted Transporter and Commission Agent Objects
+          transporter: transporterData,
+          commissionAgent: commissionAgentData,
+
           status: trip.status,
           date: trip.date,
           deposite,
@@ -1160,7 +1186,7 @@ exports.getInProgressTrips = async (req, res) => {
           netBalance
         };
       })
-    );
+    );;
 
     return res.status(200).json({
       message: "In-progress trips fetched successfully",
@@ -1275,23 +1301,23 @@ exports.getDriverLedgerHistory = async (req, res) => {
 
     const pipeline = [
       { $match: matchQuery },
-      
+
       // Join Driver
       { $lookup: { from: "drivers", localField: "driverId", foreignField: "_id", as: "driver" } },
       { $unwind: { path: "$driver", preserveNullAndEmptyArrays: true } },
-      
+
       // Join VehicleMaster
       { $lookup: { from: "vehiclemasters", localField: "vehicleId", foreignField: "_id", as: "vehicle" } },
       { $unwind: { path: "$vehicle", preserveNullAndEmptyArrays: true } },
-      
+
       // Join Trip
       { $lookup: { from: "trips", localField: "tripId", foreignField: "_id", as: "trip" } },
       { $unwind: { path: "$trip", preserveNullAndEmptyArrays: true } },
-      
+
       // Join Builty
       { $lookup: { from: "builtys", localField: "builtyId", foreignField: "_id", as: "builty" } },
       { $unwind: { path: "$builty", preserveNullAndEmptyArrays: true } },
-      
+
       // Join Polymorphic Expenses
       {
         $lookup: {
@@ -1314,7 +1340,7 @@ exports.getDriverLedgerHistory = async (req, res) => {
           expenseData: { $arrayElemAt: [{ $concatArrays: ["$vehExp", "$drvExp"] }, 0] }
         }
       },
-      
+
       // Search Filter
       ...(search ? [{
         $match: {
