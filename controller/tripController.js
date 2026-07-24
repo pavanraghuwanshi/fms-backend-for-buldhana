@@ -130,14 +130,21 @@ const buildTripQuery = async (user, queryParams) => {
     filters.push({ driverId: { $in: driverIds } });
   }
 
-  if (tpNo || docNo) {
+ if (tpNo || docNo) {
     const builtyQuery = {};
     if (tpNo) builtyQuery.tpNo = { $regex: tpNo, $options: "i" };
     if (docNo) builtyQuery.docNo = { $regex: docNo, $options: "i" };
 
     const builties = await Builty.find(builtyQuery).select("_id");
     const builtyIds = builties.map((b) => b._id);
-    filters.push({ builtyId: { $in: builtyIds } });
+    
+    // Check both builtyId and builtyIds here as well
+    filters.push({
+      $or: [
+        { builtyId: { $in: builtyIds } },
+        { builtyIds: { $in: builtyIds } }
+      ]
+    });
   }
 
   if (search) {
@@ -156,11 +163,12 @@ const buildTripQuery = async (user, queryParams) => {
 
     filters.push({
       $or: [
-        { tripId: { $regex: search, $options: "i" } },
+        { tripId: { $regex: search, $options: "i" } }, // <--- Already searches tripId here
         { route: { $regex: search, $options: "i" } },
         { vehicleName: { $regex: search, $options: "i" } },
         { driverId: { $in: driverIds } },
         { builtyId: { $in: builtyIds } },
+        { builtyIds: { $in: builtyIds } },
       ],
     });
   }
@@ -1101,7 +1109,7 @@ exports.getInProgressTrips = async (req, res) => {
           select: "docNo tpNo transporterId commissionAgentId",
           populate: [
             // Populating nested references inside Builty (Adjust "name" to your actual schema fields)
-            { path: "transporterId", select: "name contactNumber" },
+            { path: "transporterId", select: "transporterName contactNumber" },
             { path: "commissionAgentId", select: "agentName contactNumber" }
           ]
         })
@@ -1148,7 +1156,7 @@ exports.getInProgressTrips = async (req, res) => {
         // Format transporter object
         const transporterData = primaryBuilty?.transporterId ? {
           _id: primaryBuilty.transporterId._id,
-          name: primaryBuilty.transporterId.name || "N/A",
+          name: primaryBuilty.transporterId.transporterName || "N/A",
           contactNumber: primaryBuilty.transporterId.contactNumber || "N/A"
         } : null;
 
