@@ -136,12 +136,11 @@ const syncBuiltyAutoExpenses = async ({ builty, body, allowedTypes, trip }) => {
   const tripObject = tripId ? { _id: tripId } : null;
 
   if (allowedTypes.includes("loading")) {
-
     await upsertBuiltyExpense({
       builty,
       trip: tripObject,
       expenseType: "Loading Charge",
-      amount: body.loadingCharge,
+      amount: body.loadingCharge !== undefined ? body.loadingCharge : builty.loadingCharge,
       description: "Auto expense from builty loadingCharge",
     });
 
@@ -149,18 +148,17 @@ const syncBuiltyAutoExpenses = async ({ builty, body, allowedTypes, trip }) => {
       builty,
       trip: tripObject,
       expenseType: "Load Kata Charge",
-      amount: body.loadKataCharge,
+      amount: body.loadKataCharge !== undefined ? body.loadKataCharge : builty.loadKataCharge,
       description: "Auto expense from builty loadKataCharge",
     });
   }
 
   if (allowedTypes.includes("unloading")) {
-
     await upsertBuiltyExpense({
       builty,
       trip: tripObject,
       expenseType: "Unloading Charge",
-      amount: body.unLoadingCharge,
+      amount: body.unLoadingCharge !== undefined ? body.unLoadingCharge : builty.unLoadingCharge,
       description: "Auto expense from builty unLoadingCharge",
     });
 
@@ -168,7 +166,7 @@ const syncBuiltyAutoExpenses = async ({ builty, body, allowedTypes, trip }) => {
       builty,
       trip: tripObject,
       expenseType: "Unloading Kata Charge",
-      amount: body.unloadingKataCharge,
+      amount: body.unLoadKataCharge !== undefined ? body.unLoadKataCharge : (body.unloadingKataCharge !== undefined ? body.unloadingKataCharge : builty.unLoadKataCharge),
       description: "Auto expense from builty unloadingKataCharge",
     });
   }
@@ -1243,18 +1241,23 @@ exports.completeBuilty = async (req, res) => {
     builty.deliveryStatus = isLessDelivered ? "Less Delivered" : "Delivered";
     builty.paymentCutAmount = Number(paymentCutAmount || 0);
     builty.isLessDelivered = isLessDelivered;
-    builty.endOdometerReading = endOdometerReading
-    builty.unLoadingCharge = unLoadingCharge,
-      builty.unLoadKataCharge = unLoadKataCharge
+    builty.endOdometerReading = endOdometerReading;
+    builty.unLoadingCharge = unLoadingCharge !== undefined ? Number(unLoadingCharge) : builty.unLoadingCharge;
+    builty.unLoadKataCharge = unLoadKataCharge !== undefined ? Number(unLoadKataCharge) : builty.unLoadKataCharge;
 
     builty.status = "Completed";
     builty.completedAt = new Date();
+
+    const trip = await Trip.findOne({
+      $or: [{ builtyIds: builty._id }, { builtyId: builty._id }],
+    });
 
     const updatedBuilty = await builty.save();
     await syncBuiltyAutoExpenses({
       builty,
       body: req.body,
       allowedTypes: ["unloading"],
+      trip,
     });
 
     try {
@@ -1264,7 +1267,7 @@ exports.completeBuilty = async (req, res) => {
         action: 'COMPLETE',
         module: 'Builty',
         recordId: builty._id,
-        oldData: oldBuiltySnapshot,
+        oldData: oldBuiltySnapshot, 
         newData: updatedBuilty.toObject(),
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
