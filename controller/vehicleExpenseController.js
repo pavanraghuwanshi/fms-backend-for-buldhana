@@ -1,7 +1,8 @@
 const Vehicleexpense = require("../model/vehicleExpensesModel.js");
 const Driver = require("../model/driverModel.js");
 const Trip = require("../model/tripModel.js");
-const { compressImage } = require("../utils/helperFunctions.js");
+const Builty = require("../model/builtyModel.js");
+const { compressImage, resolveTripAndActiveBuilty } = require("../utils/helperFunctions.js");
 const Tyre = require("../model/tyre.js");
 const WalletLedger = require("../model/WalletLedger");
 const TyreBillImage = require("../model/tyreBillImage.js");
@@ -35,7 +36,9 @@ exports.addExpense = async (req, res) => {
       await imgDoc.save();
       billImgId = imgDoc._id;
     }
-    const trip = await Trip.findById(driver.currentTripId);
+
+    const { trip, activeBuiltyId } = await resolveTripAndActiveBuilty(req.body.builtyId, driver);
+
     const expense = new Vehicleexpense({
       driverId,
       vehicleId: driver.deviceId._id,
@@ -51,23 +54,26 @@ exports.addExpense = async (req, res) => {
       location,
       lat,
       long,
-      builtyId: trip?.builtyId || null
+      builtyId: activeBuiltyId
     });
     await expense.save();
 
     await withdrawFundsForDriver({
       driverId: driverId,
-      supervisorId: driver.supervisor, // Assuming driver model has supervisor field
+      supervisorId: trip?.supervisorId || driver.supervisor,
       vehicleId: driver.deviceId._id,
       amount: amount,
-      tripId: driver.currentTripId,
-      builtyId: trip?.builtyId || null,
+      tripId: trip?._id || driver.currentTripId,
+      builtyId: activeBuiltyId,
       actionBy: req.user.id,
-      expenseModel: "Vehicleexpense", // Matches the collection name
+      expenseModel: "Vehicleexpense",
       expenseId: expense._id
     });
 
-    await Trip.findByIdAndUpdate(driver.currentTripId, { $inc: { spentAmount: amount } });
+    const targetTripId = trip ? trip._id : driver.currentTripId;
+    if (targetTripId) {
+      await Trip.findByIdAndUpdate(targetTripId, { $inc: { spentAmount: amount } });
+    }
     return res.status(201).json({ success: true, message: "Expense added successfully", expense });
   } catch (error) {
     return res.status(500).json({ success: false, message: "Error adding expense", error: error.message });

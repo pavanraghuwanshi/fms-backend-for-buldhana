@@ -3,8 +3,10 @@ const WalletLedger = require("../model/WalletLedger");
 const DriverExpense = require("../model/driverExpenseModel.js");
 const Driver = require("../model/driverModel.js");
 const Trip = require("../model/tripModel.js");
-const { compressImage } = require("../utils/helperFunctions.js");
+const Builty = require("../model/builtyModel.js");
+const { compressImage, resolveTripAndActiveBuilty } = require("../utils/helperFunctions.js");
 const { withdrawFundsForDriver, updateLedgerForAmountChange } = require("./ledgerController.js");
+
 exports.addExpense = async (req, res) => {
   try {
     if (req.user.role !== "driver" && req.user.role !== "user") return res.status(403).json({ success: false, message: "Unauthorized access" });
@@ -46,11 +48,9 @@ exports.addExpense = async (req, res) => {
         return res.status(400).json({ message: "Only image or PDF files are allowed" });
       }
     }
-    const trip = await Trip.findById(driver.currentTripId);
-    const providedBuiltyId = req.body.builtyId;
-    const activeBuiltyId = providedBuiltyId ||
-      trip?.builtyId ||
-      (trip?.builtyIds && trip.builtyIds.length > 0 ? trip.builtyIds[trip.builtyIds.length - 1] : null);
+
+    const { trip, activeBuiltyId } = await resolveTripAndActiveBuilty(req.body.builtyId, driver);
+
     const newExpense = new DriverExpense({
       driverId,
       vehicleId: driver.deviceId._id,
@@ -69,9 +69,12 @@ exports.addExpense = async (req, res) => {
 
     await newExpense.save();
 
-    await Trip.findByIdAndUpdate(driver.currentTripId, {
-      $inc: { spentAmount: amount },
-    });
+    const targetTripId = trip ? trip._id : driver.currentTripId;
+    if (targetTripId) {
+      await Trip.findByIdAndUpdate(targetTripId, {
+        $inc: { spentAmount: amount },
+      });
+    }
     await handleWalletWithdrawal(req, trip, driver, newExpense);
     return res.status(201).json(newExpense);
   } catch (error) {
@@ -81,19 +84,23 @@ exports.addExpense = async (req, res) => {
 };
 const handleWalletWithdrawal = async (req, trip, driver, newExpense) => {
   try {
-    const providedBuiltyId = req.body.builtyId;
-    const activeBuiltyId = providedBuiltyId ||
-      trip?.builtyId ||
-      (trip?.builtyIds && trip.builtyIds.length > 0 ? trip.builtyIds[trip.builtyIds.length - 1] : null);
+    let currentTrip = trip;
+    let activeBuiltyId = newExpense?.builtyId;
+
+    if (!activeBuiltyId || !currentTrip) {
+      const resolved = await resolveTripAndActiveBuilty(req.body.builtyId, driver);
+      if (!activeBuiltyId) activeBuiltyId = resolved.activeBuiltyId;
+      if (!currentTrip) currentTrip = resolved.trip;
+    }
 
     // 2. Only proceed if payment mode is cash
     if (req.body.paymentMode === "cash") {
       const withdrawalPayload = {
         driverId: newExpense.driverId,
-        supervisorId: trip.supervisorId,
+        supervisorId: currentTrip?.supervisorId,
         vehicleId: driver.deviceId._id,
         amount: newExpense.amount,
-        tripId: driver.currentTripId,
+        tripId: currentTrip?._id || driver.currentTripId,
         builtyId: activeBuiltyId,
         actionBy: req.user.id,
         expenseId: newExpense._id
