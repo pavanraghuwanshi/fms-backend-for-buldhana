@@ -41,7 +41,7 @@ exports.addExpense = async (req, res) => {
 
     const expense = new Vehicleexpense({
       driverId,
-      vehicleId: driver.deviceId._id,
+      deviceId: driver.deviceId._id,
       vehicleName: driver.deviceId.vehicleNumber,
       amount,
       expenseType,
