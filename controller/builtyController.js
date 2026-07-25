@@ -130,7 +130,7 @@ const upsertBuiltyExpense = async ({
     console.log(`[SKIP] No withdrawal: New expense created for ${expenseType}, but no trip ID found to link withdrawal.`);
   }
 };
- 
+
 const syncBuiltyAutoExpenses = async ({ builty, body, allowedTypes, trip }) => {
   const tripId = trip?._id || trip;
   const tripObject = tripId ? { _id: tripId } : null;
@@ -406,7 +406,7 @@ exports.createBuilty = async (req, res) => {
 const linkBuiltyToTrip = async ({ payload, builty, req }) => {
   try {
     let trip;
-    
+
     // Explicitly grab the dates from payload or req.body
     const explicitLoadingStartDate = payload.loadingStartDate || req.body.loadingStartDate;
     const explicitLoadingEndDate = payload.loadingEndDate || req.body.loadingEndDate;
@@ -415,7 +415,7 @@ const linkBuiltyToTrip = async ({ payload, builty, req }) => {
       // UPDATE EXISTING TRIP
       trip = await Trip.findByIdAndUpdate(
         payload.tripId,
-        { 
+        {
           $addToSet: { builtyIds: builty._id },
           ...(explicitLoadingStartDate && { loadingStartDate: explicitLoadingStartDate }),
           ...(explicitLoadingEndDate && { loadingEndDate: explicitLoadingEndDate })
@@ -960,6 +960,8 @@ exports.dispatchBuilty = async (req, res) => {
       fareAmountAdvance,
       loadKataCharge,
       loadingCharge,
+      loadingStartDate,
+      loadingEndDate,
     } = req.body;
 
     if (loadingEmptyWeight === undefined || loadingLoadedWeight === undefined) {
@@ -1059,6 +1061,9 @@ exports.dispatchBuilty = async (req, res) => {
       builty.loadingCharge = Number(loadingCharge);
     }
 
+    if (loadingStartDate !== undefined) builty.loadingStartDate = loadingStartDate;
+    if (loadingEndDate !== undefined) builty.loadingEndDate = loadingEndDate;
+
     builty.status = "Dispatched";
 
     // if (builty.driverId && builty.vehicleId) {
@@ -1102,6 +1107,8 @@ exports.dispatchBuilty = async (req, res) => {
           $set: {
             driverCheckIn: true,
             startOdometerReading: Number(startOdometerReading),
+            ...(loadingStartDate && { loadingStartDate }),
+            ...(loadingEndDate && { loadingEndDate }),
           },
         },
         { new: true }
@@ -1250,19 +1257,6 @@ exports.completeBuilty = async (req, res) => {
       allowedTypes: ["unloading"],
     });
 
-    if (builty.vehicleId) {
-      await VehicleMaster.findByIdAndUpdate(builty.vehicleId, {
-        isAssigned: false,
-      });
-    }
-    if (builty.driverId) {
-      await Driver.findByIdAndUpdate(builty.driverId, {
-        $set: {
-          isAssigned: false,
-          deviceId: null,
-        },
-      });
-    }
     try {
       await logAction({
         userId: req.user?._id || req.user?.id,
@@ -1540,7 +1534,6 @@ exports.getBuiltyById = async (req, res) => {
   }
 };
 
-
 const handleVendorAssignment = async ({
   vendorId,
   builty,
@@ -1806,7 +1799,7 @@ exports.getLedgerBuiltyById = async (req, res) => {
 //     const trip = await Trip.findById(tripId)
 //       .select("tripId builtyId builtyIds loadingStartDate loadingEndDate unloadingStartDate unloadingEndDate")
 //       .lean();
-      
+
 //     if (!trip) {
 //       return res.status(404).json({ message: "Trip not found" });
 //     }
@@ -1950,7 +1943,7 @@ exports.getBuiltysByTripId = async (req, res) => {
     const trip = await Trip.findById(tripId)
       .select("tripId vehicleId builtyId builtyIds loadingStartDate loadingEndDate unloadingStartDate unloadingEndDate createdAt")
       .lean();
-      
+
     if (!trip) {
       return res.status(404).json({ message: "Trip not found" });
     }
@@ -2038,7 +2031,7 @@ exports.getBuiltysByTripId = async (req, res) => {
         .populate("commissionAgentId", "name contactNumber contactPerson")
         .populate("driverId", "name")
         .populate(
-          "invoice", 
+          "invoice",
           "totalAmount paidAmount pendingAmount paymentStatus"
         )
         .sort({ createdAt: -1 })
@@ -2099,9 +2092,9 @@ async function getExtendedTripDetails(trip, Builty) {
       _id: { $ne: trip._id },
       createdAt: { $gt: trip.createdAt }
     })
-    .sort({ createdAt: 1 })
-    .select("tripId builtyId builtyIds")
-    .lean();
+      .sort({ createdAt: 1 })
+      .select("tripId builtyId builtyIds")
+      .lean();
 
     if (nextTrip) {
       const nextTripBuiltyIds = [];
@@ -2166,10 +2159,10 @@ async function getExtendedTripDetails(trip, Builty) {
   if (trip.loadingStartDate) {
     const start = new Date(trip.loadingStartDate);
     const now = new Date();
-    
+
     // Calculate current bhatta days from loadingStartDate up to today (or unloadingEndDate if completed)
     const effectiveEndForCurrent = trip.unloadingEndDate ? new Date(trip.unloadingEndDate) : now;
-    
+
     if (!isNaN(start.getTime()) && !isNaN(effectiveEndForCurrent.getTime())) {
       const diffTimeCurrent = effectiveEndForCurrent - start;
       currentBhattaDays = Math.max(0, Math.ceil(diffTimeCurrent / (1000 * 60 * 60 * 24))) + 1; // +1 to include start day

@@ -5,6 +5,7 @@ const VehicleMaster = require("../model/maintenanceDevice.model");
 const Builty = require("../model/builtyModel");
 const WalletLedger = require("../model/WalletLedger");
 const Device = require("../model/deviceModel");
+const { unassignVehicleAndDriver } = require("../utils/helperFunctions");
 
 exports.createTrip = async (req, res) => {
   try {
@@ -500,7 +501,7 @@ exports.completeTrip = async (req, res) => {
       });
     }
 
-    const tripCheck = await Trip.findById(tripId).select("status driverId supervisorId builtyId builtyIds");
+    const tripCheck = await Trip.findById(tripId).select("status driverId vehicleId supervisorId builtyId builtyIds");
     if (!tripCheck) {
       return res.status(404).json({
         success: false,
@@ -581,11 +582,7 @@ exports.completeTrip = async (req, res) => {
         });
       }
 
-      await Driver.findByIdAndUpdate(trip.driverId, {
-        currentVehicle: null,
-        currentVehicleName: null,
-        currentTripId: null,
-      });
+      await unassignVehicleAndDriver(trip.vehicleId, trip.driverId);
 
       return res.status(200).json({
         success: true,
@@ -632,11 +629,7 @@ exports.completeTrip = async (req, res) => {
         });
       }
 
-      await Driver.findByIdAndUpdate(tripCheck.driverId, {
-        currentVehicle: null,
-        currentVehicleName: null,
-        currentTripId: null,
-      });
+      await unassignVehicleAndDriver(updatedTrip.vehicleId || tripCheck.vehicleId, updatedTrip.driverId || tripCheck.driverId);
 
       return res.status(200).json({
         success: true,

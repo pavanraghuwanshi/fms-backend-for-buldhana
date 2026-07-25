@@ -1,6 +1,8 @@
 const sharp = require("sharp");
 const Trip = require("../model/tripModel.js");
 const Builty = require("../model/builtyModel.js");
+const VehicleMaster = require("../model/maintenanceDevice.model.js");
+const Driver = require("../model/driverModel.js");
 
 // Function to compress and convert image to Base64
 exports.compressImage = async (image) => {
@@ -44,25 +46,36 @@ exports.getDuration = (start, end) => {
 
 /**
  * Resolves the trip and active builty for a given driver expense / vehicle expense.
- * - If providedBuiltyId is sent: finds the trip linked to that builty (or falls back to driver's currentTripId) and sets activeBuiltyId to providedBuiltyId.
- * - If providedBuiltyId is not sent: fetches driver's current trip and finds the builty with status 'Dispatched'.
+ * - If providedBuiltyId is sent: finds the trip linked to that builty (or falls back to driver's currentTripId / in-progress trip) and sets activeBuiltyId to providedBuiltyId.
+ * - If providedBuiltyId is not sent: fetches driver's current in-progress trip and finds the builty with status 'Dispatched'.
  */
 exports.resolveTripAndActiveBuilty = async (providedBuiltyId, driver) => {
   let trip = null;
   let activeBuiltyId = null;
+  const driverId = driver?._id ? driver._id : driver;
+  const currentTripId = driver?.currentTripId ? driver.currentTripId : null;
 
   if (providedBuiltyId) {
     activeBuiltyId = providedBuiltyId;
     trip = await Trip.findOne({
       $or: [{ builtyId: providedBuiltyId }, { builtyIds: providedBuiltyId }],
     });
-    if (!trip && driver?.currentTripId) {
-      trip = await Trip.findById(driver.currentTripId);
+    if (!trip && currentTripId) {
+      trip = await Trip.findById(currentTripId);
+    }
+    if (!trip && driverId) {
+      trip = await Trip.findOne({ driverId, status: "in-progress" }).sort({ createdAt: -1 });
     }
   } else {
-    if (driver?.currentTripId) {
-      trip = await Trip.findById(driver.currentTripId);
+    // 1. Try finding trip by currentTripId first, or by driverId with status in-progress
+    if (currentTripId) {
+      trip = await Trip.findById(currentTripId);
     }
+    if (!trip && driverId) {
+      trip = await Trip.findOne({ driverId, status: "in-progress" }).sort({ createdAt: -1 });
+    }
+
+    // 2. Search for dispatched builty
     const builtyIdsToSearch = [
       ...(trip?.builtyId ? [trip.builtyId] : []),
       ...(trip?.builtyIds || []),
@@ -76,7 +89,6 @@ exports.resolveTripAndActiveBuilty = async (providedBuiltyId, driver) => {
       });
     }
 
-    const driverId = driver?._id || driver;
     if (!dispatchedBuilty && driverId) {
       dispatchedBuilty = await Builty.findOne({
         driverId: driverId,
@@ -84,13 +96,45 @@ exports.resolveTripAndActiveBuilty = async (providedBuiltyId, driver) => {
       }).sort({ createdAt: -1 });
     }
 
-    activeBuiltyId = dispatchedBuilty
-      ? dispatchedBuilty._id
-      : trip?.builtyId ||
+    if (dispatchedBuilty) {
+      activeBuiltyId = dispatchedBuilty._id;
+      // If trip wasn't found yet, find the trip associated with this dispatched builty
+      if (!trip) {
+        trip = await Trip.findOne({
+          $or: [{ builtyId: dispatchedBuilty._id }, { builtyIds: dispatchedBuilty._id }],
+        });
+      }
+    } else {
+      activeBuiltyId =
+        trip?.builtyId ||
         (trip?.builtyIds && trip.builtyIds.length > 0
           ? trip.builtyIds[trip.builtyIds.length - 1]
           : null);
+    }
   }
 
   return { trip, activeBuiltyId };
 };
+
+/**
+ * Unassigns a vehicle and driver when a trip is completed.
+ * - Sets VehicleMaster isAssigned to false
+ * - Sets Driver isAssigned to false, deviceId, currentVehicle, currentVehicleName, currentTripId to null
+ */
+exports.unassignVehicleAndDriver = async (vehicleId, driverId) => {
+  if (vehicleId) {
+    await VehicleMaster.findByIdAndUpdate(vehicleId, {
+      isAssigned: false,
+    });
+  }
+  if (driverId) {
+    await Driver.findByIdAndUpdate(driverId, {
+      $set: {
+        isAssigned: false,
+        deviceId: null,
+        currentVehicle: null,
+        currentVehicleName: null,
+        currentTripId: null,
+      },
+    });
+  }};
