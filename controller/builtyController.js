@@ -1267,7 +1267,7 @@ exports.completeBuilty = async (req, res) => {
         action: 'COMPLETE',
         module: 'Builty',
         recordId: builty._id,
-        oldData: oldBuiltySnapshot, 
+        oldData: oldBuiltySnapshot,
         newData: updatedBuilty.toObject(),
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
