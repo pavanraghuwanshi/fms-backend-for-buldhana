@@ -437,7 +437,7 @@ exports.getBillImageById = async (req, res) => {
 
 exports.getExpenseByExpenseId = async (req, res) => {
   try {
-    const expense = await Vehicleexpense.findById(req.params.id).select("vehicleName amount expenseType date vendor description paymentMode billImg location bhattaDay");
+    const expense = await Vehicleexpense.findById(req.params.id).select("vehicleName amount expenseType date vendor description paymentMode billImg location fuel bhattaDay");
     if (!expense) return res.status(404).json({ message: "Expense not found" });
     return res.status(200).json(expense)
   } catch (error) {
