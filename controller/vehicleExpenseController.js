@@ -145,7 +145,7 @@ exports.updateExpense = async (req, res) => {
     }
 
     let driverId;
-    const { amount, expenseType, date, vendor, description, paymentMode, location, lat, long, bhattaDay } = req.body;
+    const { amount, expenseType, date, vendor, fuel, description, paymentMode, location, lat, long, bhattaDay } = req.body;
 
     if (req.user.role === "driver") driverId = req.user.id;
     else if (req.user.role === "user") driverId = req.body.driverId;
@@ -195,6 +195,7 @@ exports.updateExpense = async (req, res) => {
       ...(expenseType !== undefined && { expenseType }),
       ...(date !== undefined && { date }),
       ...(vendor !== undefined && { vendor }),
+      ...(fuel !== undefined && { fuel: fuel !== "" && fuel !== null ? Number(fuel) : fuel }),
       ...(bhattaDay !== undefined && { bhattaDay: Number(bhattaDay) }),
       ...(description !== undefined && { description }),
       ...(billImgId && { billImg: billImgId }),
