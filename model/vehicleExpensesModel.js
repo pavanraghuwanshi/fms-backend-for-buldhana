@@ -31,6 +31,10 @@ const expenseSchema = new mongoose.Schema(
       required: true,
     },
     fuel: { type: Number, required: false},
+    bhattaDay: {
+      type: Number,
+      required: false,
+    },
     date: {
       type: Date,
       default: () => {

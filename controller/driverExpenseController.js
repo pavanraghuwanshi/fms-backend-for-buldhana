@@ -11,7 +11,7 @@ exports.addExpense = async (req, res) => {
   try {
     if (req.user.role !== "driver" && req.user.role !== "user") return res.status(403).json({ success: false, message: "Unauthorized access" });
 
-    const { amount, shopName, location, description, date, paymentMode, lat, long } = req.body;
+    const { amount, shopName, location, description, date, paymentMode, lat, long, bhattaDay } = req.body;
     let driverId;
 
     if (req.user.role === "driver") driverId = req.user.id;
@@ -56,6 +56,7 @@ exports.addExpense = async (req, res) => {
       vehicleId: driver.deviceId._id,
       vehicleName: driver.deviceId.vehicleNumber,
       amount,
+      bhattaDay: bhattaDay !== undefined ? Number(bhattaDay) : undefined,
       shopName,
       location,
       description,
@@ -128,7 +129,7 @@ exports.updateExpense = async (req, res) => {
     console.log("Request Body:", req.body);
     console.log("Expense ID from params:", req.params.id);
 
-    const { amount, shopName, location, description, date, paymentMode, lat, long } = req.body;
+    const { amount, shopName, location, description, date, paymentMode, lat, long, bhattaDay } = req.body;
     let driverId;
 
     if (req.user.role === "driver") driverId = req.user.id;
@@ -178,6 +179,7 @@ exports.updateExpense = async (req, res) => {
       vehicleId: driver.deviceId._id,
       vehicleName: driver.deviceId.vehicleNumber,
       ...(amount !== undefined && { amount }),
+      ...(bhattaDay !== undefined && { bhattaDay: Number(bhattaDay) }),
       ...(shopName !== undefined && { shopName }),
       ...(location !== undefined && { location }),
       ...(description !== undefined && { description }),
@@ -284,6 +286,7 @@ exports.getExpenseByDriverId = async (req, res) => {
           driverName: item.driverId?.name,
           vehicleName: item.vehicleName,
           amount: item.amount,
+          bhattaDay: item.bhattaDay,
           shopName: item.shopName,
           location: item.location,
           description: item.description,
@@ -343,7 +346,7 @@ exports.getExpenseByExpenseId = async (req, res) => {
   try {
     const expense = await DriverExpense.findById(req.params.id)
       .populate("driverId", "supervisor")
-      .select("driverId vehicleName amount shopName location description date paymentMode billImg lat long createdAt updatedAt");
+      .select("driverId vehicleName amount bhattaDay shopName location description date paymentMode billImg lat long createdAt updatedAt");
 
     if (!expense) return res.status(404).json({ message: "Expense not found" });
 
