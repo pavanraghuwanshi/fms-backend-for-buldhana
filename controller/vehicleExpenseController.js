@@ -18,7 +18,7 @@ exports.addExpense = async (req, res) => {
   try {
     if (req.user.role !== "driver" && req.user.role !== "user") return res.status(403).json({ success: false, message: "Unauthorized access" });
     let driverId;
-    const { amount, expenseType, date, vendor, fuel, description, paymentMode, location, lat, long } = req.body;
+    const { amount, expenseType, date, vendor, fuel, description, paymentMode, location, lat, long, bhattaDay } = req.body;
 
     if (req.user.role === "driver") driverId = req.user.id;
     else if (req.user.role === "user") driverId = req.body.driverId;
@@ -48,6 +48,7 @@ exports.addExpense = async (req, res) => {
       date,
       vendor,
       fuel: fuel !== undefined ? fuel : undefined,
+      bhattaDay: bhattaDay !== undefined ? Number(bhattaDay) : undefined,
       description,
       billImg: billImgId,
       paymentMode,
@@ -144,7 +145,7 @@ exports.updateExpense = async (req, res) => {
     }
 
     let driverId;
-    const { amount, expenseType, date, vendor, description, paymentMode, location, lat, long } = req.body;
+    const { amount, expenseType, date, vendor, description, paymentMode, location, lat, long, bhattaDay } = req.body;
 
     if (req.user.role === "driver") driverId = req.user.id;
     else if (req.user.role === "user") driverId = req.body.driverId;
@@ -194,6 +195,7 @@ exports.updateExpense = async (req, res) => {
       ...(expenseType !== undefined && { expenseType }),
       ...(date !== undefined && { date }),
       ...(vendor !== undefined && { vendor }),
+      ...(bhattaDay !== undefined && { bhattaDay: Number(bhattaDay) }),
       ...(description !== undefined && { description }),
       ...(billImgId && { billImg: billImgId }),
       ...(paymentMode !== undefined && { paymentMode }),
@@ -435,7 +437,7 @@ exports.getBillImageById = async (req, res) => {
 
 exports.getExpenseByExpenseId = async (req, res) => {
   try {
-    const expense = await Vehicleexpense.findById(req.params.id).select("vehicleName amount expenseType date vendor description paymentMode billImg location");
+    const expense = await Vehicleexpense.findById(req.params.id).select("vehicleName amount expenseType date vendor description paymentMode billImg location bhattaDay");
     if (!expense) return res.status(404).json({ message: "Expense not found" });
     return res.status(200).json(expense)
   } catch (error) {
