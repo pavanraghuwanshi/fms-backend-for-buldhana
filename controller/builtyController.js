@@ -1789,7 +1789,6 @@ exports.getBuiltysByTripId = async (req, res) => {
           "invoice",
           "totalAmount paidAmount pendingAmount paymentStatus"
         )
-        .sort({ createdAt: -1 })
         .lean()
     ]);
 
