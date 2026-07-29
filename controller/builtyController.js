@@ -3,7 +3,7 @@ const Builty = require("../model/builtyModel");
 const BuiltyCounter = require("../model/builtyCounterModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Driver = require("../model/driverModel");
-const { notifyVendor, notifyDriverBuiltyAssignment } = require('../services/notificationService');
+const { notifyVendor, notifyDriverBuiltyAssignment, notifySupervisorBuiltyCreatedByWorker, notifySupervisorBuiltyDispatched, notifySupervisorBuiltyCompleted, notifySupervisorBuiltyCancelled, checkSupervisorNotificationPermission } = require('../services/notificationService');
 const { logAction } = require('../utils/logger');
 const Trip = require("../model/tripModel");
 const Location = require("../model/location");
@@ -340,9 +340,17 @@ exports.createBuilty = async (req, res) => {
         description: payload.description,
       });
 
-      notifyVendor(payload.vendorId, builty).catch(err => {
-        console.error("Async notification background error:", err);
-      });
+      const canNotifyVendor = await checkSupervisorNotificationPermission(
+        payload.supervisorId,
+        payload.supervisorModel,
+        "vendor_builty_create_notification"
+      );
+
+      if (canNotifyVendor) {
+        notifyVendor(payload.vendorId, builty).catch(err => {
+          console.error("Async notification background error:", err);
+        });
+      }
     }
 
     if (payload.vehicleId) {
@@ -358,8 +366,27 @@ exports.createBuilty = async (req, res) => {
         },
       });
 
-      notifyDriverBuiltyAssignment(payload.driverId, builty).catch((err) => {
-        console.error("Async driver Builty notification error:", err);
+      const canNotifyDriver = await checkSupervisorNotificationPermission(
+        payload.supervisorId,
+        payload.supervisorModel,
+        "driver_trip_builty_notification"
+      );
+
+      if (canNotifyDriver) {
+        notifyDriverBuiltyAssignment(payload.driverId, builty).catch((err) => {
+          console.error("Async driver Builty notification error:", err);
+        });
+      }
+    }
+
+    if (req.user.role === "worker") {
+      notifySupervisorBuiltyCreatedByWorker(
+        payload.supervisorId,
+        payload.supervisorModel,
+        builty,
+        req.user.name || req.user.username || "Worker"
+      ).catch((err) => {
+        console.error("Async worker builty notification error:", err);
       });
     }
     logAction({
@@ -820,9 +847,17 @@ exports.updateBuilty = async (req, res) => {
     }
 
     if (isDriverNewlyAssigned) {
-      notifyDriverBuiltyAssignment(payload.driverId, updatedBuilty).catch((err) => {
-        console.error("Async driver Builty notification error:", err);
-      });
+      const canNotifyDriver = await checkSupervisorNotificationPermission(
+        builty.supervisorId || payload.supervisorId,
+        builty.supervisorModel || payload.supervisorModel,
+        "driver_trip_builty_notification"
+      );
+
+      if (canNotifyDriver) {
+        notifyDriverBuiltyAssignment(payload.driverId, updatedBuilty).catch((err) => {
+          console.error("Async driver Builty notification error:", err);
+        });
+      }
     }
 
     if (
@@ -1064,35 +1099,6 @@ exports.dispatchBuilty = async (req, res) => {
 
     builty.status = "Dispatched";
 
-    // if (builty.driverId && builty.vehicleId) {
-    //   await Trip.findOneAndUpdate(
-    //     {
-    //       driverId: builty.driverId,
-    //       vehicleId: builty.vehicleId,
-    //       builtyId: builty._id,
-    //       status: "in-progress",
-
-    //     },
-    //     {
-    //       $set: {
-    //         driverCheckIn: true,
-    //         startOdometerReading: Number(startOdometerReading),
-    //       },
-    //     },
-    //     {
-    //       new: true,
-    //     }
-    //   );
-    // }
-
-    // const updatedBuilty = await builty.save();
-
-    // await syncBuiltyAutoExpenses({
-    //   builty,
-    //   body: req.body,
-    //   allowedTypes: ["loading"],
-    // });
-
     const trip = await Trip.findOne({
       builtyIds: builty._id,
       status: "in-progress",
@@ -1114,6 +1120,18 @@ exports.dispatchBuilty = async (req, res) => {
     }
 
     const updatedBuilty = await builty.save();
+
+    if (["driver", "worker"].includes(req.user.role)) {
+      notifySupervisorBuiltyDispatched(
+        builty.supervisorId,
+        builty.supervisorModel,
+        updatedBuilty,
+        req.user.role,
+        req.user.name || req.user.username || req.user.role
+      ).catch((err) => {
+        console.error("Async supervisor dispatch notification error:", err);
+      });
+    }
 
     await syncBuiltyAutoExpenses({
       builty,
@@ -1253,6 +1271,19 @@ exports.completeBuilty = async (req, res) => {
     });
 
     const updatedBuilty = await builty.save();
+
+    if (["driver", "worker"].includes(req.user.role)) {
+      notifySupervisorBuiltyCompleted(
+        builty.supervisorId,
+        builty.supervisorModel,
+        updatedBuilty,
+        req.user.role,
+        req.user.name || req.user.username || req.user.role
+      ).catch((err) => {
+        console.error("Async supervisor complete notification error:", err);
+      });
+    }
+
     await syncBuiltyAutoExpenses({
       builty,
       body: req.body,
@@ -1316,7 +1347,17 @@ exports.cancelBuilty = async (req, res) => {
 
     await builty.save();
 
-    await builty.save();
+    if (["driver", "worker"].includes(req.user.role)) {
+      notifySupervisorBuiltyCancelled(
+        builty.supervisorId,
+        builty.supervisorModel,
+        builty,
+        req.user.role,
+        req.user.name || req.user.username || req.user.role
+      ).catch((err) => {
+        console.error("Async supervisor cancel notification error:", err);
+      });
+    }
 
     await syncBuiltyAutoExpenses({
       builty,
@@ -1546,10 +1587,6 @@ const handleVendorAssignment = async ({
   supervisorId,
   description,
 }) => {
-  notifyVendor(vendorId, builty).catch(err => {
-    console.error("Async notification background error:", err);
-  });
-
   try {
     await VendorLog.create({
       vendorId,
@@ -1646,291 +1683,6 @@ exports.getLedgerBuiltyById = async (req, res) => {
     });
   }
 };
-
-// exports.getBuiltysByTripId = async (req, res) => {
-//   try {
-//     if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
-//       return res.status(403).json({ message: "Access denied" });
-//     }
-
-//     const { tripId } = req.params;
-//     if (!tripId) {
-//       return res.status(400).json({ message: "Trip ID is required" });
-//     }
-
-//     const trip = await Trip.findById(tripId).select("builtyId builtyIds").lean();
-//     if (!trip) {
-//       return res.status(404).json({ message: "Trip not found" });
-//     }
-
-//     // Collect all unique builty IDs associated with this trip
-//     const builtyIds = new Set();
-//     if (trip.builtyId) builtyIds.add(trip.builtyId.toString());
-//     if (Array.isArray(trip.builtyIds)) {
-//       trip.builtyIds.forEach(id => {
-//         if (id) builtyIds.add(id.toString());
-//       });
-//     }
-
-//     const uniqueBuiltyIds = Array.from(builtyIds);
-
-//     const {
-//       search,
-//       status,
-//       supervisorId,
-//       supervisorModel,
-//       startDate,
-//       endDate,
-
-//       consignerId,
-//       consigneeId,
-//       vehicleId,
-//       transporterId,
-//       commissionAgentId,
-//       driverId,
-//       workerId,
-//       createdBy,
-
-//       bookingMode,
-//       vehicleOwnership,
-//       advanceMode,
-//     } = req.query;
-
-//     const query = { _id: { $in: uniqueBuiltyIds } };
-
-//     if (req.user.role === "user") {
-//       query.supervisorId = req.user.id;
-//     } else if (req.user.role === "worker") {
-//       query.supervisorId = req.user.supervisor;
-//     } else if (req.user.role === "driver") {
-//       query.driverId = req.user.id;
-//     }
-
-//     if (supervisorModel) query.supervisorModel = supervisorModel;
-//     if (status) query.status = status;
-
-//     if (consignerId) query.consignerId = consignerId;
-//     if (consigneeId) query.consigneeId = consigneeId;
-//     if (vehicleId) query.vehicleId = vehicleId;
-//     if (transporterId) query.transporterId = transporterId;
-//     if (commissionAgentId) query.commissionAgentId = commissionAgentId;
-//     if (driverId) query.driverId = driverId;
-//     if (workerId) query.workerId = workerId;
-//     if (createdBy) query.createdBy = createdBy;
-
-//     if (bookingMode) query.bookingMode = bookingMode;
-//     if (vehicleOwnership) query.vehicleOwnership = vehicleOwnership;
-//     if (advanceMode) query.advanceMode = advanceMode;
-
-//     if (startDate && endDate) {
-//       query.date = {
-//         $gte: new Date(startDate),
-//         $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
-//       };
-//     }
-
-//     if (search) {
-//       query.$or = [
-//         { tpNo: { $regex: search, $options: "i" } },
-//         { consignerName: { $regex: search, $options: "i" } },
-//         { consigneeName: { $regex: search, $options: "i" } },
-//         { vehicleNumber: { $regex: search, $options: "i" } },
-//         { destinationLocation: { $regex: search, $options: "i" } },
-//       ];
-//     }
-
-//     const [total, builtys] = await Promise.all([
-//       Builty.countDocuments(query),
-//       Builty.find(query)
-//       .select("-createdAt -updatedAt -__v -createdByRole -createdBy -consigneeId -supervisorModel -consignerId -vendorId -vehicleId -pickupLocationId -destinationLocationId -supervisorId -permittedGVW -vendorType -description -vehicleOwnership")
-//         // .populate("consignerId", "name contactNumber contactPerson")
-//         // .populate("consigneeId", "name contactNumber contactPerson")
-//         // .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
-//         .populate("transporterId", "transporterName contactPerson contactNumber")
-//         .populate("commissionAgentId", "name contactNumber contactPerson")
-//          .populate("driverId", "name")
-//         // .populate("pickupLocationId", "locationName latitude longitude")
-//         // .populate("destinationLocationId", "locationName latitude longitude")
-//         // .populate("vendorId", "vendorName contactPerson contactNumber")
-//         .populate(
-//           "invoice", 
-//           "totalAmount paidAmount pendingAmount paymentStatus"
-//         )
-//         .sort({ createdAt: -1 })
-//         .lean()
-//     ]);
-
-//     const builtysWithLedger = await Promise.all(
-//       builtys.map(async (builty) => {
-//         const [summary, ledgerData] = await Promise.all([
-//           getLedgerSummaryByBuilty(builty._id),
-//           getLedgerEntriesByBuilty(builty._id)
-//         ]);
-//         return {
-//           ...builty,
-//           ...summary,
-//           ledger: ledgerData.entries
-//         };
-//       })
-//     );
-
-//     return res.status(200).json({
-//       message: "Builtys fetched successfully",
-//       total,
-//       builtys: builtysWithLedger,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       message: "Error fetching builtys for trip",
-//       error: error.message,
-//     });
-//   }
-// };
-
-// exports.getBuiltysByTripId = async (req, res) => {
-//   try {
-//     if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
-//       return res.status(403).json({ message: "Access denied" });
-//     }
-
-//     const { tripId } = req.params;
-//     if (!tripId) {
-//       return res.status(400).json({ message: "Trip ID is required" });
-//     }
-
-//     // Select the requested trip details along with builty references
-//     const trip = await Trip.findById(tripId)
-//       .select("tripId builtyId builtyIds loadingStartDate loadingEndDate unloadingStartDate unloadingEndDate")
-//       .lean();
-
-//     if (!trip) {
-//       return res.status(404).json({ message: "Trip not found" });
-//     }
-
-//     // Collect all unique builty IDs associated with this trip
-//     const builtyIds = new Set();
-//     if (trip.builtyId) builtyIds.add(trip.builtyId.toString());
-//     if (Array.isArray(trip.builtyIds)) {
-//       trip.builtyIds.forEach(id => {
-//         if (id) builtyIds.add(id.toString());
-//       });
-//     }
-
-//     const uniqueBuiltyIds = Array.from(builtyIds);
-
-//     const {
-//       search,
-//       status,
-//       supervisorId,
-//       supervisorModel,
-//       startDate,
-//       endDate,
-
-//       consignerId,
-//       consigneeId,
-//       vehicleId,
-//       transporterId,
-//       commissionAgentId,
-//       driverId,
-//       workerId,
-//       createdBy,
-
-//       bookingMode,
-//       vehicleOwnership,
-//       advanceMode,
-//     } = req.query;
-
-//     const query = { _id: { $in: uniqueBuiltyIds } };
-
-//     if (req.user.role === "user") {
-//       query.supervisorId = req.user.id;
-//     } else if (req.user.role === "worker") {
-//       query.supervisorId = req.user.supervisor;
-//     } else if (req.user.role === "driver") {
-//       query.driverId = req.user.id;
-//     }
-
-//     if (supervisorModel) query.supervisorModel = supervisorModel;
-//     if (status) query.status = status;
-
-//     if (consignerId) query.consignerId = consignerId;
-//     if (consigneeId) query.consigneeId = consigneeId;
-//     if (vehicleId) query.vehicleId = vehicleId;
-//     if (transporterId) query.transporterId = transporterId;
-//     if (commissionAgentId) query.commissionAgentId = commissionAgentId;
-//     if (driverId) query.driverId = driverId;
-//     if (workerId) query.workerId = workerId;
-//     if (createdBy) query.createdBy = createdBy;
-
-//     if (bookingMode) query.bookingMode = bookingMode;
-//     if (vehicleOwnership) query.vehicleOwnership = vehicleOwnership;
-//     if (advanceMode) query.advanceMode = advanceMode;
-
-//     if (startDate && endDate) {
-//       query.date = {
-//         $gte: new Date(startDate),
-//         $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
-//       };
-//     }
-
-//     if (search) {
-//       query.$or = [
-//         { tpNo: { $regex: search, $options: "i" } },
-//         { consignerName: { $regex: search, $options: "i" } },
-//         { consigneeName: { $regex: search, $options: "i" } },
-//         { vehicleNumber: { $regex: search, $options: "i" } },
-//         { destinationLocation: { $regex: search, $options: "i" } },
-//       ];
-//     }
-
-//     const [total, builtys] = await Promise.all([
-//       Builty.countDocuments(query),
-//       Builty.find(query)
-//         .select("-createdAt -updatedAt -__v -createdByRole -createdBy -consigneeId -supervisorModel -consignerId -vendorId -vehicleId -pickupLocationId -destinationLocationId -supervisorId -permittedGVW -vendorType -description -vehicleOwnership")
-//         .populate("transporterId", "transporterName contactPerson contactNumber")
-//         .populate("commissionAgentId", "name contactNumber contactPerson")
-//         .populate("driverId", "name")
-//         .populate(
-//           "invoice", 
-//           "totalAmount paidAmount pendingAmount paymentStatus"
-//         )
-//         .sort({ createdAt: -1 })
-//         .lean()
-//     ]);
-
-//     const builtysWithLedger = await Promise.all(
-//       builtys.map(async (builty) => {
-//         const [summary, ledgerData] = await Promise.all([
-//           getLedgerSummaryByBuilty(builty._id),
-//           getLedgerEntriesByBuilty(builty._id)
-//         ]);
-//         return {
-//           ...builty,
-//           ...summary,
-//           ledger: ledgerData.entries
-//         };
-//       })
-//     );
-
-//     return res.status(200).json({
-//       message: "Builtys fetched successfully",
-//       tripDetails: {
-//         tripId: trip.tripId,
-//         loadingStartDate: trip.loadingStartDate,
-//         loadingEndDate: trip.loadingEndDate,
-//         unloadingStartDate: trip.unloadingStartDate,
-//         unloadingEndDate: trip.unloadingEndDate,
-//       },
-//       total,
-//       builtys: builtysWithLedger,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       message: "Error fetching builtys for trip",
-//       error: error.message,
-//     });
-//   }
-// };
 
 exports.getBuiltysByTripId = async (req, res) => {
   try {
@@ -2079,7 +1831,6 @@ exports.getBuiltysByTripId = async (req, res) => {
     });
   }
 };
-
 
 async function getExtendedTripDetails(trip, Builty) {
   let nextTripInfo = {

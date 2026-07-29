@@ -15,8 +15,8 @@ router.get("/get-dutySlip-by-trip-id/:id", authenticateToken, getDutySlipByTripI
 router.get("/get-trip-by-vehicle-id/:id", authenticateToken, getTripByVehicleId);
 router.get("/get-trip-by-driver-id/:id", authenticateToken, getTripByDriverId);
 router.get("/get-trip-analytics-by-trip-id/:id", authenticateToken, getTripAnalyticsByTripId);
-router.patch("/update/:tripId", authenticateToken, updateTrip);
 router.patch("/complete/:tripId", authenticateToken, completeTrip);
+router.patch("/update/:tripId", authenticateToken, updateTrip);
 router.delete("/delete/:tripId", authenticateToken, deleteTrip);
 
 module.exports = router;

@@ -52,7 +52,7 @@ const customerRoute = require("./customerRoute")
 const auditLogRoute = require("./auditLogRoute")
 const dailyBuiltyProductRoute = require("./dailyBuiltyProductRoute")
 const builtyTemplatesRoutes = require("./builtyTemplatesRoutes")
-
+const notificationPermissionsRoutes = require("./notificationPermissionsRoutes");
 
 router.use("/worker-role", workerRoleRoute);
 router.use("/drivers", driverRoutes);
@@ -106,9 +106,7 @@ router.use("/vendor-logs", vendorLogRoutes);
 router.use("/all-audit-logs", auditLogRoute)
 router.use("/builty-templates", builtyTemplatesRoutes)
 
-
-
-
+router.use("/notification-permissions", notificationPermissionsRoutes);
 router.use("/send-whatsapp-invoice", sendWhatsappInvoiceRoute);
 
 module.exports = router;
