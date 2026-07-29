@@ -1906,28 +1906,33 @@ async function getExtendedTripDetails(trip, Builty) {
     if (lastBuilty) endOdometerReading = lastBuilty.endOdometerReading || 0;
   }
 
-  // Bhatta Days Calculation
+  // Bhatta Days Calculation (IST based)
   let totalBhattaDays = null;
   let currentBhattaDays = null;
 
+  const getISTDayTimestamp = (dateInput) => {
+    if (!dateInput) return null;
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return null;
+    const istDate = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+    istDate.setUTCHours(0, 0, 0, 0);
+    return istDate.getTime();
+  };
+
   if (trip.loadingStartDate) {
-    const start = new Date(trip.loadingStartDate);
-    const now = new Date();
+    const startISTDay = getISTDayTimestamp(trip.loadingStartDate);
+    const currentEndISTDay = getISTDayTimestamp(trip.unloadingEndDate || new Date());
 
-    // Calculate current bhatta days from loadingStartDate up to today (or unloadingEndDate if completed)
-    const effectiveEndForCurrent = trip.unloadingEndDate ? new Date(trip.unloadingEndDate) : now;
-
-    if (!isNaN(start.getTime()) && !isNaN(effectiveEndForCurrent.getTime())) {
-      const diffTimeCurrent = effectiveEndForCurrent - start;
-      currentBhattaDays = Math.max(0, Math.ceil(diffTimeCurrent / (1000 * 60 * 60 * 24))) + 1; // +1 to include start day
+    if (startISTDay !== null && currentEndISTDay !== null) {
+      const diffTimeCurrent = currentEndISTDay - startISTDay;
+      currentBhattaDays = Math.max(1, Math.floor(diffTimeCurrent / (1000 * 60 * 60 * 24)) + 1);
     }
 
-    // Calculate total bhatta days only if unloadingEndDate is present
     if (trip.unloadingEndDate) {
-      const end = new Date(trip.unloadingEndDate);
-      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-        const diffTimeTotal = end - start;
-        totalBhattaDays = Math.max(0, Math.ceil(diffTimeTotal / (1000 * 60 * 60 * 24))) + 1; // +1 to include start day
+      const endISTDay = getISTDayTimestamp(trip.unloadingEndDate);
+      if (startISTDay !== null && endISTDay !== null) {
+        const diffTimeTotal = endISTDay - startISTDay;
+        totalBhattaDays = Math.max(1, Math.floor(diffTimeTotal / (1000 * 60 * 60 * 24)) + 1);
       }
     }
   }
