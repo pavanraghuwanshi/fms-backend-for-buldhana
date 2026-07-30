@@ -68,7 +68,7 @@ const checkSupervisorNotificationPermission = async (supervisorId, supervisorMod
   }
 };
 
-const notifyVendor = async (vendorId, builtyData) => {
+const notifyVendor = async (vendorId, builtyData, isUpdate = false) => {
   try {
     if (builtyData?.supervisorId) {
       const canNotify = await checkSupervisorNotificationPermission(
@@ -89,25 +89,31 @@ const notifyVendor = async (vendorId, builtyData) => {
       return;
     }
 
-    if (!vendor?.fcmTokens || vendor.fcmTokens.length === 0) {
+    const tokens = (vendor?.fcmTokens || [])
+      .map(item => (typeof item === 'object' && item !== null && item.token ? item.token : item))
+      .filter(Boolean);
+
+    if (!tokens.length) {
       console.warn(`[Notification] NOT SENT to Vendor ${vendorId}. Reason: No registered FCM tokens found.`);
       return;
     }
 
+    const title = isUpdate ? "Vendor task updated" : "New task for vendor";
+    const body = isUpdate
+      ? `Builty ${builtyData?.tpNo || ''} has been updated.`
+      : `Builty ${builtyData?.tpNo || ''} is ready for you.`;
+
     const message = {
       notification: {
-        title: "New task for vendor",
-        body: `Builty ${builtyData?.tpNo || ''} is ready for you.`
+        title,
+        body
       },
       data: {
-        type: "NEW_BUILTY",
+        type: isUpdate ? "BUILTY_UPDATED" : "NEW_BUILTY",
         builtyId: builtyData?._id ? builtyData._id.toString() : "",
         tpNo: builtyData?.tpNo != null ? String(builtyData.tpNo) : ""
       }
     };
-
-    const tokens = vendor.fcmTokens.map(item => item.token).filter(Boolean);
-    if (!tokens.length) return;
 
     const response = await admin.messaging().sendEachForMulticast({
       tokens: tokens,
@@ -127,7 +133,7 @@ const notifyVendor = async (vendorId, builtyData) => {
   }
 };
 
-const notifyDriverBuiltyAssignment = async (driverId, builtyData) => {
+const notifyDriverBuiltyAssignment = async (driverId, builtyData, isUpdate = false) => {
   try {
     if (builtyData?.supervisorId) {
       const canNotify = await checkSupervisorNotificationPermission(
@@ -148,22 +154,28 @@ const notifyDriverBuiltyAssignment = async (driverId, builtyData) => {
       return;
     }
 
-    if (!driver?.fcmTokens?.length) {
+    const tokens = (driver?.fcmTokens || [])
+      .map(item => (typeof item === 'object' && item !== null && item.token ? item.token : item))
+      .filter(Boolean);
+
+    if (!tokens.length) {
       console.warn(`[Notification] NOT SENT to Driver ${driverId}. Reason: No registered FCM tokens found.`);
       return;
     }
 
-    const tokens = driver.fcmTokens.map((item) => item.token).filter(Boolean);
-    if (!tokens.length) return;
+    const title = isUpdate ? 'Builty Updated' : 'New Builty Assigned driver';
+    const body = isUpdate
+      ? `Builty ${builtyData?.tpNo || ''} assigned to you has been updated.`
+      : `Builty ${builtyData?.tpNo || ''} has been assigned to you.`;
 
     const response = await admin.messaging().sendEachForMulticast({
       tokens,
       notification: {
-        title: 'New Builty Assigned driver',
-        body: `Builty ${builtyData?.tpNo || ''} has been assigned to you.`
+        title,
+        body
       },
       data: {
-        type: 'NEW_BUILTY_ASSIGNED',
+        type: isUpdate ? 'BUILTY_UPDATED' : 'NEW_BUILTY_ASSIGNED',
         builtyId: builtyData?._id ? builtyData._id.toString() : "",
         tpNo: builtyData?.tpNo != null ? String(builtyData.tpNo) : ""
       }
@@ -256,7 +268,7 @@ const notifySupervisorAttendance = async (supervisorId, driver, attendance) => {
   }
 };
 
-const notifySupervisorBuiltyCreatedByWorker = async (supervisorId, supervisorModel, builtyData, workerName) => {
+const notifySupervisorBuiltyCreatedByWorker = async (supervisorId, supervisorModel, builtyData, workerName, isUpdate = false) => {
   try {
     if (supervisorId) {
       const canNotify = await checkSupervisorNotificationPermission(
@@ -293,14 +305,19 @@ const notifySupervisorBuiltyCreatedByWorker = async (supervisorId, supervisorMod
       return;
     }
 
+    const title = isUpdate ? 'Builty Updated by Worker' : 'New Builty Created by Worker';
+    const body = isUpdate
+      ? `Builty ${builtyData?.tpNo || ''} was updated by ${workerName || 'Worker'}.`
+      : `Builty ${builtyData?.tpNo || ''} was created by ${workerName || 'Worker'}.`;
+
     const response = await admin.messaging().sendEachForMulticast({
       tokens,
       notification: {
-        title: 'New Builty Created by Worker',
-        body: `Builty ${builtyData?.tpNo || ''} was created by ${workerName || 'Worker'}.`
+        title,
+        body
       },
       data: {
-        type: 'WORKER_BUILTY_CREATED',
+        type: isUpdate ? 'WORKER_BUILTY_UPDATED' : 'WORKER_BUILTY_CREATED',
         builtyId: builtyData?._id ? builtyData._id.toString() : "",
         tpNo: builtyData?.tpNo != null ? String(builtyData.tpNo) : ""
       }

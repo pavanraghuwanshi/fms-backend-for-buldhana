@@ -846,20 +846,6 @@ exports.updateBuilty = async (req, res) => {
       });
     }
 
-    if (isDriverNewlyAssigned) {
-      const canNotifyDriver = await checkSupervisorNotificationPermission(
-        builty.supervisorId || payload.supervisorId,
-        builty.supervisorModel || payload.supervisorModel,
-        "driver_trip_builty_notification"
-      );
-
-      if (canNotifyDriver) {
-        notifyDriverBuiltyAssignment(payload.driverId, updatedBuilty).catch((err) => {
-          console.error("Async driver Builty notification error:", err);
-        });
-      }
-    }
-
     if (
       builty.driverId &&
       payload.driverId &&
@@ -928,6 +914,63 @@ exports.updateBuilty = async (req, res) => {
           new: true,
         }
       );
+    }
+
+    const targetSupervisorId = updatedBuilty?.supervisorId || builty?.supervisorId || payload?.supervisorId;
+    const targetSupervisorModel = updatedBuilty?.supervisorModel || builty?.supervisorModel || payload?.supervisorModel;
+    const targetVendorId = updatedBuilty?.vendorId || builty?.vendorId || payload?.vendorId;
+    const targetDriverId = updatedBuilty?.driverId || builty?.driverId || payload?.driverId;
+
+    if (targetVendorId) {
+      if (payload.vendorId && String(builty.vendorId || "") !== String(payload.vendorId)) {
+        await handleVendorAssignment({
+          vendorId: payload.vendorId,
+          builty: updatedBuilty,
+          createdTrip: updatedTrip || trip,
+          vehicleId: payload.vehicleId || updatedBuilty.vehicleId,
+          driverId: payload.driverId || updatedBuilty.driverId,
+          supervisorId: targetSupervisorId,
+          description: payload.description || updatedBuilty.description,
+        });
+      }
+
+      const canNotifyVendor = await checkSupervisorNotificationPermission(
+        targetSupervisorId,
+        targetSupervisorModel,
+        "vendor_builty_create_notification"
+      );
+
+      if (canNotifyVendor) {
+        notifyVendor(targetVendorId, updatedBuilty, true).catch((err) => {
+          console.error("Async vendor Builty update notification error:", err);
+        });
+      }
+    }
+
+    if (targetDriverId) {
+      const canNotifyDriver = await checkSupervisorNotificationPermission(
+        targetSupervisorId,
+        targetSupervisorModel,
+        "driver_trip_builty_notification"
+      );
+
+      if (canNotifyDriver) {
+        notifyDriverBuiltyAssignment(targetDriverId, updatedBuilty, true).catch((err) => {
+          console.error("Async driver Builty update notification error:", err);
+        });
+      }
+    }
+
+    if (req.user.role === "worker") {
+      notifySupervisorBuiltyCreatedByWorker(
+        targetSupervisorId,
+        targetSupervisorModel,
+        updatedBuilty,
+        req.user.name || req.user.username || "Worker",
+        true
+      ).catch((err) => {
+        console.error("Async worker builty update notification error:", err);
+      });
     }
     try {
       await logAction({
