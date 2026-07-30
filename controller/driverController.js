@@ -712,18 +712,30 @@ exports.getDriverBhattaDays = async (req, res) => {
       });
     }
 
-    const loadingDate = new Date(startDate);
-    const currentDate = new Date();
+    const getISTDayTimestamp = (dateInput) => {
+      if (!dateInput) return null;
+      const d = new Date(dateInput);
+      if (isNaN(d.getTime())) return null;
+      const istDate = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+      istDate.setUTCHours(0, 0, 0, 0);
+      return istDate.getTime();
+    };
 
-    loadingDate.setHours(0, 0, 0, 0);
-    currentDate.setHours(0, 0, 0, 0);
+    const startISTDay = getISTDayTimestamp(startDate);
+    const currentISTDay = getISTDayTimestamp(new Date());
 
-    const diffTime = currentDate.getTime() - loadingDate.getTime();
-    let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-    if (diffDays < 1) {
-      diffDays = 1;
+    if (startISTDay === null || currentISTDay === null) {
+      return res.status(200).json({
+        success: true,
+        message: "Invalid loading start date",
+        hasActiveTrip: true,
+        bhattaDays: 0,
+        tripDetails: trip,
+      });
     }
+
+    const diffTime = currentISTDay - startISTDay;
+    let diffDays = Math.max(1, Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1);
 
     return res.status(200).json({
       success: true,
