@@ -26,6 +26,14 @@ const filterUnregisteredTokens = (response, tokens) => {
     .filter(Boolean);
 };
 
+const extractUniqueTokens = (rawTokens) => {
+  if (!rawTokens || !Array.isArray(rawTokens)) return [];
+  const tokens = rawTokens
+    .map(t => (typeof t === 'object' && t !== null && t.token ? t.token : t))
+    .filter(Boolean);
+  return Array.from(new Set(tokens));
+};
+
 const checkSupervisorNotificationPermission = async (supervisorId, supervisorModel, permissionField) => {
   try {
     if (!supervisorId) {
@@ -89,9 +97,7 @@ const notifyVendor = async (vendorId, builtyData, isUpdate = false) => {
       return;
     }
 
-    const tokens = (vendor?.fcmTokens || [])
-      .map(item => (typeof item === 'object' && item !== null && item.token ? item.token : item))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(vendor?.fcmTokens);
 
     if (!tokens.length) {
       console.warn(`[Notification] NOT SENT to Vendor ${vendorId}. Reason: No registered FCM tokens found.`);
@@ -154,9 +160,7 @@ const notifyDriverBuiltyAssignment = async (driverId, builtyData, isUpdate = fal
       return;
     }
 
-    const tokens = (driver?.fcmTokens || [])
-      .map(item => (typeof item === 'object' && item !== null && item.token ? item.token : item))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(driver?.fcmTokens);
 
     if (!tokens.length) {
       console.warn(`[Notification] NOT SENT to Driver ${driverId}. Reason: No registered FCM tokens found.`);
@@ -231,9 +235,7 @@ const notifySupervisorAttendance = async (supervisorId, driver, attendance) => {
       return;
     }
 
-    const tokens = (supervisorDoc.fcmToken || [])
-      .map(t => (typeof t === 'object' && t !== null ? t.token : t))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(supervisorDoc.fcmToken);
     if (!tokens.length) {
       console.warn(`[Notification] No registered FCM tokens found for supervisor: ${supervisorId}. Skipping.`);
       return;
@@ -296,9 +298,7 @@ const notifySupervisorBuiltyCreatedByWorker = async (supervisorId, supervisorMod
       return;
     }
 
-    const tokens = (supervisorDoc.fcmToken || [])
-      .map(t => (typeof t === 'object' && t !== null ? t.token : t))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(supervisorDoc.fcmToken);
 
     if (!tokens.length) {
       console.warn(`[Notification] No registered FCM tokens found for supervisor: ${supervisorId}. Skipping worker builty notification.`);
@@ -366,9 +366,7 @@ const notifySupervisorBuiltyDispatched = async (supervisorId, supervisorModel, b
       return;
     }
 
-    const tokens = (supervisorDoc.fcmToken || [])
-      .map(t => (typeof t === 'object' && t !== null ? t.token : t))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(supervisorDoc.fcmToken);
 
     if (!tokens.length) {
       console.warn(`[Notification] No registered FCM tokens found for supervisor: ${supervisorId}. Skipping dispatch notification.`);
@@ -436,9 +434,7 @@ const notifySupervisorBuiltyCompleted = async (supervisorId, supervisorModel, bu
       return;
     }
 
-    const tokens = (supervisorDoc.fcmToken || [])
-      .map(t => (typeof t === 'object' && t !== null ? t.token : t))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(supervisorDoc.fcmToken);
 
     if (!tokens.length) {
       console.warn(`[Notification] No registered FCM tokens found for supervisor: ${supervisorId}. Skipping completed notification.`);
@@ -506,9 +502,7 @@ const notifySupervisorBuiltyCancelled = async (supervisorId, supervisorModel, bu
       return;
     }
 
-    const tokens = (supervisorDoc.fcmToken || [])
-      .map(t => (typeof t === 'object' && t !== null ? t.token : t))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(supervisorDoc.fcmToken);
 
     if (!tokens.length) {
       console.warn(`[Notification] No registered FCM tokens found for supervisor: ${supervisorId}. Skipping cancelled notification.`);
@@ -578,9 +572,7 @@ const notifySupervisorDailyTripStart = async (supervisorId, supervisorModel, dri
       return;
     }
 
-    const tokens = (supervisorDoc.fcmToken || [])
-      .map(t => (typeof t === 'object' && t !== null ? t.token : t))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(supervisorDoc.fcmToken);
 
     if (!tokens.length) {
       console.warn(`[Notification] No registered FCM tokens found for supervisor: ${supervisorId}. Skipping daily trip start notification.`);
@@ -650,9 +642,7 @@ const notifySupervisorDailyTripEnd = async (supervisorId, supervisorModel, drive
       return;
     }
 
-    const tokens = (supervisorDoc.fcmToken || [])
-      .map(t => (typeof t === 'object' && t !== null ? t.token : t))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(supervisorDoc.fcmToken);
 
     if (!tokens.length) {
       console.warn(`[Notification] No registered FCM tokens found for supervisor: ${supervisorId}. Skipping daily trip end notification.`);
@@ -724,9 +714,7 @@ const notifySupervisorVehicleExpense = async (supervisorId, supervisorModel, dri
       return;
     }
 
-    const tokens = (supervisorDoc.fcmToken || [])
-      .map(t => (typeof t === 'object' && t !== null ? t.token : t))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(supervisorDoc.fcmToken);
 
     if (!tokens.length) {
       console.warn(`[Notification] No registered FCM tokens found for supervisor: ${supervisorId}. Skipping vehicle expense notification.`);
@@ -799,9 +787,7 @@ const notifySupervisorDriverExpense = async (supervisorId, supervisorModel, driv
       return;
     }
 
-    const tokens = (supervisorDoc.fcmToken || [])
-      .map(t => (typeof t === 'object' && t !== null ? t.token : t))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(supervisorDoc.fcmToken);
 
     if (!tokens.length) {
       console.warn(`[Notification] No registered FCM tokens found for supervisor: ${supervisorId}. Skipping driver expense notification.`);
@@ -885,9 +871,7 @@ const notifySupervisorVendorExpense = async (supervisorId, supervisorModel, vend
       return;
     }
 
-    const tokens = (supervisorDoc.fcmToken || [])
-      .map(t => (typeof t === 'object' && t !== null ? t.token : t))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(supervisorDoc.fcmToken);
 
     if (!tokens.length) {
       console.warn(`[Notification] No registered FCM tokens found for supervisor: ${targetSupervisorId}. Skipping vendor log notification.`);
@@ -969,9 +953,7 @@ const notifySupervisorVendorTaskUpdate = async (supervisorId, supervisorModel, v
       return;
     }
 
-    const tokens = (supervisorDoc.fcmToken || [])
-      .map(t => (typeof t === 'object' && t !== null ? t.token : t))
-      .filter(Boolean);
+    const tokens = extractUniqueTokens(supervisorDoc.fcmToken);
 
     if (!tokens.length) {
       console.warn(`[Notification] No registered FCM tokens found for supervisor: ${targetSupervisorId}. Skipping vendor task update notification.`);
