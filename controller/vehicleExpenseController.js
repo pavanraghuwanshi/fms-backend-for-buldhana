@@ -12,6 +12,7 @@ const DriverExpense = require("../model/driverExpenseModel.js");
 const VehicleExpenseImage = require("../model/vehicleExpenseImageModel.js");
 const DriverExpenseImage = require("../model/driverExpenseImageModel.js");
 const { withdrawFundsForDriver, updateLedgerForAmountChange } = require("./ledgerController.js");
+const { notifySupervisorVehicleExpense } = require("../services/notificationService.js");
 const mongoose = require("mongoose");
 
 exports.addExpense = async (req, res) => {
@@ -75,6 +76,14 @@ exports.addExpense = async (req, res) => {
     if (targetTripId) {
       await Trip.findByIdAndUpdate(targetTripId, { $inc: { spentAmount: amount } });
     }
+
+    const targetSupervisorId = trip?.supervisorId || driver.supervisor;
+    if (targetSupervisorId) {
+      notifySupervisorVehicleExpense(targetSupervisorId, driver?.supervisorModel, driver, expense).catch((error) => {
+        console.error("Async vehicle expense notification error:", error);
+      });
+    }
+
     return res.status(201).json({ success: true, message: "Expense added successfully", expense });
   } catch (error) {
     return res.status(500).json({ success: false, message: "Error adding expense", error: error.message });

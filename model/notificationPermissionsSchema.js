@@ -15,6 +15,7 @@ const notificationPermissionsSchema = new mongoose.Schema(
             enum: ["School", "Branch", "BranchGroup"],
         },
         driver_attendance_notification: { type: Boolean, default: false },
+        driver_daily_trip_notification: { type: Boolean, default: false },
         driver_trip_builty_notification: { type: Boolean, default: false },
         driver_expense: { type: Boolean, default: false },
         vehicle_expense: { type: Boolean, default: false },

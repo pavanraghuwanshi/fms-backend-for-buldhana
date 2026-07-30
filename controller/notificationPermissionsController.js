@@ -145,6 +145,7 @@ exports.createNotificationPermissions = async (req, res) => {
       supervisorId,
       supervisorModel,
       driver_attendance_notification,
+      driver_daily_trip_notification,
       driver_trip_builty_notification,
       driver_expense,
       vehicle_expense,
@@ -198,6 +199,7 @@ exports.createNotificationPermissions = async (req, res) => {
       supervisorId,
       supervisorModel,
       driver_attendance_notification: Boolean(driver_attendance_notification),
+      driver_daily_trip_notification: Boolean(driver_daily_trip_notification),
       driver_trip_builty_notification: Boolean(driver_trip_builty_notification),
       driver_expense: Boolean(driver_expense),
       vehicle_expense: Boolean(vehicle_expense),
@@ -443,6 +445,7 @@ exports.updateNotificationPermissions = async (req, res) => {
 
     const allowedFields = [
       "driver_attendance_notification",
+      "driver_daily_trip_notification",
       "driver_trip_builty_notification",
       "driver_expense",
       "vehicle_expense",

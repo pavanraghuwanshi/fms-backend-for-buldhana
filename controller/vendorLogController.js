@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+ const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
 const VendorLog = require("../model/vendorLog");
@@ -9,6 +9,7 @@ const Builty = require("../model/builtyModel");
 const Location = require("../model/location");
 const UPLOAD_BASE_URL = "/uploads/vendorlogs";
 const { logAction } = require('../utils/logger');
+const { notifySupervisorVendorExpense, notifySupervisorVendorTaskUpdate } = require('../services/notificationService');
 const determineSupervisorId = (user, body) => {
   if (!user) return null;
   const { role, id, supervisor, supervisorId: userSupervisorId } = user;
@@ -145,6 +146,12 @@ exports.createLog = async (req, res) => {
       status: 'SUCCESS'
     });
 
+    if (finalSupervisorId && (req.user?.role === 'vendor' || log.createdBy === 'vendor')) {
+      notifySupervisorVendorExpense(finalSupervisorId, null, log.vendorId, log).catch((err) => {
+        console.error("Async vendor log creation notification error:", err);
+      });
+    }
+
     return res.status(201).json({
       success: true,
       message: "Log created successfully",
@@ -240,6 +247,13 @@ exports.patchVendorLog = async (req, res) => {
       requestMethod: req.method,
       status: 'SUCCESS'
     });
+
+    if (updatedLog.supervisorId) {
+      notifySupervisorVendorTaskUpdate(updatedLog.supervisorId, null, updatedLog.vendorId, updatedLog).catch((err) => {
+        console.error("Async vendor task update notification error:", err);
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "Log updated successfully.",
@@ -456,6 +470,13 @@ exports.updateLog = async (req, res) => {
       requestMethod: req.method,
       status: 'SUCCESS'
     });
+
+    if (req.user?.role === 'vendor' && updatedLog.supervisorId) {
+      notifySupervisorVendorTaskUpdate(updatedLog.supervisorId, null, updatedLog.vendorId, updatedLog).catch((err) => {
+        console.error("Async vendor task update notification error:", err);
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "Log updated successfully.",

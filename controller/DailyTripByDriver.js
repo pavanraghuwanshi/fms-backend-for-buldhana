@@ -3,6 +3,7 @@ const Device = require("../model/deviceModel.js");
 const History = require("../model/credenceHistoryModel.js");
 const DailyTripByDriver = require("../model/DailyTripByDriverModel.js");
 const VehicleMaster = require("../model/maintenanceDevice.model");
+const { notifySupervisorDailyTripStart, notifySupervisorDailyTripEnd } = require("../services/notificationService");
 
 
 exports.startDailyTrip = async (req, res) => {
@@ -12,6 +13,7 @@ exports.startDailyTrip = async (req, res) => {
     }
 
     let driverId;
+    let supervisorId;
     const { odometerStart } = req.body;
 
     if (req.user.role === "driver") {
@@ -66,6 +68,13 @@ exports.startDailyTrip = async (req, res) => {
       odometerStart,
       startTime: startTimeIST
     });
+
+    if (supervisorId) {
+      notifySupervisorDailyTripStart(supervisorId, driver?.supervisorModel, driver, newTrip, device.vehicleNumber).catch((err) => {
+        console.error("Async daily trip start notification error:", err);
+      });
+    }
+
     return res.status(201).json({
       success: true,
       message: "Daily trip started successfully",
@@ -157,6 +166,13 @@ exports.endDailyTrip = async (req, res) => {
     trip.status = "completed"
 
     await trip.save();
+
+    const targetSupervisorId = trip.supervisorId || driver.supervisor;
+    if (targetSupervisorId) {
+      notifySupervisorDailyTripEnd(targetSupervisorId, driver?.supervisorModel, driver, trip, device.vehicleNumber).catch((err) => {
+        console.error("Async daily trip end notification error:", err);
+      });
+    }
 
     return res.status(200).json({
       success: true,

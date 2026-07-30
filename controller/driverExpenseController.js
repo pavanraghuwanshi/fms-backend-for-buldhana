@@ -6,6 +6,7 @@ const Trip = require("../model/tripModel.js");
 const Builty = require("../model/builtyModel.js");
 const { compressImage, resolveTripAndActiveBuilty } = require("../utils/helperFunctions.js");
 const { withdrawFundsForDriver, updateLedgerForAmountChange } = require("./ledgerController.js");
+const { notifySupervisorDriverExpense } = require("../services/notificationService.js");
 
 exports.addExpense = async (req, res) => {
   try {
@@ -77,6 +78,14 @@ exports.addExpense = async (req, res) => {
       });
     }
     await handleWalletWithdrawal(req, trip, driver, newExpense);
+
+    const targetSupervisorId = trip?.supervisorId || driver.supervisor;
+    if (targetSupervisorId) {
+      notifySupervisorDriverExpense(targetSupervisorId, driver?.supervisorModel, driver, newExpense).catch((error) => {
+        console.error("Async driver expense notification error:", error);
+      });
+    }
+
     return res.status(201).json(newExpense);
   } catch (error) {
     console.error(error.message);
