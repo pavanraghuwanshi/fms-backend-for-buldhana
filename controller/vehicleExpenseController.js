@@ -78,8 +78,9 @@ exports.addExpense = async (req, res) => {
     }
 
     const targetSupervisorId = trip?.supervisorId || driver.supervisor;
+    const targetSupervisorModel = driver?.supervisorModel || trip?.supervisorModel;
     if (targetSupervisorId) {
-      notifySupervisorVehicleExpense(targetSupervisorId, driver?.supervisorModel, driver, expense).catch((error) => {
+      notifySupervisorVehicleExpense(targetSupervisorId, targetSupervisorModel, driver, expense).catch((error) => {
         console.error("Async vehicle expense notification error:", error);
       });
     }

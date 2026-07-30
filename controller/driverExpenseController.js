@@ -80,8 +80,9 @@ exports.addExpense = async (req, res) => {
     await handleWalletWithdrawal(req, trip, driver, newExpense);
 
     const targetSupervisorId = trip?.supervisorId || driver.supervisor;
+    const targetSupervisorModel = driver?.supervisorModel || trip?.supervisorModel;
     if (targetSupervisorId) {
-      notifySupervisorDriverExpense(targetSupervisorId, driver?.supervisorModel, driver, newExpense).catch((error) => {
+      notifySupervisorDriverExpense(targetSupervisorId, targetSupervisorModel, driver, newExpense).catch((error) => {
         console.error("Async driver expense notification error:", error);
       });
     }
