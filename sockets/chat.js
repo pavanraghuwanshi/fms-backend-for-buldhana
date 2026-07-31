@@ -1,8 +1,11 @@
 const mongoose = require("mongoose");
 const Driver = require("../model/driverModel");
+const Vendor = require("../model/vendor");
+const Worker = require("../model/workerModel");
 const Message = require("../model/messageModel");
 const User = require("../model/userModel");
 const sendPushNotification = require("../utils/pushNotification");
+const { findAuthEntityById } = require("../middleware/authHelper");
 
 function isValidId(id) {
   return mongoose.Types.ObjectId.isValid(id);
@@ -15,7 +18,10 @@ function chatSocket(io, socket) {
   onlineUsers.set(userId, socket.id);
 
   socket.on("sendMessage", async ({ receiverId, text }) => {
-    if (socket.user.role === "driver") receiverId = socket.user.supervisor;
+    if (socket.user.role === "driver" || socket.user.role === "vendor" || socket.user.role === "worker") {
+      receiverId = socket.user.supervisor || socket.user.supervisorId;
+    }
+
     if (!isValidId(receiverId)) {
       console.error("Invalid receiverId:", receiverId);
       return socket.emit("error", { message: "Invalid user IDs" });
@@ -42,22 +48,41 @@ function chatSocket(io, socket) {
       // Receiver offline → send push notification
       const role = socket.user.role;
       if (!role) return socket.emit("error", { message: "User role not found" });
-      let receiver = {};
+      let receiver = null;
 
-      // Determine receiver model based on sender's role
       if (role === "user") {
-        receiver = await Driver.findById(receiverId).select("fcmToken");
-      } else if (role === "driver") {
+        receiver = await Driver.findById(receiverId).select("+fcmTokens fcmTokens fcmToken").lean();
+        if (!receiver) {
+          receiver = await Vendor.findById(receiverId).select("+fcmTokens fcmTokens fcmToken").lean();
+        }
+        if (!receiver) {
+          receiver = await Worker.findById(receiverId).select("+firebaseToken firebaseToken +fcmTokens fcmTokens fcmToken").lean();
+        }
+      } else if (role === "driver" || role === "vendor" || role === "worker") {
         receiver = await User.findById(receiverId).select("fcmToken").lean();
+        if (!receiver) {
+          const authData = await findAuthEntityById(receiverId);
+          if (authData?.user) receiver = authData.user;
+        }
       }
-      if (receiver?.fcmToken?.length > 0) {
+
+      let tokens = [];
+      if (receiver?.fcmTokens && Array.isArray(receiver.fcmTokens)) {
+        tokens = receiver.fcmTokens.map(t => typeof t === 'string' ? t : t.token).filter(Boolean);
+      } else if (receiver?.fcmToken) {
+        tokens = Array.isArray(receiver.fcmToken) ? receiver.fcmToken : [receiver.fcmToken];
+      } else if (receiver?.firebaseToken) {
+        tokens = Array.isArray(receiver.firebaseToken) ? receiver.firebaseToken : [receiver.firebaseToken];
+      }
+
+      if (tokens.length > 0) {
         await Promise.allSettled(
-          receiver.fcmToken.map(token =>
+          tokens.map(token =>
             sendPushNotification(token, "New Message", text)
           )
         );
 
-        console.log(`Push notification sent to ${receiver.fcmToken.length} devices for user ${receiverId}`);
+        console.log(`Push notification sent to ${tokens.length} devices for user ${receiverId}`);
       } else {
         console.log(`Receiver ${receiverId} has no FCM tokens.`);
       }

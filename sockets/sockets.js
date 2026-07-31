@@ -2,6 +2,8 @@ const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const chatSocket = require("./chat");
 const Driver = require("../model/driverModel");
+const Vendor = require("../model/vendor");
+const Worker = require("../model/workerModel");
 
 
 function initSockets(server) {
@@ -18,13 +20,36 @@ function initSockets(server) {
 
     io.use(async (socket, next) => {
         try {
-            const token = socket.handshake.auth.token;
+            let token = socket.handshake.auth?.token
+                || socket.handshake.headers?.token
+                || socket.handshake.query?.token;
+
+            if (!token && socket.handshake.headers?.authorization) {
+                const authHeader = socket.handshake.headers.authorization;
+                const parts = authHeader.split(" ");
+                token = parts.length === 2 && parts[0].toLowerCase() === "bearer" ? parts[1] : authHeader;
+            }
+
             if (!token) return next(new Error("Authentication error: Token required"));
 
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
             if (decoded.role === "driver") {
                 const driver = await Driver.findById(decoded.id).select("supervisor").lean();
-                decoded.supervisor = driver.supervisor.toString();
+                if (driver?.supervisor) decoded.supervisor = driver.supervisor.toString();
+            } else if (decoded.role === "vendor") {
+                if (decoded.supervisorId) {
+                    decoded.supervisor = decoded.supervisorId.toString();
+                } else {
+                    const vendor = await Vendor.findById(decoded.id).select("supervisorId").lean();
+                    if (vendor?.supervisorId) decoded.supervisor = vendor.supervisorId.toString();
+                }
+            } else if (decoded.role === "worker") {
+                if (decoded.supervisor) {
+                    decoded.supervisor = decoded.supervisor.toString();
+                } else {
+                    const worker = await Worker.findById(decoded.id).select("supervisor").lean();
+                    if (worker?.supervisor) decoded.supervisor = worker.supervisor.toString();
+                }
             }
             socket.user = decoded;
             next();
