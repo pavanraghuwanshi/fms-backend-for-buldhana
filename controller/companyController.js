@@ -2,6 +2,7 @@ const { default: mongoose } = require("mongoose");
 const Company = require("../model/companyModel");
 const DigitalSignature = require("../model/digitalSignatureModel");
 const { compressImage } = require("../utils/helperFunctions");
+const { logAction } = require("../utils/logger");
 
 
 exports.createCompany = async (req, res) => {
@@ -72,10 +73,45 @@ exports.createCompany = async (req, res) => {
             await company.save();
         }
 
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'CREATE',
+                module: 'Company',
+                recordId: company._id,
+                oldData: null,
+                newData: company && typeof company.toObject === 'function' ? company.toObject() : company,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for createCompany:", logError);
+        }
+
         return res
             .status(201)
             .json({ message: "Company created successfully", company });
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'CREATE',
+                module: 'Company',
+                recordId: null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         console.error("Error creating company:", error.message);
         return res
             .status(500)
@@ -117,6 +153,9 @@ exports.updateCompany = async (req, res) => {
     try {
         if (!["superadmin", "user"].includes(req.user.role))
             return res.status(403).json({ message: "Access denied" });
+
+        const existingCompany = await Company.findById(req.params.id);
+        const oldCompanySnapshot = existingCompany && typeof existingCompany.toObject === 'function' ? existingCompany.toObject() : existingCompany;
 
         // Update company basic info
         const company = await Company.findByIdAndUpdate(
@@ -189,12 +228,47 @@ exports.updateCompany = async (req, res) => {
             .populate("digitalSignatureId", "-__v -createdAt -updatedAt")
             .select("-__v -createdAt -updatedAt");
 
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'UPDATE',
+                module: 'Company',
+                recordId: req.params.id,
+                oldData: oldCompanySnapshot,
+                newData: updatedCompany && typeof updatedCompany.toObject === 'function' ? updatedCompany.toObject() : updatedCompany,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for updateCompany:", logError);
+        }
+
         return res.status(200).json({
             message: "Company updated successfully",
             company: updatedCompany,
         });
 
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'UPDATE',
+                module: 'Company',
+                recordId: req.params?.id || null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         console.error("Error updating company:", error);
         return res.status(500).json({
             message: "Error updating company",
@@ -209,10 +283,47 @@ exports.deleteCompany = async (req, res) => {
         if (!["superadmin", "user"].includes(req.user.role)) return res.status(403).json({ message: "Access denied" });
         const company = await Company.findByIdAndDelete(req.params.id);
         if (!company) return res.status(404).json({ message: "Company not found" });
+        const oldCompanySnapshot = company && typeof company.toObject === 'function' ? company.toObject() : company;
+
         await DigitalSignature.findOneAndDelete({ companyId: company._id });
+
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'DELETE',
+                module: 'Company',
+                recordId: req.params.id,
+                oldData: oldCompanySnapshot,
+                newData: null,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for deleteCompany:", logError);
+        }
 
         return res.status(200).json({ message: "Company deleted successfully" });
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'DELETE',
+                module: 'Company',
+                recordId: req.params?.id || null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         return res.status(500).json({ message: "Error deleting company" + error.message });
     }
 };

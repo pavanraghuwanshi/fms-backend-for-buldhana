@@ -361,6 +361,18 @@ const builtySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       default: null,
     },
+    tds: {
+      type: Boolean,
+      default: false,
+    },
+    poch_bal: {
+      type: Number,
+      default: null,
+    },
+    fuel_amount: {
+      type: Number,
+      default: null,
+    },
   },
   { timestamps: true }
 );

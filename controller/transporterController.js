@@ -1,4 +1,5 @@
 const Transporter = require("../model/transporterModel");
+const { logAction } = require("../utils/logger");
 
 
 exports.createTransporter = async (req, res) => {
@@ -88,11 +89,46 @@ exports.createTransporter = async (req, res) => {
       ifscCode,
     });
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'Transporter',
+        recordId: transporter._id,
+        oldData: null,
+        newData: transporter && typeof transporter.toObject === 'function' ? transporter.toObject() : transporter,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createTransporter:", logError);
+    }
+
     return res.status(201).json({
       message: "Transporter created successfully",
       transporter,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Transporter',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error creating transporter",
       error: error.message,
@@ -202,6 +238,9 @@ exports.updateTransporter = async (req, res) => {
       req.body.supervisorId = req.user.id;
     }
 
+    const oldTransporter = await Transporter.findOne(query);
+    const oldTransporterSnapshot = oldTransporter && typeof oldTransporter.toObject === 'function' ? oldTransporter.toObject() : oldTransporter;
+
     if (req.body.transporterName) {
       const existingTransporter = await Transporter.findOne({
         transporterName: req.body.transporterName,
@@ -227,11 +266,46 @@ exports.updateTransporter = async (req, res) => {
       return res.status(404).json({ message: "Transporter not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'Transporter',
+        recordId: req.params.id,
+        oldData: oldTransporterSnapshot,
+        newData: transporter && typeof transporter.toObject === 'function' ? transporter.toObject() : transporter,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateTransporter:", logError);
+    }
+
     return res.status(200).json({
       message: "Transporter updated successfully",
       transporter,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Transporter',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error updating transporter",
       error: error.message,
@@ -253,16 +327,54 @@ exports.deleteTransporter = async (req, res) => {
       query.supervisorId = req.user.id;
     }
 
+    const oldTransporter = await Transporter.findOne(query);
+    const oldTransporterSnapshot = oldTransporter && typeof oldTransporter.toObject === 'function' ? oldTransporter.toObject() : oldTransporter;
+
     const transporter = await Transporter.findOneAndDelete(query);
 
     if (!transporter) {
       return res.status(404).json({ message: "Transporter not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'Transporter',
+        recordId: req.params.id,
+        oldData: oldTransporterSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteTransporter:", logError);
+    }
+
     return res.status(200).json({
       message: "Transporter deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'Transporter',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error deleting transporter",
       error: error.message,

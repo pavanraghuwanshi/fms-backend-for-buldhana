@@ -7,6 +7,7 @@ const Builty = require("../model/builtyModel.js");
 const { compressImage, resolveTripAndActiveBuilty } = require("../utils/helperFunctions.js");
 const { withdrawFundsForDriver, updateLedgerForAmountChange } = require("./ledgerController.js");
 const { notifySupervisorDriverExpense } = require("../services/notificationService.js");
+const { logAction } = require("../utils/logger.js");
 
 exports.addExpense = async (req, res) => {
   try {
@@ -87,8 +88,43 @@ exports.addExpense = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'DriverExpense',
+        recordId: newExpense._id,
+        oldData: null,
+        newData: newExpense && typeof newExpense.toObject === 'function' ? newExpense.toObject() : newExpense,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for addExpense:", logError);
+    }
+
     return res.status(201).json(newExpense);
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'DriverExpense',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error(error.message);
     return res.status(500).json({ message: "Error saving expense", error: error.message });
   }
@@ -152,6 +188,8 @@ exports.updateExpense = async (req, res) => {
 
     const existingExpense = await DriverExpense.findById(req.params.id).populate("driverId", "currentTripId");
     if (!existingExpense) return res.status(404).json({ success: false, message: "Expense not found" });
+
+    const oldExpenseSnapshot = existingExpense && typeof existingExpense.toObject === 'function' ? existingExpense.toObject() : existingExpense;
 
     if (existingExpense.driverId._id.toString() !== driverId.toString()) {
       return res.status(403).json({ message: "Unauthorized: Expense does not belong to the specified driver" });
@@ -227,8 +265,44 @@ exports.updateExpense = async (req, res) => {
       console.log("[DEBUG] Ledger update skipped: Amount not changed or not provided.");
     }
 
+    try {
+      const updatedExpense = await DriverExpense.findById(req.params.id).lean();
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'DriverExpense',
+        recordId: req.params.id,
+        oldData: oldExpenseSnapshot,
+        newData: updatedExpense,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateExpense:", logError);
+    }
+
     return res.json({ success: true, message: "Expense updated successfully" });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'DriverExpense',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Error in updateExpense:", error.message);
     return res.status(500).json({ message: "Error updating expense", error: error.message });
   }
@@ -240,6 +314,8 @@ exports.deleteExpense = async (req, res) => {
 
     const expense = await DriverExpense.findById(req.params.id).populate("driverId", "currentTripId supervisor");
     if (!expense) return res.status(404).json({ message: "Expense not found" });
+
+    const oldExpenseSnapshot = expense && typeof expense.toObject === 'function' ? expense.toObject() : expense;
 
     if (req.user.role === "driver" && expense.driverId._id.toString() !== req.user.id.toString()) {
       return res.status(403).json({ message: "Unauthorized: Expense does not belong to you" });
@@ -268,8 +344,44 @@ exports.deleteExpense = async (req, res) => {
     });
 
     await DriverExpense.findByIdAndDelete(req.params.id);
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'DriverExpense',
+        recordId: req.params.id,
+        oldData: oldExpenseSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteExpense:", logError);
+    }
+
     return res.json({ message: "Expense deleted successfully" });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'DriverExpense',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({ message: "Error deleting expense", error: error.message });
   }
 };

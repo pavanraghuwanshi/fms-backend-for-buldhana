@@ -1,5 +1,6 @@
 const DocumentLocker = require("../model/documentLockerModel");
 const { compressImage } = require("../utils/helperFunctions");
+const { logAction } = require("../utils/logger");
 
 exports.createDocument = async (req, res) => {
     try {
@@ -15,8 +16,43 @@ exports.createDocument = async (req, res) => {
             });
         }
 
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'CREATE',
+                module: 'DocumentLocker',
+                recordId: documentImage?._id,
+                oldData: null,
+                newData: documentImage && typeof documentImage.toObject === 'function' ? documentImage.toObject() : documentImage,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for createDocument:", logError);
+        }
+
         return res.status(201).json({ message: 'Document created successfully.', document: documentImage });
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'CREATE',
+                module: 'DocumentLocker',
+                recordId: null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         return res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
@@ -53,6 +89,9 @@ exports.getDocumentImageById = async (req, res) => {
 exports.updateDocument = async (req, res) => {
     try {
         const { documentName } = req.body;
+        const existingDoc = await DocumentLocker.findById(req.params.id).select("-image");
+        const oldDocSnapshot = existingDoc && typeof existingDoc.toObject === 'function' ? existingDoc.toObject() : existingDoc;
+
         const updateData = {};
         if (documentName) updateData.documentName = documentName;
         if (req.file) updateData.image = await compressImage(req.file);
@@ -64,8 +103,44 @@ exports.updateDocument = async (req, res) => {
         );
 
         if (!updatedDocument) return res.status(404).json({ message: 'Document not found.' });
+
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'UPDATE',
+                module: 'DocumentLocker',
+                recordId: req.params.id,
+                oldData: oldDocSnapshot,
+                newData: updatedDocument && typeof updatedDocument.toObject === 'function' ? updatedDocument.toObject() : updatedDocument,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for updateDocument:", logError);
+        }
+
         return res.status(200).json({ message: 'Document updated successfully.', document: updatedDocument });
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'UPDATE',
+                module: 'DocumentLocker',
+                recordId: req.params?.id || null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         return res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
@@ -74,8 +149,46 @@ exports.deleteDocument = async (req, res) => {
     try {
         const deleted = await DocumentLocker.findByIdAndDelete(req.params.id);
         if (!deleted) return res.status(404).json({ message: 'Document not found.' });
+
+        const oldDocSnapshot = deleted && typeof deleted.toObject === 'function' ? deleted.toObject() : deleted;
+
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'DELETE',
+                module: 'DocumentLocker',
+                recordId: req.params.id,
+                oldData: oldDocSnapshot,
+                newData: null,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for deleteDocument:", logError);
+        }
+
         return res.status(200).json({ message: 'Document deleted successfully.' });
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'DELETE',
+                module: 'DocumentLocker',
+                recordId: req.params?.id || null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         return res.status(500).json({ message: 'Server error', error: error.message });
     }
 };

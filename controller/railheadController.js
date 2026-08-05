@@ -1,4 +1,5 @@
 const Railhead = require('../model/Railhead');
+const { logAction } = require("../utils/logger");
 
 // CREATE
 exports.createRailhead = async (req, res) => {
@@ -12,8 +13,43 @@ exports.createRailhead = async (req, res) => {
 
     const data = await Railhead.create(payload);
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'Railhead',
+        recordId: data._id,
+        oldData: null,
+        newData: data && typeof data.toObject === 'function' ? data.toObject() : data,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createRailhead:", logError);
+    }
+
     res.status(201).json(data);
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Railhead',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(400).json({ message: error.message });
   }
 };
@@ -131,6 +167,9 @@ exports.updateRailhead = async (req, res) => {
       filter.supervisorId = id;
     }
 
+    const oldData = await Railhead.findOne(filter);
+    const oldDataSnapshot = oldData && typeof oldData.toObject === 'function' ? oldData.toObject() : oldData;
+
     const updated = await Railhead.findOneAndUpdate(
       filter,
       { $set: updates },
@@ -141,9 +180,44 @@ exports.updateRailhead = async (req, res) => {
       return res.status(404).json({ message: "Not found or unauthorized" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'Railhead',
+        recordId: req.params.id,
+        oldData: oldDataSnapshot,
+        newData: updated && typeof updated.toObject === 'function' ? updated.toObject() : updated,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateRailhead:", logError);
+    }
+
     res.json(updated);
 
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Railhead',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(400).json({ message: error.message });
   }
 };
@@ -164,15 +238,53 @@ exports.deleteRailhead = async (req, res) => {
       filter.supervisor = id;
     }
 
+    const oldData = await Railhead.findOne(filter);
+    const oldDataSnapshot = oldData && typeof oldData.toObject === 'function' ? oldData.toObject() : oldData;
+
     const data = await Railhead.findOneAndDelete(filter);
 
     if (!data) {
       return res.status(404).json({ message: "Not found or unauthorized" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'Railhead',
+        recordId: req.params.id,
+        oldData: oldDataSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteRailhead:", logError);
+    }
+
     res.json({ message: "Deleted successfully" });
 
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'Railhead',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(500).json({ message: error.message });
   }
 };

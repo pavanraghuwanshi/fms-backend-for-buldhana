@@ -1,4 +1,5 @@
 const VehicleCategory = require("../model/vehicleCategoryModel");
+const { logAction } = require("../utils/logger");
 
 exports.createVehicleCategory = async (req, res) => {
   try {
@@ -68,11 +69,46 @@ exports.createVehicleCategory = async (req, res) => {
       status,
     });
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'VehicleCategory',
+        recordId: category._id,
+        oldData: null,
+        newData: category && typeof category.toObject === 'function' ? category.toObject() : category,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createVehicleCategory:", logError);
+    }
+
     return res.status(201).json({
       message: "Vehicle category created successfully",
       category,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'VehicleCategory',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error creating vehicle category",
       error: error.message,
@@ -195,6 +231,8 @@ exports.updateVehicleCategory = async (req, res) => {
       return res.status(404).json({ message: "Vehicle category not found" });
     }
 
+    const oldCategorySnapshot = category && typeof category.toObject === 'function' ? category.toObject() : category;
+
     const {
       categoryName,
       tyreCount,
@@ -207,11 +245,46 @@ exports.updateVehicleCategory = async (req, res) => {
 
     await category.save();
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'VehicleCategory',
+        recordId: category._id,
+        oldData: oldCategorySnapshot,
+        newData: category && typeof category.toObject === 'function' ? category.toObject() : category,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateVehicleCategory:", logError);
+    }
+
     return res.status(200).json({
       message: "Vehicle category updated successfully",
       category,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'VehicleCategory',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error updating vehicle category",
       error: error.message,
@@ -238,16 +311,54 @@ exports.deleteVehicleCategory = async (req, res) => {
       query.supervisorId = req.user.id;
     }
 
+    const oldCategory = await VehicleCategory.findOne(query);
+    const oldCategorySnapshot = oldCategory && typeof oldCategory.toObject === 'function' ? oldCategory.toObject() : oldCategory;
+
     const category = await VehicleCategory.findOneAndDelete(query);
 
     if (!category) {
       return res.status(404).json({ message: "Vehicle category not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'VehicleCategory',
+        recordId: req.params.id,
+        oldData: oldCategorySnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteVehicleCategory:", logError);
+    }
+
     return res.status(200).json({
       message: "Vehicle category deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'VehicleCategory',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error deleting vehicle category",
       error: error.message,

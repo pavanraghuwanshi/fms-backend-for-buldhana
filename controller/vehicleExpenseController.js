@@ -13,6 +13,7 @@ const VehicleExpenseImage = require("../model/vehicleExpenseImageModel.js");
 const DriverExpenseImage = require("../model/driverExpenseImageModel.js");
 const { withdrawFundsForDriver, updateLedgerForAmountChange } = require("./ledgerController.js");
 const { notifySupervisorVehicleExpense } = require("../services/notificationService.js");
+const { logAction } = require("../utils/logger.js");
 const mongoose = require("mongoose");
 
 exports.addExpense = async (req, res) => {
@@ -85,8 +86,43 @@ exports.addExpense = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'VehicleExpense',
+        recordId: expense._id,
+        oldData: null,
+        newData: expense && typeof expense.toObject === 'function' ? expense.toObject() : expense,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for addExpense (VehicleExpense):", logError);
+    }
+
     return res.status(201).json({ success: true, message: "Expense added successfully", expense });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'VehicleExpense',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({ success: false, message: "Error adding expense", error: error.message });
   }
 };
@@ -174,6 +210,8 @@ exports.updateExpense = async (req, res) => {
       return res.status(404).json({ success: false, message: "Expense not found" });
     }
 
+    const oldExpenseSnapshot = expense && typeof expense.toObject === 'function' ? expense.toObject() : expense;
+
     if (expense.driverId._id.toString() !== driverId.toString()) {
       return res.status(403).json({
         message: "Unauthorized: Expense does not belong to the specified driver",
@@ -246,11 +284,47 @@ exports.updateExpense = async (req, res) => {
       }
     }
 
+    try {
+      const updatedExpenseDoc = await Vehicleexpense.findById(req.params.id).lean();
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'VehicleExpense',
+        recordId: req.params.id,
+        oldData: oldExpenseSnapshot,
+        newData: updatedExpenseDoc,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateExpense (VehicleExpense):", logError);
+    }
+
     return res.json({
       success: true,
       message: "Expense updated successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'VehicleExpense',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       success: false,
       message: "Error updating expense",
@@ -267,6 +341,9 @@ exports.deleteExpense = async (req, res) => {
     if (!deletedExpense) {
       return res.status(404).json({ success: false, message: "Expense not found" });
     }
+
+    const oldExpenseSnapshot = deletedExpense && typeof deletedExpense.toObject === 'function' ? deletedExpense.toObject() : deletedExpense;
+
     const services = await Service.find({ expenseId: deletedExpense._id })
     for (const service of services) {
       if (service.serviceImg) {
@@ -306,9 +383,45 @@ exports.deleteExpense = async (req, res) => {
     } else {
       console.log("No ledger entry found for this expenseId.");
     }
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'VehicleExpense',
+        recordId: expenseId,
+        oldData: oldExpenseSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteExpense (VehicleExpense):", logError);
+    }
+
     return res.json({ success: true, message: "Expense deleted successfully" });
 
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'VehicleExpense',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       success: false,
       message: "Error deleting expense",

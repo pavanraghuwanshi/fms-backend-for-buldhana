@@ -1,4 +1,5 @@
 const Salary = require("../model/salaryModel");
+const { logAction } = require("../utils/logger");
 
 exports.createSalary = async (req, res) => {
   try {
@@ -33,6 +34,25 @@ exports.createSalary = async (req, res) => {
 
       await salary.save();
 
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'CREATE',
+          module: 'Salary',
+          recordId: salary._id,
+          oldData: null,
+          newData: salary && typeof salary.toObject === 'function' ? salary.toObject() : salary,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for createSalary:", logError);
+      }
+
       return res.status(201).json({ message: "Salary slip generated successfully", salary });
 
     } else {
@@ -40,6 +60,22 @@ exports.createSalary = async (req, res) => {
     }
 
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Salary',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({ error: error.message });
   }
 };
@@ -78,6 +114,8 @@ exports.updateSalary = async (req, res) => {
       const existingSalary = await Salary.findById(salaryId);
       if (!existingSalary) return res.status(404).json({ message: "Salary record not found" });
 
+      const oldSalarySnapshot = existingSalary && typeof existingSalary.toObject === 'function' ? existingSalary.toObject() : existingSalary;
+
       const updatedSalary = await Salary.findByIdAndUpdate(
         salaryId,
         {
@@ -94,12 +132,48 @@ exports.updateSalary = async (req, res) => {
         
         { new: true, runValidators: true }
       );
+
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'UPDATE',
+          module: 'Salary',
+          recordId: salaryId,
+          oldData: oldSalarySnapshot,
+          newData: updatedSalary && typeof updatedSalary.toObject === 'function' ? updatedSalary.toObject() : updatedSalary,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for updateSalary:", logError);
+      }
+
       return res.status(200).json(updatedSalary);
 
     } else {
       return res.status(403).json({ message: "Unauthorized access" });
     }
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Salary',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error(error);
     return res.status(500).json({ message: "Internal server error" + error.message });
   }
@@ -111,12 +185,50 @@ exports.deleteSalary = async (req, res) => {
       const salaryId = req.params.id;
       const salary = await Salary.findByIdAndDelete(salaryId);
       if (!salary) return res.status(404).json({ message: "Salary record not found" });
+
+      const oldSalarySnapshot = salary && typeof salary.toObject === 'function' ? salary.toObject() : salary;
+
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'DELETE',
+          module: 'Salary',
+          recordId: salaryId,
+          oldData: oldSalarySnapshot,
+          newData: null,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for deleteSalary:", logError);
+      }
+
       return res.status(200).json({ message: "Salary record deleted successfully" });
 
     } else {
       return res.status(403).json({ message: "Unauthorized access" });
     }
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'Salary',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error(error);
     return res.status(500).json({ message: "Internal server error" + error.message });
   }

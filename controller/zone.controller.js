@@ -1,4 +1,5 @@
 const Zone = require("../model/zone.model");
+const { logAction } = require("../utils/logger");
 
 const roleModelMap = {
   school: "School",
@@ -83,11 +84,46 @@ exports.createZone = async (req, res) => {
 
     const zone = await Zone.create(payload);
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'Zone',
+        recordId: zone._id,
+        oldData: null,
+        newData: zone && typeof zone.toObject === 'function' ? zone.toObject() : zone,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createZone:", logError);
+    }
+
     return res.status(201).json({
       message: "Zone created successfully",
       zone,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Zone',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error creating zone",
       error: error.message,
@@ -198,6 +234,9 @@ exports.updateZone = async (req, res) => {
     const filter = buildFilter(req);
     filter._id = req.params.id;
 
+    const oldZone = await Zone.findOne(filter);
+    const oldZoneSnapshot = oldZone && typeof oldZone.toObject === 'function' ? oldZone.toObject() : oldZone;
+
     const updateData = { ...req.body };
 
     delete updateData.supervisorId;
@@ -212,11 +251,46 @@ exports.updateZone = async (req, res) => {
       return res.status(404).json({ message: "Zone not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'Zone',
+        recordId: req.params.id,
+        oldData: oldZoneSnapshot,
+        newData: zone && typeof zone.toObject === 'function' ? zone.toObject() : zone,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateZone:", logError);
+    }
+
     return res.status(200).json({
       message: "Zone updated successfully",
       zone,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Zone',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error updating zone",
       error: error.message,
@@ -229,6 +303,9 @@ exports.deleteZone = async (req, res) => {
     const filter = buildFilter(req);
     filter._id = req.params.id;
 
+    const oldZone = await Zone.findOne(filter);
+    const oldZoneSnapshot = oldZone && typeof oldZone.toObject === 'function' ? oldZone.toObject() : oldZone;
+
     const zone = await Zone.findOneAndUpdate(
       filter,
       { isActive: false },
@@ -239,10 +316,45 @@ exports.deleteZone = async (req, res) => {
       return res.status(404).json({ message: "Zone not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'Zone',
+        recordId: req.params.id,
+        oldData: oldZoneSnapshot,
+        newData: zone && typeof zone.toObject === 'function' ? zone.toObject() : zone,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteZone:", logError);
+    }
+
     return res.status(200).json({
       message: "Zone deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'Zone',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error deleting zone",
       error: error.message,

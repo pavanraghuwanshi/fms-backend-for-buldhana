@@ -4,141 +4,253 @@ const Vendor = require("../model/vendor");
 const Worker = require("../model/workerModel");
 const Message = require("../model/messageModel");
 const User = require("../model/userModel");
-const sendPushNotification = require("../utils/pushNotification");
-const { findAuthEntityById } = require("../middleware/authHelper");
+const { notifyChatMessage } = require("../services/notificationService");
 
 function isValidId(id) {
   return mongoose.Types.ObjectId.isValid(id);
 }
 
+// In-memory mapping of userId -> Set of socketIds (supports multi-device/multi-socket)
 const onlineUsers = new Map();
 
+function isUserOnline(userIdStr) {
+  const sockets = onlineUsers.get(String(userIdStr));
+  return Boolean(sockets && sockets.size > 0);
+}
+
 function chatSocket(io, socket) {
-  const userId = socket.user.id;
-  onlineUsers.set(userId, socket.id);
+  // 1. Authenticate & derive senderId from socket.user
+  if (!socket.user || !socket.user.id) {
+    console.error("[Socket Chat] Unauthenticated connection attempt rejected.");
+    return socket.disconnect(true);
+  }
 
-  socket.on("sendMessage", async ({ receiverId, text }) => {
-    if (socket.user.role === "driver" || socket.user.role === "vendor" || socket.user.role === "worker") {
-      receiverId = socket.user.supervisor || socket.user.supervisorId;
-    }
+  const userId = String(socket.user.id);
 
-    if (!isValidId(receiverId)) {
-      console.error("Invalid receiverId:", receiverId);
-      return socket.emit("error", { message: "Invalid user IDs" });
-    }
+  // 2. Track online user sockets
+  if (!onlineUsers.has(userId)) {
+    onlineUsers.set(userId, new Set());
+  }
+  onlineUsers.get(userId).add(socket.id);
 
-    let message = await Message.create({ senderId: userId, receiverId, text });
+  // Join room named after userId for broadcasting across all sockets of this user
+  socket.join(userId);
 
-    if (onlineUsers.has(receiverId)) {
-      message = await Message.findByIdAndUpdate(
-        message._id,
-        { status: "delivered" },
-        { new: true }
-      );
+  console.log(`[Socket Chat Connected] User ID: ${userId}, Role: ${socket.user.role}, Socket ID: ${socket.id}, Active Sockets: ${onlineUsers.get(userId).size}`);
 
-      // Send to receiver
-      io.to(onlineUsers.get(receiverId)).emit("receiveMessage", message);
+  // 3. Deliver pending offline messages upon reconnect
+  (async () => {
+    try {
+      const pendingMessages = await Message.find({
+        receiverId: userId,
+        status: "sent"
+      }).sort({ createdAt: 1 });
 
-      // Notify sender about delivery
-      io.to(onlineUsers.get(userId)).emit("messageDelivered", {
-        messageId: message._id,
-        receiverId
-      });
-    } else {
-      // Receiver offline → send push notification
-      const role = socket.user.role;
-      if (!role) return socket.emit("error", { message: "User role not found" });
-      let receiver = null;
+      if (pendingMessages.length > 0) {
+        const pendingIds = pendingMessages.map(m => m._id);
 
-      if (role === "user") {
-        receiver = await Driver.findById(receiverId).select("+fcmTokens fcmTokens fcmToken").lean();
-        if (!receiver) {
-          receiver = await Vendor.findById(receiverId).select("+fcmTokens fcmTokens fcmToken").lean();
-        }
-        if (!receiver) {
-          receiver = await Worker.findById(receiverId).select("+firebaseToken firebaseToken +fcmTokens fcmTokens fcmToken").lean();
-        }
-      } else if (role === "driver" || role === "vendor" || role === "worker") {
-        receiver = await User.findById(receiverId).select("fcmToken").lean();
-        if (!receiver) {
-          const authData = await findAuthEntityById(receiverId);
-          if (authData?.user) receiver = authData.user;
-        }
-      }
-
-      let tokens = [];
-      if (receiver?.fcmTokens && Array.isArray(receiver.fcmTokens)) {
-        tokens = receiver.fcmTokens.map(t => typeof t === 'string' ? t : t.token).filter(Boolean);
-      } else if (receiver?.fcmToken) {
-        tokens = Array.isArray(receiver.fcmToken) ? receiver.fcmToken : [receiver.fcmToken];
-      } else if (receiver?.firebaseToken) {
-        tokens = Array.isArray(receiver.firebaseToken) ? receiver.firebaseToken : [receiver.firebaseToken];
-      }
-
-      if (tokens.length > 0) {
-        await Promise.allSettled(
-          tokens.map(token =>
-            sendPushNotification(token, "New Message", text)
-          )
+        // Update all pending messages to 'delivered'
+        await Message.updateMany(
+          { _id: { $in: pendingIds } },
+          { $set: { status: "delivered" } }
         );
 
-        console.log(`Push notification sent to ${tokens.length} devices for user ${receiverId}`);
-      } else {
-        console.log(`Receiver ${receiverId} has no FCM tokens.`);
-      }
-    }
+        const updatedPendingMessages = await Message.find({
+          _id: { $in: pendingIds }
+        }).sort({ createdAt: 1 });
 
-    // Always send the message to sender's UI
-    io.to(onlineUsers.get(userId)).emit("messageStatus", message);
+        // Deliver pending messages to newly reconnected user
+        socket.emit("pendingMessages", updatedPendingMessages);
+
+        // Group by sender and notify online senders about delivery
+        const senderGroup = new Map();
+        for (const msg of updatedPendingMessages) {
+          const sId = String(msg.senderId);
+          if (!senderGroup.has(sId)) senderGroup.set(sId, []);
+          senderGroup.get(sId).push(msg._id);
+        }
+
+        for (const [sId, mIds] of senderGroup.entries()) {
+          io.to(sId).emit("messageDelivered", {
+            messageIds: mIds,
+            receiverId: userId
+          });
+        }
+
+        console.log(`[Socket Offline Recovery] Delivered ${updatedPendingMessages.length} pending offline message(s) to user ${userId}`);
+      }
+    } catch (err) {
+      console.error(`[Socket Offline Recovery Error] User ${userId}:`, err);
+    }
+  })();
+
+  // 4. Handle sendMessage event
+  socket.on("sendMessage", async (payload, ackCallback) => {
+    try {
+      const { receiverId: clientReceiverId, text, tempId } = payload || {};
+      let receiverId = clientReceiverId;
+
+      // Always derive senderId from authenticated socket context
+      const senderId = userId;
+
+      // Auto-fallback supervisor receiverId for worker/driver/vendor
+      if (!receiverId && (socket.user.role === "driver" || socket.user.role === "vendor" || socket.user.role === "worker")) {
+        receiverId = socket.user.supervisor || socket.user.supervisorId;
+      }
+
+      if (!receiverId || !text) {
+        const errorMsg = "receiverId and text required";
+        console.warn(`[Socket sendMessage] Validation failed for sender ${senderId}: ${errorMsg}`);
+        if (typeof ackCallback === "function") ackCallback({ success: false, error: errorMsg });
+        return socket.emit("error", { message: errorMsg });
+      }
+
+      const receiverIdStr = String(receiverId);
+
+      if (!isValidId(receiverIdStr)) {
+        const errorMsg = "Invalid receiverId";
+        console.error(`[Socket sendMessage] Invalid receiverId: ${receiverIdStr}`);
+        if (typeof ackCallback === "function") ackCallback({ success: false, error: errorMsg });
+        return socket.emit("error", { message: errorMsg });
+      }
+
+      // Idempotency Check: if tempId provided, avoid duplicate message creation
+      if (tempId) {
+        const existingMessage = await Message.findOne({ senderId, tempId: String(tempId) });
+        if (existingMessage) {
+          console.log(`[Socket sendMessage] Duplicate message prevented for tempId: ${tempId}`);
+          const existingData = existingMessage.toObject ? existingMessage.toObject() : existingMessage;
+          if (typeof ackCallback === "function") {
+            ackCallback({ success: true, message: existingData, tempId });
+          }
+          return socket.emit("messageStatus", existingMessage);
+        }
+      }
+
+      // Save message first in database with initial status 'sent'
+      let message = await Message.create({
+        senderId,
+        receiverId: receiverIdStr,
+        text,
+        tempId: tempId ? String(tempId) : undefined,
+        status: "sent"
+      });
+
+      const receiverOnline = isUserOnline(receiverIdStr);
+
+      if (receiverOnline) {
+        message = await Message.findByIdAndUpdate(
+          message._id,
+          { status: "delivered" },
+          { new: true }
+        );
+
+        // Broadcast real-time message to RECEIVER's room
+        io.to(receiverIdStr).emit("receiveMessage", message);
+        console.log(`[Socket receiveMessage] Delivered to receiver room: ${receiverIdStr}`);
+
+        // Notify sender room about delivery confirmation
+        io.to(senderId).emit("messageDelivered", {
+          messageId: message._id,
+          receiverId: receiverIdStr,
+          tempId: tempId ? String(tempId) : undefined
+        });
+      }
+
+      // Always dispatch FCM Push Notification to RECEIVER asynchronously
+      notifyChatMessage({
+        senderId,
+        senderRole: socket.user.role,
+        senderName: socket.user.username || socket.user.name,
+        receiverId: receiverIdStr,
+        text,
+        messageId: message._id
+      }).catch(err => console.error("Error sending chat push notification to receiver:", err));
+
+      const messageData = message.toObject ? message.toObject() : message;
+
+      // Print Socket.IO Engine.IO wire packet format
+      console.log(`42["messageStatus",${JSON.stringify(messageData)}]`);
+
+      // Emit status update to SENDER room
+      io.to(senderId).emit("messageStatus", message);
+
+      // Invoke acknowledgment callback if provided by client
+      if (typeof ackCallback === "function") {
+        ackCallback({
+          success: true,
+          message: messageData,
+          tempId: tempId ? String(tempId) : undefined
+        });
+      }
+    } catch (error) {
+      console.error("[Socket sendMessage Error]:", error);
+      if (typeof ackCallback === "function") {
+        ackCallback({ success: false, error: error.message || "Failed to send message" });
+      }
+      socket.emit("error", { message: error.message || "Failed to send message" });
+    }
   });
 
-  // Mark multiple messages as read
-  socket.on("markAsRead", async ({ messageIds, readerId }) => {
-    if (
-      !Array.isArray(messageIds) ||
-      messageIds.length === 0 ||
-      messageIds.some(id => !isValidId(id)) ||
-      !isValidId(readerId)
-    ) {
-      console.error("Invalid messageIds or readerId:", messageIds, readerId);
-      return socket.emit("error", { message: "Invalid IDs" });
-    }
+  // 5. Handle markAsRead event
+  socket.on("markAsRead", async ({ messageIds }) => {
+    try {
+      const readerId = userId; // Derive readerId from socket authentication
 
-    // Update all messages in one go
-    await Message.updateMany(
-      { _id: { $in: messageIds } },
-      { $set: { status: "read" } }
-    );
+      if (
+        !Array.isArray(messageIds) ||
+        messageIds.length === 0 ||
+        messageIds.some(id => !isValidId(id))
+      ) {
+        console.error("[Socket markAsRead] Invalid messageIds array provided by reader:", readerId);
+        return socket.emit("error", { message: "Invalid messageIds" });
+      }
 
-    // Fetch only needed fields
-    const messages = await Message.find(
-      { _id: { $in: messageIds } },
-      { senderId: 1 }
-    ).lean();
+      // Update matching messages to 'read'
+      await Message.updateMany(
+        { _id: { $in: messageIds }, receiverId: readerId },
+        { $set: { status: "read" } }
+      );
 
-    // Group by sender to send fewer events
-    const senderMap = new Map();
-    for (const msg of messages) {
-      const senderIdStr = msg.senderId.toString();
-      if (!senderMap.has(senderIdStr)) senderMap.set(senderIdStr, []);
-      senderMap.get(senderIdStr).push(msg._id);
-    }
+      // Fetch senders of marked messages
+      const messages = await Message.find(
+        { _id: { $in: messageIds } },
+        { senderId: 1 }
+      ).lean();
 
-    // Emit one event per sender
-    for (const [senderId, msgIds] of senderMap.entries()) {
-      if (onlineUsers.has(senderId)) {
-        io.to(onlineUsers.get(senderId)).emit("messagesRead", {
+      const senderMap = new Map();
+      for (const msg of messages) {
+        const senderIdStr = String(msg.senderId);
+        if (!senderMap.has(senderIdStr)) senderMap.set(senderIdStr, []);
+        senderMap.get(senderIdStr).push(msg._id);
+      }
+
+      // Notify senders that messages were read
+      for (const [sId, msgIds] of senderMap.entries()) {
+        io.to(sId).emit("messagesRead", {
           messageIds: msgIds,
           readerId
         });
       }
+    } catch (error) {
+      console.error("[Socket markAsRead Error]:", error);
+      socket.emit("error", { message: error.message || "Failed to mark messages as read" });
     }
   });
 
-
+  // 6. Clean up socket mappings on disconnect
   socket.on("disconnect", () => {
-    onlineUsers.delete(userId);
+    if (onlineUsers.has(userId)) {
+      const userSockets = onlineUsers.get(userId);
+      userSockets.delete(socket.id);
+      if (userSockets.size === 0) {
+        onlineUsers.delete(userId);
+      }
+    }
+    console.log(`[Socket Chat Disconnected] User ID: ${userId}, Socket ID: ${socket.id}`);
   });
 }
 
 module.exports = chatSocket;
+module.exports.onlineUsers = onlineUsers;
+module.exports.isUserOnline = isUserOnline;

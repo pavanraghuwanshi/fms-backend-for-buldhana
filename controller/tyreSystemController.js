@@ -5,6 +5,7 @@ const { compressImage } = require("../utils/helperFunctions.js");
 const Vehicleexpense = require("../model/vehicleExpensesModel.js");
 const VehicleExpenseImage = require("../model/vehicleExpenseImageModel.js");
 const VehicleMaster = require("../model/maintenanceDevice.model.js");
+const { logAction } = require("../utils/logger");
 
 exports.addTire = async (req, res) => {
      try {
@@ -89,8 +90,44 @@ exports.addTire = async (req, res) => {
           await tire.save();
 
           if (driver.currentTripId) await Trip.findByIdAndUpdate(driver.currentTripId, { $inc: { spentAmount: amount } });
+
+          try {
+            await logAction({
+              userId: req.user?._id || req.user?.id,
+              userType: req.user?.role || 'User',
+              action: 'CREATE',
+              module: 'TyreSystem',
+              recordId: tire._id,
+              oldData: null,
+              newData: tire && typeof tire.toObject === 'function' ? tire.toObject() : tire,
+              ipAddress: req.ip,
+              userAgent: req.headers ? req.headers['user-agent'] : null,
+              apiEndpoint: req.originalUrl,
+              requestMethod: req.method,
+              status: 'SUCCESS'
+            });
+          } catch (logError) {
+            console.error("Audit log failed for addTire:", logError);
+          }
+
           return res.status(201).json({ success: true, message: "Tire and expense added successfully", tire, expense });
      } catch (error) {
+          try {
+            await logAction({
+              userId: req.user?._id || req.user?.id,
+              userType: req.user?.role || 'System',
+              action: 'CREATE',
+              module: 'TyreSystem',
+              recordId: null,
+              status: 'FAILED',
+              ipAddress: req.ip,
+              userAgent: req.headers ? req.headers['user-agent'] : null,
+              apiEndpoint: req.originalUrl,
+              requestMethod: req.method,
+              error: error.message
+            });
+          } catch (logErr) {}
+
           console.error(error.message);
           return res.status(500).json({ success: false, message: "Error adding tire and expense", error: error.message });
      }
@@ -229,6 +266,8 @@ exports.updateTire = async (req, res) => {
                return res.status(404).json({ success: false, message: "Tire not found" });
           }
 
+          const oldTireSnapshot = tire && typeof tire.toObject === 'function' ? tire.toObject() : tire;
+
           if (req.user.role === "driver") {
                const driver = await Driver.findById(req.user.id);
                if (!driver || !driver.deviceId || String(driver.deviceId) !== String(tire.vehicleId)) {
@@ -315,9 +354,28 @@ exports.updateTire = async (req, res) => {
                     if (amountDiff !== 0) {
                          await Trip.findByIdAndUpdate(driver.currentTripId, {
                               $inc: { spentAmount: amountDiff },
-                         });
+                          });
                     }
                }
+          }
+
+          try {
+            await logAction({
+              userId: req.user?._id || req.user?.id,
+              userType: req.user?.role || 'User',
+              action: 'UPDATE',
+              module: 'TyreSystem',
+              recordId: tire._id,
+              oldData: oldTireSnapshot,
+              newData: existingTire && typeof existingTire.toObject === 'function' ? existingTire.toObject() : existingTire,
+              ipAddress: req.ip,
+              userAgent: req.headers ? req.headers['user-agent'] : null,
+              apiEndpoint: req.originalUrl,
+              requestMethod: req.method,
+              status: 'SUCCESS'
+            });
+          } catch (logError) {
+            console.error("Audit log failed for updateTire:", logError);
           }
 
           return res.json({
@@ -325,6 +383,22 @@ exports.updateTire = async (req, res) => {
                message: "Tire updated successfully",
           });
      } catch (error) {
+          try {
+            await logAction({
+              userId: req.user?._id || req.user?.id,
+              userType: req.user?.role || 'System',
+              action: 'UPDATE',
+              module: 'TyreSystem',
+              recordId: req.params?.id || null,
+              status: 'FAILED',
+              ipAddress: req.ip,
+              userAgent: req.headers ? req.headers['user-agent'] : null,
+              apiEndpoint: req.originalUrl,
+              requestMethod: req.method,
+              error: error.message
+            });
+          } catch (logErr) {}
+
           console.error(error);
           return res.status(500).json({
                success: false,
@@ -347,6 +421,8 @@ exports.deleteTire = async (req, res) => {
           if (!tire) {
                return res.status(404).json({ success: false, message: "Tire not found" });
           }
+
+          const oldTireSnapshot = tire && typeof tire.toObject === 'function' ? tire.toObject() : tire;
 
           if (req.user.role === "driver") {
                const driver = await Driver.findById(req.user.id);
@@ -379,8 +455,43 @@ exports.deleteTire = async (req, res) => {
 
           await Tire.findByIdAndDelete(tireId);
 
+          try {
+            await logAction({
+              userId: req.user?._id || req.user?.id,
+              userType: req.user?.role || 'User',
+              action: 'DELETE',
+              module: 'TyreSystem',
+              recordId: tireId,
+              oldData: oldTireSnapshot,
+              newData: null,
+              ipAddress: req.ip,
+              userAgent: req.headers ? req.headers['user-agent'] : null,
+              apiEndpoint: req.originalUrl,
+              requestMethod: req.method,
+              status: 'SUCCESS'
+            });
+          } catch (logError) {
+            console.error("Audit log failed for deleteTire:", logError);
+          }
+
           return res.json({ success: true, message: "Tire deleted successfully" });
      } catch (error) {
+          try {
+            await logAction({
+              userId: req.user?._id || req.user?.id,
+              userType: req.user?.role || 'System',
+              action: 'DELETE',
+              module: 'TyreSystem',
+              recordId: req.params?.id || null,
+              status: 'FAILED',
+              ipAddress: req.ip,
+              userAgent: req.headers ? req.headers['user-agent'] : null,
+              apiEndpoint: req.originalUrl,
+              requestMethod: req.method,
+              error: error.message
+            });
+          } catch (logErr) {}
+
           console.error("Error deleting tire:", error);
           return res.status(500).json({
                success: false,

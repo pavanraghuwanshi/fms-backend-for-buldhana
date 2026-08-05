@@ -3,6 +3,8 @@ const Builty = require("../model/builtyModel");
 const BuiltyCounter = require("../model/builtyCounterModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Driver = require("../model/driverModel");
+const Worker = require("../model/workerModel");
+const { logAction } = require("../utils/logger");
 const roleModelMap = {
   school: "School",
   branch: "Branch",
@@ -439,6 +441,8 @@ exports.saveOrUpdateToken = async (req, res) => {
       Model = Driver;
     } else if (userType === 'vendor') {
       Model = Vendor;
+    } else if (userType === 'worker') {
+      Model = Worker;
     } else {
       return res.status(403).json({ message: "Invalid user role for FCM storage" });
     }
@@ -473,9 +477,42 @@ exports.saveOrUpdateToken = async (req, res) => {
       }
     );
 
+    try {
+      await logAction({
+        userId: userId,
+        userType: userType,
+        action: 'UPDATE_FCM_TOKEN',
+        module: userType === 'driver' ? 'Driver' : userType === 'vendor' ? 'Vendor' : 'Worker',
+        recordId: userId,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for saveOrUpdateToken:", logError);
+    }
+
     return res.status(200).json({ message: "FCM token synced to user schema successfully" });
 
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?.id || null,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE_FCM_TOKEN',
+        module: 'FCMToken',
+        recordId: req.user?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("FCM Schema Save Error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }

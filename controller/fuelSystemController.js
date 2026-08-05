@@ -1,6 +1,7 @@
 const { Report_distance } = require("../model/reportDistanceModel");
 const Device = require("../model/deviceModel")
 const vehicleExpenses = require("../model/vehicleExpensesModel")
+const { logAction } = require("../utils/logger");
 
 
 exports.getData = async (req, res) => {
@@ -86,6 +87,25 @@ exports.getData = async (req, res) => {
             totalFuelConsumption = Number(totalFuelConsumption.toFixed(2)); // Round to 2 decimals
         }
 
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'READ',
+                module: 'FuelSystem',
+                recordId: req.params.id,
+                oldData: null,
+                newData: { month: month || "all", totalDistance, totalFuelConsumption, totalFuelExpense },
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for fuelSystem getData:", logError);
+        }
+
         return res.json({
             success: true,
             message: "Data fetched successfully",
@@ -98,6 +118,22 @@ exports.getData = async (req, res) => {
             month: month || "all"
         });
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'READ',
+                module: 'FuelSystem',
+                recordId: req.params?.id || null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         console.error("Error fetching data:", error.message);
         return res.status(500).json({ success: false, message: "Server error", error: error.message });
     }

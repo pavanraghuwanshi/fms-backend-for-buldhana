@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const DailyBuiltyProductList = require("../model/dailyBuiltyProductModel");
 const Worker = require("../model/workerModel");
 const Driver = require("../model/driverModel");
+const { logAction } = require("../utils/logger");
 
 const getSupervisorData = async (req, allowDriver = false) => {
   const { role, id, roleType } = req.user;
@@ -97,11 +98,46 @@ exports.createDailyBuiltyProduct = async (req, res) => {
       supervisorModel: supervisorData.supervisorModel,
     });
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'DailyBuiltyProduct',
+        recordId: newProduct._id,
+        oldData: null,
+        newData: newProduct && typeof newProduct.toObject === 'function' ? newProduct.toObject() : newProduct,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createDailyBuiltyProduct:", logError);
+    }
+
     return res.status(201).json({
       msg: "Daily builty product created successfully",
       data: newProduct,
     });
   } catch (err) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'DailyBuiltyProduct',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: err.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       msg: "Error creating daily builty product",
       error: err.message,
@@ -216,6 +252,9 @@ exports.updateDailyBuiltyProduct = async (req, res) => {
     delete req.body.supervisorId;
     delete req.body.supervisorModel;
 
+    const existingProduct = await DailyBuiltyProductList.findOne(filter);
+    const oldProductSnapshot = existingProduct && typeof existingProduct.toObject === 'function' ? existingProduct.toObject() : existingProduct;
+
     const updated = await DailyBuiltyProductList.findOneAndUpdate(
       filter,
       req.body,
@@ -228,11 +267,46 @@ exports.updateDailyBuiltyProduct = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'DailyBuiltyProduct',
+        recordId: req.params.id,
+        oldData: oldProductSnapshot,
+        newData: updated && typeof updated.toObject === 'function' ? updated.toObject() : updated,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateDailyBuiltyProduct:", logError);
+    }
+
     return res.status(200).json({
       message: "Daily builty product updated successfully",
       data: updated,
     });
   } catch (err) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'DailyBuiltyProduct',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: err.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error updating daily builty product",
       error: err.message,
@@ -266,10 +340,47 @@ exports.deleteDailyBuiltyProduct = async (req, res) => {
       });
     }
 
+    const oldProductSnapshot = deleted && typeof deleted.toObject === 'function' ? deleted.toObject() : deleted;
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'DailyBuiltyProduct',
+        recordId: req.params.id,
+        oldData: oldProductSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteDailyBuiltyProduct:", logError);
+    }
+
     return res.status(200).json({
       message: "Daily builty product deleted successfully",
     });
   } catch (err) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'DailyBuiltyProduct',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: err.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error deleting daily builty product",
       error: err.message,

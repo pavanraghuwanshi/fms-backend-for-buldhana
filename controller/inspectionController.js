@@ -4,6 +4,7 @@ const Driver = require("../model/driverModel");
 const Trip = require("../model/tripModel");
 const Device = require("../model/deviceModel");
 const { compressImage } = require("../utils/helperFunctions"); // assumed utility
+const { logAction } = require("../utils/logger");
 
 exports.addInspection = async (req, res) => {
   try {
@@ -70,11 +71,46 @@ exports.addInspection = async (req, res) => {
     const inspection = new Inspection(inspectionData);
     await inspection.save();
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'Inspection',
+        recordId: inspection._id,
+        oldData: null,
+        newData: inspection && typeof inspection.toObject === 'function' ? inspection.toObject() : inspection,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for addInspection:", logError);
+    }
+
     return res.status(201).json({
       message: "Inspection created successfully",
       inspection,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Inspection',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Inspection error:", error.message);
     return res.status(500).json({
       error: "Server error",
@@ -119,25 +155,6 @@ exports.getAllInspections = async (req, res) => {
     // Collect all unique vehicle IDs
     const vehicleIds = inspections.map(i => i.vehicleId?.toString()).filter(Boolean);
     const uniqueVehicleIds = [...new Set(vehicleIds)];
-
-    // Fetch vehicle names from the Device model in the main DB
-    // const vehicles = await Device.find({ _id: { $in: uniqueVehicleIds } })
-    //   .select(" name uniqueId category")
-    //   .lean();
-
-    // const vehicleMap = {};
-    // vehicles.forEach(v => {
-    //   vehicleMap[v._id.toString()] = {
-    //     name: v.name,
-    //     category: v.category
-    //   };
-    // });
-
-    // Append vehicle data manually
-    // const enrichedInspections = inspections.map(ins => ({
-    //   ...ins,
-    //   vehicleDetails: vehicleMap[ins.vehicleId?.toString()] || null
-    // }));
 
     return res.status(200).json({ success: true, data: inspections });
   } catch (error) {
@@ -206,13 +223,6 @@ exports.getInspectionByVehicleId = async (req, res) => {
 
     if (!inspections.length) return res.status(404).json({ message: "No inspections found for this vehicle" });
 
-    // Fetch the vehicle details
-    // const vehicle = await Device.findById(vehicleId).select("name uniqueId").lean();
-    // const enrichedInspections = inspections.map(ins => ({
-    //   ...ins,
-    //   vehicleDetails: vehicle ? { name: vehicle.name } : null
-    // }));
-
     return res.status(200).json({ success: true, data: inspections });
   } catch (error) {
     console.error("Get inspections by vehicle error:", error);
@@ -227,6 +237,8 @@ exports.editInspection = async (req, res) => {
     if (!['user', 'superadmin', 'driver'].includes(req.user.role)) return res.status(401).json({ message: "Unauthorized Access" });
     const inspection = await Inspection.findById(id);
     if (!inspection) return res.status(404).json({ message: "Inspection not found" });
+
+    const oldInspectionSnapshot = inspection && typeof inspection.toObject === 'function' ? inspection.toObject() : inspection;
 
     if (req.user.role === "user") {
       const drivers = await Driver.find({ supervisor: req.user.id }).select("_id").lean();
@@ -268,8 +280,44 @@ exports.editInspection = async (req, res) => {
     }
 
     await inspection.save();
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'Inspection',
+        recordId: id,
+        oldData: oldInspectionSnapshot,
+        newData: inspection && typeof inspection.toObject === 'function' ? inspection.toObject() : inspection,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for editInspection:", logError);
+    }
+
     return res.status(200).json({ message: "Inspection updated successfully", inspection });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Inspection',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Edit inspection error:", error.message);
     return res.status(500).json({ error: "Server error", details: error.message });
   }
@@ -282,6 +330,8 @@ exports.deleteInspection = async (req, res) => {
     if (!['superadmin', 'user', 'driver'].includes(req.user.role)) return res.status(401).json({ message: "Unauthorized Access" });
     const inspection = await Inspection.findById(id);
     if (!inspection) return res.status(404).json({ message: "Inspection not found" });
+
+    const oldInspectionSnapshot = inspection && typeof inspection.toObject === 'function' ? inspection.toObject() : inspection;
 
     // Role-based permission check
     if (req.user.role === "user") {
@@ -309,8 +359,44 @@ exports.deleteInspection = async (req, res) => {
 
     if (imageIdsToDelete.length) await InspectionImage.deleteMany({ _id: { $in: imageIdsToDelete } });
     await inspection.deleteOne();
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'Inspection',
+        recordId: id,
+        oldData: oldInspectionSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteInspection:", logError);
+    }
+
     return res.status(200).json({ message: "Inspection deleted successfully" });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'Inspection',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Delete inspection error:", error.message);
     return res.status(500).json({ error: "Server error", details: error.message });
   }

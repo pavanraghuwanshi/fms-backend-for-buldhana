@@ -1,5 +1,5 @@
 const express = require('express');
-const { createWorker, workerLogin, updateWorker, deleteWorker, getWorkers, getWorkerProfileImage, getWorkerProfile } = require('../controller/workerController');
+const { createWorker, workerLogin, updateWorker, deleteWorker, getWorkers, getWorkerProfileImage, getWorkerProfile, saveOrUpdateToken } = require('../controller/workerController');
 const { authenticateToken } = require('../middleware/authMiddleware');
 const upload = require('../middleware/upload');
 const router = express.Router();
@@ -11,5 +11,6 @@ router.get('/get-profile-image/:id', authenticateToken, getWorkerProfileImage);
 router.get('/get-profile', authenticateToken, getWorkerProfile);
 router.patch('/update/:id', authenticateToken, upload.single('profileImage'), updateWorker);
 router.delete('/delete/:id', authenticateToken, deleteWorker);
+router.post('/update-fcm', authenticateToken, saveOrUpdateToken);
 
 module.exports = router;

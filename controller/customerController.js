@@ -1,5 +1,6 @@
 const Customer = require("../model/customerModel");
 const Zone = require("../model/zone.model");
+const { logAction } = require("../utils/logger");
 
 const roleModelMap = {
   school: "School",
@@ -94,11 +95,46 @@ exports.createCustomer = async (req, res) => {
 
     const customer = await Customer.create(payload);
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'Customer',
+        recordId: customer._id,
+        oldData: null,
+        newData: customer && typeof customer.toObject === 'function' ? customer.toObject() : customer,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createCustomer:", logError);
+    }
+
     return res.status(201).json({
       message: "Customer created successfully",
       customer,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Customer',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error creating customer",
       error: error.message,
@@ -237,6 +273,8 @@ exports.updateCustomer = async (req, res) => {
       return res.status(404).json({ message: "Customer not found" });
     }
 
+    const oldCustomerSnapshot = oldCustomer && typeof oldCustomer.toObject === 'function' ? oldCustomer.toObject() : oldCustomer;
+
     const updateData = { ...req.body };
 
     delete updateData.supervisorId;
@@ -262,11 +300,46 @@ exports.updateCustomer = async (req, res) => {
       new: true,
     }).populate("zoneId", "zoneName");
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'Customer',
+        recordId: req.params.id,
+        oldData: oldCustomerSnapshot,
+        newData: customer && typeof customer.toObject === 'function' ? customer.toObject() : customer,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateCustomer:", logError);
+    }
+
     return res.status(200).json({
       message: "Customer updated successfully",
       customer,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Customer',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error updating customer",
       error: error.message,
@@ -279,6 +352,9 @@ exports.deleteCustomer = async (req, res) => {
     const filter = buildFilter(req);
     filter._id = req.params.id;
 
+    const oldCustomer = await Customer.findOne(filter);
+    const oldCustomerSnapshot = oldCustomer && typeof oldCustomer.toObject === 'function' ? oldCustomer.toObject() : oldCustomer;
+
     const customer = await Customer.findOneAndUpdate(
       filter,
       { isActive: false },
@@ -289,10 +365,45 @@ exports.deleteCustomer = async (req, res) => {
       return res.status(404).json({ message: "Customer not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'Customer',
+        recordId: req.params.id,
+        oldData: oldCustomerSnapshot,
+        newData: customer && typeof customer.toObject === 'function' ? customer.toObject() : customer,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteCustomer:", logError);
+    }
+
     return res.status(200).json({
       message: "Customer deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'Customer',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error deleting customer",
       error: error.message,

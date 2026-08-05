@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const ExtendedVehicleInfo = require("../model/extendedVehicleModel"); // Adjust the path as needed
 const mongoose = require("mongoose");
+const { logAction } = require("../utils/logger");
 
 exports.assignTyre = async (req, res) => {
   const { deviceId, tyreId, wheelPosition } = req.body;
@@ -65,11 +66,46 @@ exports.assignTyre = async (req, res) => {
       (assignment) => assignment.wheelPosition === wheelPosition
     );
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'ASSIGN_TYRE',
+        module: 'ExtendedVehicle',
+        recordId: vehicleInfo._id,
+        oldData: null,
+        newData: newAssignment,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for assignTyre:", logError);
+    }
+
     return res.status(200).json({
       message: "Tyre assigned successfully",
       data: newAssignment,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'ASSIGN_TYRE',
+        module: 'ExtendedVehicle',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Error assigning tyre:", error);
     return res
       .status(500)
@@ -101,6 +137,8 @@ exports.detachTyre = async (req, res) => {
       return res.status(404).json({ error: "Vehicle not found" });
     }
 
+    const oldVehicleSnapshot = vehicleInfo && typeof vehicleInfo.toObject === 'function' ? vehicleInfo.toObject() : vehicleInfo;
+
     // Check if the tyre is actually assigned
     const assignmentExists = vehicleInfo.assignedTyres.some(
       (assignment) => assignment.tyre.toString() === tyreId
@@ -117,8 +155,43 @@ exports.detachTyre = async (req, res) => {
       { $pull: { assignedTyres: { tyre: tyreId } } }
     );
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DETACH_TYRE',
+        module: 'ExtendedVehicle',
+        recordId: vehicleInfo._id,
+        oldData: oldVehicleSnapshot,
+        newData: { detachedTyreId: tyreId },
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for detachTyre:", logError);
+    }
+
     return res.status(200).json({ message: "Tyre detached successfully" });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DETACH_TYRE',
+        module: 'ExtendedVehicle',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Error detaching tyre:", error);
     return res.status(500).json({ error: "Failed to detach tyre" });
   }
@@ -198,6 +271,26 @@ exports.uploadDocuments1 = async (req, res) => {
     });
 
     await vehicle.save();
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPLOAD_DOCUMENTS',
+        module: 'ExtendedVehicle',
+        recordId: vehicle._id,
+        oldData: null,
+        newData: { device_id, documentsUploadedCount: req.files ? req.files.length : 0 },
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for uploadDocuments1:", logError);
+    }
+
     res
       .status(200)
       .json({
@@ -205,6 +298,22 @@ exports.uploadDocuments1 = async (req, res) => {
         documents: vehicle.documents,
       });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPLOAD_DOCUMENTS',
+        module: 'ExtendedVehicle',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Error uploading documents:", error);
     res.status(500).json({ message: "Internal server error" });
   }
@@ -250,6 +359,26 @@ exports.uploadDocuments = async (req, res) => {
     });
 
     await vehicle.save();
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPLOAD_DOCUMENTS',
+        module: 'ExtendedVehicle',
+        recordId: vehicle._id,
+        oldData: null,
+        newData: { device_id, documentsUploadedCount: req.files ? req.files.length : 0 },
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for uploadDocuments:", logError);
+    }
+
     res
       .status(200)
       .json({
@@ -257,6 +386,22 @@ exports.uploadDocuments = async (req, res) => {
         documents: vehicle.documents,
       });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPLOAD_DOCUMENTS',
+        module: 'ExtendedVehicle',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Error uploading documents:", error);
     res.status(500).json({ message: "Internal server error" });
   }
@@ -309,8 +454,43 @@ exports.deleteDocument = async (req, res) => {
       return res.status(404).json({ message: "Vehicle not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE_DOCUMENT',
+        module: 'ExtendedVehicle',
+        recordId: updatedVehicle._id,
+        oldData: { deviceId, documentId },
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteDocument:", logError);
+    }
+
     res.json({ message: "Document deleted successfully", updatedVehicle });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE_DOCUMENT',
+        module: 'ExtendedVehicle',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message || error
+      });
+    } catch (logErr) {}
+
     res.status(500).json({ message: "Error deleting document", error });
   }
 };
@@ -362,6 +542,25 @@ exports.updateDocument1 = async (req, res) => {
       { new: true }
     );
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE_DOCUMENT',
+        module: 'ExtendedVehicle',
+        recordId: updatedVehicle._id,
+        oldData: existingDocument,
+        newData: { category, issueDate, expiryDate },
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateDocument1:", logError);
+    }
+
     res
       .status(200)
       .json({
@@ -369,6 +568,22 @@ exports.updateDocument1 = async (req, res) => {
         vehicle: updatedVehicle,
       });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE_DOCUMENT',
+        module: 'ExtendedVehicle',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Error updating document:", error);
     res
       .status(500)

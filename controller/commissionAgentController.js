@@ -1,6 +1,5 @@
 const CommissionAgent = require("../model/commissionAgentModel");
-
-
+const { logAction } = require("../utils/logger");
 
 exports.createCommissionAgent = async (req, res) => {
   try {
@@ -90,11 +89,46 @@ exports.createCommissionAgent = async (req, res) => {
       ifscCode,
     });
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'CommissionAgent',
+        recordId: agent._id,
+        oldData: null,
+        newData: agent && typeof agent.toObject === 'function' ? agent.toObject() : agent,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createCommissionAgent:", logError);
+    }
+
     return res.status(201).json({
       message: "Commission agent created successfully",
       agent,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'CommissionAgent',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error creating commission agent",
       error: error.message,
@@ -244,6 +278,9 @@ exports.updateCommissionAgent = async (req, res) => {
       }
     }
 
+    const existingAgentRecord = await CommissionAgent.findOne(query);
+    const oldAgentSnapshot = existingAgentRecord && typeof existingAgentRecord.toObject === 'function' ? existingAgentRecord.toObject() : existingAgentRecord;
+
     const agent = await CommissionAgent.findOneAndUpdate(query, req.body, {
       new: true,
     });
@@ -252,11 +289,46 @@ exports.updateCommissionAgent = async (req, res) => {
       return res.status(404).json({ message: "Commission agent not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'CommissionAgent',
+        recordId: req.params.id,
+        oldData: oldAgentSnapshot,
+        newData: agent && typeof agent.toObject === 'function' ? agent.toObject() : agent,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateCommissionAgent:", logError);
+    }
+
     return res.status(200).json({
       message: "Commission agent updated successfully",
       agent,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'CommissionAgent',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error updating commission agent",
       error: error.message,
@@ -284,10 +356,47 @@ exports.deleteCommissionAgent = async (req, res) => {
       return res.status(404).json({ message: "Commission agent not found" });
     }
 
+    const oldAgentSnapshot = agent && typeof agent.toObject === 'function' ? agent.toObject() : agent;
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'CommissionAgent',
+        recordId: req.params.id,
+        oldData: oldAgentSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteCommissionAgent:", logError);
+    }
+
     return res.status(200).json({
       message: "Commission agent deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'CommissionAgent',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error deleting commission agent",
       error: error.message,

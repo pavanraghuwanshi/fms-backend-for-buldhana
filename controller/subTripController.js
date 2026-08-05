@@ -1,6 +1,7 @@
 const Driver = require("../model/driverModel");
 const Subtrip = require("../model/subTripModel");
 const Trip = require("../model/tripModel");
+const { logAction } = require("../utils/logger");
 
 // exports.createSubtrip = async (req, res) => {
 //     try {
@@ -98,8 +99,44 @@ exports.createSubtrip = async (req, res) => {
         });
 
         await subtrip.save();
+
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'User',
+            action: 'CREATE',
+            module: 'Subtrip',
+            recordId: subtrip._id,
+            oldData: null,
+            newData: subtrip && typeof subtrip.toObject === 'function' ? subtrip.toObject() : subtrip,
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            status: 'SUCCESS'
+          });
+        } catch (logError) {
+          console.error("Audit log failed for createSubtrip:", logError);
+        }
+
         return res.status(201).json({ success: true, message: "Subtrip created", subtrip });
     } catch (error) {
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'System',
+            action: 'CREATE',
+            module: 'Subtrip',
+            recordId: null,
+            status: 'FAILED',
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            error: error.message
+          });
+        } catch (logErr) {}
+
         console.log(error);
         return res.status(500).json({ success: false, message: "Failed to create subtrip", error: error.message });
     }
@@ -123,8 +160,29 @@ exports.updateSubtrip = async (req, res) => {
         if (!subtrip) return res.status(404).json({ message: "Subtrip not found" });
         if (subtrip.status !== "in-progress") return res.status(400).json({ message: `Subtrip is ${subtrip.status} and cannot be updated` });
 
+        const oldSubtripSnapshot = subtrip && typeof subtrip.toObject === 'function' ? subtrip.toObject() : subtrip;
+
         if (status) {
-            await Subtrip.findByIdAndUpdate(req.params.id, { status, endLatitude, endLongitude });
+            const updatedDoc = await Subtrip.findByIdAndUpdate(req.params.id, { status, endLatitude, endLongitude }, { new: true });
+            try {
+              await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'UPDATE_STATUS',
+                module: 'Subtrip',
+                recordId: req.params.id,
+                oldData: oldSubtripSnapshot,
+                newData: updatedDoc && typeof updatedDoc.toObject === 'function' ? updatedDoc.toObject() : updatedDoc,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+              });
+            } catch (logError) {
+              console.error("Audit log failed for updateSubtrip status:", logError);
+            }
+
             return res.status(200).json({ message: "Trip status updated successfully" });
         }
 
@@ -136,8 +194,44 @@ exports.updateSubtrip = async (req, res) => {
         if (materialType) subtrip.materialType = materialType;
 
         await subtrip.save();
+
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'User',
+            action: 'UPDATE',
+            module: 'Subtrip',
+            recordId: subtrip._id,
+            oldData: oldSubtripSnapshot,
+            newData: subtrip && typeof subtrip.toObject === 'function' ? subtrip.toObject() : subtrip,
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            status: 'SUCCESS'
+          });
+        } catch (logError) {
+          console.error("Audit log failed for updateSubtrip:", logError);
+        }
+
         return res.status(200).json({ success: true, message: "Subtrip updated", subtrip });
     } catch (error) {
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'System',
+            action: 'UPDATE',
+            module: 'Subtrip',
+            recordId: req.params?.id || null,
+            status: 'FAILED',
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            error: error.message
+          });
+        } catch (logErr) {}
+
         return res.status(500).json({ success: false, message: "Failed to update subtrip", error: error.message });
     }
 };
@@ -146,8 +240,46 @@ exports.deleteSubtrip = async (req, res) => {
     try {
         const deleted = await Subtrip.findByIdAndDelete(req.params.id);
         if (!deleted) return res.status(404).json({ success: false, message: "Subtrip not found" });
+
+        const oldSubtripSnapshot = deleted && typeof deleted.toObject === 'function' ? deleted.toObject() : deleted;
+
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'User',
+            action: 'DELETE',
+            module: 'Subtrip',
+            recordId: req.params.id,
+            oldData: oldSubtripSnapshot,
+            newData: null,
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            status: 'SUCCESS'
+          });
+        } catch (logError) {
+          console.error("Audit log failed for deleteSubtrip:", logError);
+        }
+
         return res.status(200).json({ success: true, message: "Subtrip deleted successfully" });
     } catch (error) {
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'System',
+            action: 'DELETE',
+            module: 'Subtrip',
+            recordId: req.params?.id || null,
+            status: 'FAILED',
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            error: error.message
+          });
+        } catch (logErr) {}
+
         return res.status(500).json({ success: false, message: "Failed to delete subtrip", error: error.message });
     }
 };

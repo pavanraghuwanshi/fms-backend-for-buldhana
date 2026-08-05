@@ -5,8 +5,8 @@ const DailyBuilty = require("../model/dailyBuilty.model");
 const mongoose = require("mongoose");
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 const Trip = require("../model/tripModel");
-const Customer = require("../model/customerModel")
-
+const Customer = require("../model/customerModel");
+const { logAction } = require("../utils/logger");
 
 const roleModelMap = {
   school: "School",
@@ -366,11 +366,46 @@ exports.createDailyBuilty = async (req, res) => {
     dailyBuilty.tripId = trip._id;
     await dailyBuilty.save();
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'DailyBuilty',
+        recordId: dailyBuilty._id,
+        oldData: null,
+        newData: dailyBuilty && typeof dailyBuilty.toObject === 'function' ? dailyBuilty.toObject() : dailyBuilty,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createDailyBuilty:", logError);
+    }
+
     return res.status(201).json({
       message: "Daily builty created successfully",
       dailyBuilty,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'DailyBuilty',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error creating daily builty",
       error: error.message,
@@ -548,6 +583,8 @@ exports.updateDailyBuilty = async (req, res) => {
       });
     }
 
+    const oldBuiltySnapshot = dailyBuilty && typeof dailyBuilty.toObject === 'function' ? dailyBuilty.toObject() : dailyBuilty;
+
     const updateData = { ...req.body };
 
     if (updateData.vehicleId && !isValidObjectId(updateData.vehicleId)) {
@@ -565,14 +602,6 @@ exports.updateDailyBuilty = async (req, res) => {
     if (updateData.customerId && !isValidObjectId(updateData.customerId)) {
       return res.status(400).json({ message: "Invalid customerId" });
     }
-
-    // if (updateData.products && updateData.products.length > 0) {
-    //   for (const item of updateData.products) {
-    //     if (!item.productId || !isValidObjectId(item.productId)) {
-    //       return res.status(400).json({ message: "Invalid productId" });
-    //     }
-    //   }
-    // }
 
     delete updateData.tpNo;
     delete updateData.supervisorId;
@@ -702,11 +731,46 @@ exports.updateDailyBuilty = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'DailyBuilty',
+        recordId: req.params.id,
+        oldData: oldBuiltySnapshot,
+        newData: dailyBuilty && typeof dailyBuilty.toObject === 'function' ? dailyBuilty.toObject() : dailyBuilty,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateDailyBuilty:", logError);
+    }
+
     return res.status(200).json({
       message: "Daily builty updated successfully",
       dailyBuilty,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'DailyBuilty',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error updating daily builty",
       error: error.message,
@@ -748,6 +812,8 @@ exports.completeDailyBuilty = async (req, res) => {
       });
     }
 
+    const oldBuiltySnapshot = dailyBuilty && typeof dailyBuilty.toObject === 'function' ? dailyBuilty.toObject() : dailyBuilty;
+
     dailyBuilty.endOdometerReading = Number(endOdometerReading);
     dailyBuilty.totalKm = Number(endOdometerReading) - Number(dailyBuilty.startOdometerReading || 0);
 
@@ -776,11 +842,46 @@ exports.completeDailyBuilty = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'COMPLETE',
+        module: 'DailyBuilty',
+        recordId: req.params.id,
+        oldData: oldBuiltySnapshot,
+        newData: dailyBuilty && typeof dailyBuilty.toObject === 'function' ? dailyBuilty.toObject() : dailyBuilty,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for completeDailyBuilty:", logError);
+    }
+
     return res.status(200).json({
       message: "Daily builty completed successfully",
       dailyBuilty,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'COMPLETE',
+        module: 'DailyBuilty',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error completing daily builty",
       error: error.message,
@@ -810,6 +911,8 @@ exports.cancelDailyBuilty = async (req, res) => {
       });
     }
 
+    const oldBuiltySnapshot = dailyBuilty && typeof dailyBuilty.toObject === 'function' ? dailyBuilty.toObject() : dailyBuilty;
+
     dailyBuilty.status = "Cancelled";
     dailyBuilty.cancelReason = req.body.cancelReason || "";
     await dailyBuilty.save();
@@ -822,11 +925,46 @@ exports.cancelDailyBuilty = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CANCEL',
+        module: 'DailyBuilty',
+        recordId: req.params.id,
+        oldData: oldBuiltySnapshot,
+        newData: dailyBuilty && typeof dailyBuilty.toObject === 'function' ? dailyBuilty.toObject() : dailyBuilty,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for cancelDailyBuilty:", logError);
+    }
+
     return res.status(200).json({
       message: "Daily builty cancelled successfully",
       dailyBuilty,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CANCEL',
+        module: 'DailyBuilty',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error cancelling daily builty",
       error: error.message,
@@ -853,6 +991,8 @@ exports.deleteDailyBuilty = async (req, res) => {
       return res.status(404).json({ message: "Daily builty not found" });
     }
 
+    const oldBuiltySnapshot = dailyBuilty && typeof dailyBuilty.toObject === 'function' ? dailyBuilty.toObject() : dailyBuilty;
+
     // await releaseDailyBuiltyAssignment(dailyBuilty);
 
     if (dailyBuilty.tripId) {
@@ -861,10 +1001,45 @@ exports.deleteDailyBuilty = async (req, res) => {
 
     await DailyBuilty.findByIdAndDelete(dailyBuilty._id);
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'DailyBuilty',
+        recordId: req.params.id,
+        oldData: oldBuiltySnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteDailyBuilty:", logError);
+    }
+
     return res.status(200).json({
       message: "Daily builty deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'DailyBuilty',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error deleting daily builty",
       error: error.message,

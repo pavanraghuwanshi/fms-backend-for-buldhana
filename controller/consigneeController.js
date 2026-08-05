@@ -1,4 +1,5 @@
 const Consignee = require("../model/consigneeModel");
+const { logAction } = require("../utils/logger");
 
 // CREATE
 exports.createConsignee = async (req, res) => {
@@ -34,11 +35,46 @@ exports.createConsignee = async (req, res) => {
     
     const consignee = await Consignee.create(payload);
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'Consignee',
+        recordId: consignee._id,
+        oldData: null,
+        newData: consignee && typeof consignee.toObject === 'function' ? consignee.toObject() : consignee,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createConsignee:", logError);
+    }
+
     res.status(201).json({
       message: "Consignee created successfully",
       consignee,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Consignee',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(500).json({ message: error.message });
   }
 };
@@ -161,6 +197,13 @@ exports.updateConsignee = async (req, res) => {
       });
     }
 
+    const existingConsignee = await Consignee.findOne({
+      _id: req.params.id,
+      supervisorId: req.user.id,
+      isDeleted: false,
+    });
+    const oldConsigneeSnapshot = existingConsignee && typeof existingConsignee.toObject === 'function' ? existingConsignee.toObject() : existingConsignee;
+
     const consignee = await Consignee.findOneAndUpdate(
       {
         _id: req.params.id,
@@ -175,11 +218,46 @@ exports.updateConsignee = async (req, res) => {
       return res.status(404).json({ message: "Consignee not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'Consignee',
+        recordId: req.params.id,
+        oldData: oldConsigneeSnapshot,
+        newData: consignee && typeof consignee.toObject === 'function' ? consignee.toObject() : consignee,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateConsignee:", logError);
+    }
+
     res.status(200).json({
       message: "Consignee updated successfully",
       consignee,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Consignee',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(500).json({ message: error.message });
   }
 };
@@ -194,6 +272,13 @@ exports.softdeleteConsignee = async (req, res) => {
         message: "Only supervisor can delete consignee",
       });
     }
+
+    const existingConsignee = await Consignee.findOne({
+      _id: req.params.id,
+      supervisorId: req.user.id,
+      isDeleted: false,
+    });
+    const oldConsigneeSnapshot = existingConsignee && typeof existingConsignee.toObject === 'function' ? existingConsignee.toObject() : existingConsignee;
 
     const consignee = await Consignee.findOneAndUpdate(
       {
@@ -212,10 +297,45 @@ exports.softdeleteConsignee = async (req, res) => {
       return res.status(404).json({ message: "Consignee not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'Consignee',
+        recordId: req.params.id,
+        oldData: oldConsigneeSnapshot,
+        newData: consignee && typeof consignee.toObject === 'function' ? consignee.toObject() : consignee,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for softdeleteConsignee:", logError);
+    }
+
     res.status(200).json({
       message: "Consignee deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'Consignee',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(500).json({ message: error.message });
   }
 };

@@ -4,7 +4,7 @@ const History = require("../model/credenceHistoryModel.js");
 const DailyTripByDriver = require("../model/DailyTripByDriverModel.js");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const { notifySupervisorDailyTripStart, notifySupervisorDailyTripEnd } = require("../services/notificationService");
-
+const { logAction } = require("../utils/logger.js");
 
 exports.startDailyTrip = async (req, res) => {
   try {
@@ -75,12 +75,47 @@ exports.startDailyTrip = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'START',
+        module: 'DailyTripByDriver',
+        recordId: newTrip._id,
+        oldData: null,
+        newData: newTrip && typeof newTrip.toObject === 'function' ? newTrip.toObject() : newTrip,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for startDailyTrip:", logError);
+    }
+
     return res.status(201).json({
       success: true,
       message: "Daily trip started successfully",
       data: newTrip,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'START',
+        module: 'DailyTripByDriver',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Error starting daily trip:", error.message);
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -125,6 +160,8 @@ exports.endDailyTrip = async (req, res) => {
     if (!trip) {
       return res.status(404).json({ success: false, message: "Trip not found" });
     }
+
+    const oldTripSnapshot = trip && typeof trip.toObject === 'function' ? trip.toObject() : trip;
 
     if (trip.status === "completed") {
       return res.status(400).json({ success: false, message: "This trip has already ended" });
@@ -174,12 +211,47 @@ exports.endDailyTrip = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'END',
+        module: 'DailyTripByDriver',
+        recordId: id,
+        oldData: oldTripSnapshot,
+        newData: trip && typeof trip.toObject === 'function' ? trip.toObject() : trip,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for endDailyTrip:", logError);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Trip ended successfully",
       data: trip,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'END',
+        module: 'DailyTripByDriver',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Error ending daily trip:", error.message);
     return res.status(500).json({ success: false, message: error.message });
   }

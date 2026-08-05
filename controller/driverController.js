@@ -6,6 +6,7 @@ const { compressImage } = require("../utils/helperFunctions");
 const Device = require("../model/deviceModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Trip = require("../model/tripModel");
+const { logAction } = require("../utils/logger");
 
 exports.createDriver = async (req, res) => {
   try {
@@ -103,8 +104,46 @@ exports.createDriver = async (req, res) => {
       }
     }
 
+    const safeDriver = driver && typeof driver.toObject === 'function' ? driver.toObject() : { ...driver };
+    delete safeDriver.password;
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'Driver',
+        recordId: driver._id,
+        oldData: null,
+        newData: safeDriver,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createDriver:", logError);
+    }
+
     return res.status(201).json(driver);
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Driver',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       error: error.message,
     });
@@ -269,6 +308,9 @@ exports.updateDriver = async (req, res) => {
       });
     }
 
+    const oldDriverSnapshot = driver && typeof driver.toObject === 'function' ? driver.toObject() : { ...driver };
+    delete oldDriverSnapshot.password;
+
     const oldDeviceId = driver.deviceId?.toString();
 
     if (deviceId && !mongoose.Types.ObjectId.isValid(deviceId)) {
@@ -344,8 +386,46 @@ exports.updateDriver = async (req, res) => {
 
     await driver.save();
 
+    const safeDriver = driver && typeof driver.toObject === 'function' ? driver.toObject() : { ...driver };
+    delete safeDriver.password;
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'Driver',
+        recordId: req.params.id,
+        oldData: oldDriverSnapshot,
+        newData: safeDriver,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateDriver:", logError);
+    }
+
     return res.status(200).json(driver);
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Driver',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Update driver error:", error.message);
 
     return res.status(500).json({
@@ -359,11 +439,50 @@ exports.deleteDriver = async (req, res) => {
     if (req.user.role === "user") {
       const driver = await Driver.findByIdAndDelete(req.params.id);
       if (!driver) return res.status(404).json({ message: "Driver not found" });
+
+      const oldDriverSnapshot = driver && typeof driver.toObject === 'function' ? driver.toObject() : { ...driver };
+      delete oldDriverSnapshot.password;
+
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'DELETE',
+          module: 'Driver',
+          recordId: req.params.id,
+          oldData: oldDriverSnapshot,
+          newData: null,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for deleteDriver:", logError);
+      }
+
       return res.status(200).json({ message: "Driver deleted successfully" });
     } else {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'Driver',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({ error: error.message });
   }
 };

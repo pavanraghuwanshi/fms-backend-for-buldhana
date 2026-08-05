@@ -3,6 +3,7 @@ const School = require("../model/school");
 const Branch = require("../model/branch");
 const BranchGroup = require("../model/branchGroup");
 const mongoose = require("mongoose");
+const { logAction } = require("../utils/logger");
 
 const ALLOWED_SUPERVISOR_MODELS = ["School", "Branch", "BranchGroup"];
 
@@ -215,12 +216,47 @@ exports.createNotificationPermissions = async (req, res) => {
 
     const populatedList = await populatePermissionsList([permission]);
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'NotificationPermissions',
+        recordId: permission._id,
+        oldData: null,
+        newData: permission && typeof permission.toObject === 'function' ? permission.toObject() : permission,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createNotificationPermissions:", logError);
+    }
+
     return res.status(201).json({
       success: true,
       message: "Notification permissions created successfully",
       data: populatedList[0] || permission,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'NotificationPermissions',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Create Notification Permissions Error:", error);
     return res.status(500).json({
       success: false,
@@ -443,6 +479,8 @@ exports.updateNotificationPermissions = async (req, res) => {
       });
     }
 
+    const oldPermissionSnapshot = permission && typeof permission.toObject === 'function' ? permission.toObject() : permission;
+
     const allowedFields = [
       "driver_attendance_notification",
       "driver_daily_trip_notification",
@@ -483,11 +521,46 @@ exports.updateNotificationPermissions = async (req, res) => {
 
     const populatedList = await populatePermissionsList([permission]);
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'NotificationPermissions',
+        recordId: permission._id,
+        oldData: oldPermissionSnapshot,
+        newData: permission && typeof permission.toObject === 'function' ? permission.toObject() : permission,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateNotificationPermissions:", logError);
+    }
+
     return res.status(200).json({
       message: "Notification permissions updated successfully",
       data: populatedList[0],
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'NotificationPermissions',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Update Notification Permissions Error:", error);
     return res.status(500).json({
       message: "Internal server error",
@@ -524,10 +597,47 @@ exports.deleteNotificationPermissions = async (req, res) => {
       });
     }
 
+    const oldPermissionSnapshot = deleted && typeof deleted.toObject === 'function' ? deleted.toObject() : deleted;
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'NotificationPermissions',
+        recordId: deleted._id,
+        oldData: oldPermissionSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteNotificationPermissions:", logError);
+    }
+
     return res.status(200).json({
       message: "Notification permissions deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'NotificationPermissions',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Delete Notification Permissions Error:", error);
     return res.status(500).json({
       message: "Internal server error",

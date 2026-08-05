@@ -2,6 +2,7 @@ const WorkerRole = require('../model/WorkerRole');
 const Worker = require('../model/workerModel');
 const mongoose = require('mongoose');
 const _ = require('lodash');
+const { logAction } = require('../utils/logger');
 
 const getMergedPermissions = (roleDoc) => {
 
@@ -39,6 +40,9 @@ exports.saveWorkerRole = async (req, res) => {
             return res.status(404).json({ success: false, message: "Worker not found" });
         }
 
+        const oldRoleDoc = await WorkerRole.findOne({ assignedWorkers: workerId });
+        const oldRoleSnapshot = oldRoleDoc && typeof oldRoleDoc.toObject === 'function' ? oldRoleDoc.toObject() : oldRoleDoc;
+
         const updateQuery = { $set: { permissions: permissions } };
 
 
@@ -58,6 +62,25 @@ exports.saveWorkerRole = async (req, res) => {
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
 
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'SAVE_ROLE',
+                module: 'WorkerRole',
+                recordId: role._id,
+                oldData: oldRoleSnapshot,
+                newData: role && typeof role.toObject === 'function' ? role.toObject() : role,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for saveWorkerRole:", logError);
+        }
+
         return res.status(200).json({
             success: true,
             message: "Permissions updated successfully",
@@ -65,6 +88,22 @@ exports.saveWorkerRole = async (req, res) => {
         });
 
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'SAVE_ROLE',
+                module: 'WorkerRole',
+                recordId: null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         console.error("SaveRoleError:", error);
         return res.status(500).json({
             success: false,
@@ -146,8 +185,7 @@ exports.deleteWorkerRole = async (req, res) => {
         }
 
         const role = await WorkerRole.findOne(
-            { assignedWorkers: workerId },
-            { _id: 1 }
+            { assignedWorkers: workerId }
         );
 
         if (!role) {
@@ -157,7 +195,28 @@ exports.deleteWorkerRole = async (req, res) => {
             });
         }
 
+        const oldRoleSnapshot = role && typeof role.toObject === 'function' ? role.toObject() : role;
+
         await WorkerRole.findByIdAndDelete(role._id);
+
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'DELETE_ROLE',
+                module: 'WorkerRole',
+                recordId: role._id,
+                oldData: oldRoleSnapshot,
+                newData: null,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for deleteWorkerRole:", logError);
+        }
 
         return res.status(200).json({
             success: true,
@@ -165,6 +224,22 @@ exports.deleteWorkerRole = async (req, res) => {
         });
 
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'DELETE_ROLE',
+                module: 'WorkerRole',
+                recordId: null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         console.error("DeleteWorkerRoleError:", error);
 
         return res.status(500).json({

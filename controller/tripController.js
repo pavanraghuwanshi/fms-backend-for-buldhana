@@ -6,6 +6,7 @@ const Builty = require("../model/builtyModel");
 const WalletLedger = require("../model/WalletLedger");
 const Device = require("../model/deviceModel");
 const { unassignVehicleAndDriver } = require("../utils/helperFunctions");
+const { logAction } = require("../utils/logger");
 
 exports.createTrip = async (req, res) => {
   try {
@@ -55,8 +56,44 @@ exports.createTrip = async (req, res) => {
       date: new Date()
     });
     await initialDeposit.save();
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'Trip',
+        recordId: trip._id,
+        oldData: null,
+        newData: trip && typeof trip.toObject === 'function' ? trip.toObject() : trip,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createTrip:", logError);
+    }
+
     return res.status(201).json(trip);
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Trip',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) { }
+
     return res.status(400).json({
       success: false,
       message: error.message,
@@ -131,14 +168,14 @@ const buildTripQuery = async (user, queryParams) => {
     filters.push({ driverId: { $in: driverIds } });
   }
 
- if (tpNo || docNo) {
+  if (tpNo || docNo) {
     const builtyQuery = {};
     if (tpNo) builtyQuery.tpNo = { $regex: tpNo, $options: "i" };
     if (docNo) builtyQuery.docNo = { $regex: docNo, $options: "i" };
 
     const builties = await Builty.find(builtyQuery).select("_id");
     const builtyIds = builties.map((b) => b._id);
-    
+
     // Check both builtyId and builtyIds here as well
     filters.push({
       $or: [
@@ -272,6 +309,7 @@ exports.updateTrip = async (req, res) => {
     }
 
     const tripId = req.params.tripId;
+    const oldTripSnapshot = await Trip.findById(tripId).lean();
 
     if (req.body.status === "completed") {
       const subtrips = await Subtrip.find({ tripId }).select("status").lean();
@@ -381,6 +419,25 @@ exports.updateTrip = async (req, res) => {
         });
       }
 
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'UPDATE',
+          module: 'Trip',
+          recordId: trip._id,
+          oldData: oldTripSnapshot,
+          newData: trip && typeof trip.toObject === 'function' ? trip.toObject() : trip,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for updateTrip user:", logError);
+      }
+
       return res.status(200).json({
         success: true,
         message: "Trip updated successfully",
@@ -461,6 +518,25 @@ exports.updateTrip = async (req, res) => {
         });
       }
 
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'Driver',
+          action: 'UPDATE',
+          module: 'Trip',
+          recordId: updatedTrip._id,
+          oldData: oldTripSnapshot,
+          newData: updatedTrip && typeof updatedTrip.toObject === 'function' ? updatedTrip.toObject() : updatedTrip,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for updateTrip driver:", logError);
+      }
+
       return res.status(200).json({
         success: true,
         message: "Trip status updated successfully",
@@ -468,6 +544,22 @@ exports.updateTrip = async (req, res) => {
       });
     }
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Trip',
+        recordId: req.params?.tripId || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) { }
+
     return res.status(400).json({
       success: false,
       message: error.message,
@@ -556,6 +648,7 @@ exports.completeTrip = async (req, res) => {
       });
     }
 
+    const oldTripSnapshot = tripCheck && typeof tripCheck.toObject === 'function' ? tripCheck.toObject() : tripCheck;
     let trip;
 
     if (req.user.role === "user") {
@@ -583,6 +676,25 @@ exports.completeTrip = async (req, res) => {
       }
 
       await unassignVehicleAndDriver(trip.vehicleId, trip.driverId);
+
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'COMPLETE',
+          module: 'Trip',
+          recordId: trip._id,
+          oldData: oldTripSnapshot,
+          newData: trip && typeof trip.toObject === 'function' ? trip.toObject() : trip,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for completeTrip user:", logError);
+      }
 
       return res.status(200).json({
         success: true,
@@ -631,6 +743,25 @@ exports.completeTrip = async (req, res) => {
 
       await unassignVehicleAndDriver(updatedTrip.vehicleId || tripCheck.vehicleId, updatedTrip.driverId || tripCheck.driverId);
 
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'Driver',
+          action: 'COMPLETE',
+          module: 'Trip',
+          recordId: updatedTrip._id,
+          oldData: oldTripSnapshot,
+          newData: updatedTrip && typeof updatedTrip.toObject === 'function' ? updatedTrip.toObject() : updatedTrip,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for completeTrip driver:", logError);
+      }
+
       return res.status(200).json({
         success: true,
         message: "Trip completed successfully",
@@ -638,6 +769,22 @@ exports.completeTrip = async (req, res) => {
       });
     }
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'COMPLETE',
+        module: 'Trip',
+        recordId: req.params?.tripId || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) { }
+
     return res.status(400).json({
       success: false,
       message: error.message,
@@ -666,6 +813,8 @@ exports.deleteTrip = async (req, res) => {
       });
     }
 
+    const oldTripSnapshot = trip && typeof trip.toObject === 'function' ? trip.toObject() : trip;
+
     // Delete all ledger entries related to this trip
     await WalletLedger.deleteMany({ tripId: trip._id });
 
@@ -675,11 +824,46 @@ exports.deleteTrip = async (req, res) => {
       currentTripId: null,
     });
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'Trip',
+        recordId: trip._id,
+        oldData: oldTripSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteTrip:", logError);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Trip deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'Trip',
+        recordId: req.params?.tripId || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) { }
+
     return res.status(500).json({
       success: false,
       message: error.message,
@@ -843,10 +1027,31 @@ exports.tripCheckIn = async (req, res) => {
       });
     }
 
+    const oldTripSnapshot = trip && typeof trip.toObject === 'function' ? trip.toObject() : trip;
+
     trip.driverCheckIn = true;
     trip.startOdometerReading = Number(startOdometerReading);
 
     await trip.save();
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'Driver',
+        action: 'CHECK_IN',
+        module: 'Trip',
+        recordId: trip._id,
+        oldData: oldTripSnapshot,
+        newData: trip && typeof trip.toObject === 'function' ? trip.toObject() : trip,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for tripCheckIn:", logError);
+    }
 
     return res.status(200).json({
       success: true,
@@ -854,6 +1059,22 @@ exports.tripCheckIn = async (req, res) => {
       startOdometerReading: trip.startOdometerReading,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CHECK_IN',
+        module: 'Trip',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) { }
+
     return res.status(500).json({
       success: false,
       message: error.message,

@@ -2,6 +2,7 @@ const Builty = require("../model/builtyModel");
 const BuiltyInvoice = require("../model/builtyInvoiceModel");
 const fs = require("fs");
 const path = require("path");
+const { logAction } = require("../utils/logger");
 
 exports.createOrReplaceBuiltyInvoice = async (req, res) => {
   try {
@@ -81,6 +82,7 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
     });
 
     const isNewInvoice = !invoice;
+    const oldInvoiceSnapshot = invoice && typeof invoice.toObject === 'function' ? invoice.toObject() : invoice;
 
     if (invoice && invoice.paymentStatus === "Paid") {
       return res.status(400).json({
@@ -167,12 +169,47 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
     builty.paymentStatus = builtyPaymentStatus;
     await builty.save();
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: isNewInvoice ? 'CREATE' : 'UPDATE',
+        module: 'BuiltyInvoice',
+        recordId: invoice._id,
+        oldData: isNewInvoice ? null : oldInvoiceSnapshot,
+        newData: invoice && typeof invoice.toObject === 'function' ? invoice.toObject() : invoice,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createOrReplaceBuiltyInvoice:", logError);
+    }
+
     return res.status(isNewInvoice ? 201 : 200).json({
       message: isNewInvoice  ? "Invoice created successfully" : "Invoice saved/replaced successfully",
       invoice,
       builty,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE_OR_UPDATE',
+        module: 'BuiltyInvoice',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error creating invoice",
       error: error.message,
@@ -194,6 +231,8 @@ exports.updateInvoicePaymentStatus = async (req, res) => {
     if (!invoice) {
       return res.status(404).json({ message: "Invoice not found" });
     }
+
+    const oldInvoiceSnapshot = invoice && typeof invoice.toObject === 'function' ? invoice.toObject() : invoice;
 
     if (!["Unpaid", "Partial", "Paid"].includes(paymentStatus)) {
       return res.status(400).json({
@@ -219,11 +258,46 @@ exports.updateInvoicePaymentStatus = async (req, res) => {
       paymentStatus,
     });
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE_PAYMENT_STATUS',
+        module: 'BuiltyInvoice',
+        recordId: invoice._id,
+        oldData: oldInvoiceSnapshot,
+        newData: invoice && typeof invoice.toObject === 'function' ? invoice.toObject() : invoice,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateInvoicePaymentStatus:", logError);
+    }
+
     return res.status(200).json({
       message: "Invoice payment status updated successfully",
       invoice,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE_PAYMENT_STATUS',
+        module: 'BuiltyInvoice',
+        recordId: req.params?.invoiceId || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error updating invoice payment status",
       error: error.message,

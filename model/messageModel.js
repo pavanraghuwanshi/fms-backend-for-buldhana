@@ -7,6 +7,7 @@ const messageSchema = new mongoose.Schema(
         receiverId: { type: String, required: true },
         text: { type: String, required: true },
         status: { type: String, enum: ["sent", "delivered", "read"], default: "sent" },
+        tempId: { type: String, required: false, index: true },
     },
     {
         timestamps: {

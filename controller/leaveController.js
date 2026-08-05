@@ -1,6 +1,7 @@
 const LeaveRequest = require("../model/leaveModel");
 const Driver = require("../model/driverModel");
 const Attendance = require("../model/attendanceModel");
+const { logAction } = require("../utils/logger");
 
 exports.applyLeaveByDriver = async (req, res) => {
   try {
@@ -32,8 +33,44 @@ exports.applyLeaveByDriver = async (req, res) => {
       description,
     });
     await leave.save();
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'LeaveRequest',
+        recordId: leave._id,
+        oldData: null,
+        newData: leave && typeof leave.toObject === 'function' ? leave.toObject() : leave,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for applyLeaveByDriver:", logError);
+    }
+
     return res.status(201).json({ message: "Leave request submitted", leave });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'LeaveRequest',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({ error: "Failed to submit leave request" + error.message });
   }
 };
@@ -207,6 +244,9 @@ exports.updateLeave = async (req, res) => {
   const leaveId = req.params.leaveId;
   const role = req.user.role;
   try {
+    const oldLeave = await LeaveRequest.findById(leaveId);
+    const oldLeaveSnapshot = oldLeave && typeof oldLeave.toObject === 'function' ? oldLeave.toObject() : oldLeave;
+
     if (role === "user") {
       const { status } = req.body;
       const leave = await LeaveRequest.findByIdAndUpdate(
@@ -239,6 +279,25 @@ exports.updateLeave = async (req, res) => {
         await Attendance.insertMany(attendanceRecords);
       }
 
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'UPDATE',
+          module: 'LeaveRequest',
+          recordId: leaveId,
+          oldData: oldLeaveSnapshot,
+          newData: leave && typeof leave.toObject === 'function' ? leave.toObject() : leave,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for updateLeave user:", logError);
+      }
+
       return res.status(200).json({ message: `Leave request ${status.toLowerCase()}`, leave });
     }
     if (role === "driver") {
@@ -253,9 +312,45 @@ exports.updateLeave = async (req, res) => {
       if (description) leaveRequest.description = description;
 
       await leaveRequest.save();
+
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'UPDATE',
+          module: 'LeaveRequest',
+          recordId: leaveId,
+          oldData: oldLeaveSnapshot,
+          newData: leaveRequest && typeof leaveRequest.toObject === 'function' ? leaveRequest.toObject() : leaveRequest,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for updateLeave driver:", logError);
+      }
+
       return res.status(200).json({ message: "Leave request updated successfully.", leaveRequest });
     }
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'LeaveRequest',
+        recordId: req.params?.leaveId || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error(error);
     return res.status(500).json({ message: "An error occurred while updating the leave request." + error.message });
   }
@@ -270,7 +365,29 @@ exports.deleteLeave = async (req, res) => {
       const leaveRequest = await LeaveRequest.findById(leaveId);
       if (!leaveRequest) return res.status(404).json({ message: "Leave request not found" });
 
+      const oldLeaveSnapshot = leaveRequest && typeof leaveRequest.toObject === 'function' ? leaveRequest.toObject() : leaveRequest;
+
       await LeaveRequest.findByIdAndDelete(leaveId);
+
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'DELETE',
+          module: 'LeaveRequest',
+          recordId: leaveId,
+          oldData: oldLeaveSnapshot,
+          newData: null,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for deleteLeave user:", logError);
+      }
+
       return res.status(200).json({ message: "Leave request deleted successfully" });
     }
 
@@ -281,10 +398,48 @@ exports.deleteLeave = async (req, res) => {
       }
       if (leaveRequest.status !== "Pending") return res.status(400).json({ message: "Only pending leave requests can be deleted" });
 
+      const oldLeaveSnapshot = leaveRequest && typeof leaveRequest.toObject === 'function' ? leaveRequest.toObject() : leaveRequest;
+
       await LeaveRequest.findByIdAndDelete(leaveId);
+
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'DELETE',
+          module: 'LeaveRequest',
+          recordId: leaveId,
+          oldData: oldLeaveSnapshot,
+          newData: null,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for deleteLeave driver:", logError);
+      }
+
       return res.status(200).json({ message: "Leave request deleted successfully" });
     }
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'LeaveRequest',
+        recordId: req.params?.leaveId || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({ error: "Failed to delete leave request" + error.message });
   }
 };

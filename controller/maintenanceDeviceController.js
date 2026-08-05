@@ -1,6 +1,7 @@
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const mongoose = require('mongoose');
 const Driver = require("../model/driverModel");
+const { logAction } = require("../utils/logger");
 
 exports.createVehicleMaster = async (req, res) => {
   try {
@@ -78,11 +79,46 @@ exports.createVehicleMaster = async (req, res) => {
       supervisorModel,
     });
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'MaintenanceDevice',
+        recordId: vehicle._id,
+        oldData: null,
+        newData: vehicle && typeof vehicle.toObject === 'function' ? vehicle.toObject() : vehicle,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createVehicleMaster:", logError);
+    }
+
     return res.status(201).json({
       message: "Vehicle created successfully",
       vehicle,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'MaintenanceDevice',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error creating vehicle",
       error: error.message,
@@ -200,6 +236,9 @@ exports.updateVehicleMaster = async (req, res) => {
       req.body.supervisorId = req.user.id;
     }
 
+    const oldVehicle = await VehicleMaster.findOne(query);
+    const oldVehicleSnapshot = oldVehicle && typeof oldVehicle.toObject === 'function' ? oldVehicle.toObject() : oldVehicle;
+
     if (req.body.vehicleNumber) {
       const existingVehicle = await VehicleMaster.findOne({
         vehicleNumber: req.body.vehicleNumber.toUpperCase(),
@@ -223,11 +262,46 @@ exports.updateVehicleMaster = async (req, res) => {
       return res.status(404).json({ message: "Vehicle not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'MaintenanceDevice',
+        recordId: req.params.id,
+        oldData: oldVehicleSnapshot,
+        newData: vehicle && typeof vehicle.toObject === 'function' ? vehicle.toObject() : vehicle,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateVehicleMaster:", logError);
+    }
+
     return res.status(200).json({
       message: "Vehicle updated successfully",
       vehicle,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'MaintenanceDevice',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error updating vehicle",
       error: error.message,
@@ -249,16 +323,54 @@ exports.deleteVehicleMaster = async (req, res) => {
       query.supervisorId = req.user.id;
     }
 
+    const oldVehicle = await VehicleMaster.findOne(query);
+    const oldVehicleSnapshot = oldVehicle && typeof oldVehicle.toObject === 'function' ? oldVehicle.toObject() : oldVehicle;
+
     const vehicle = await VehicleMaster.findOneAndDelete(query);
 
     if (!vehicle) {
       return res.status(404).json({ message: "Vehicle not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'MaintenanceDevice',
+        recordId: req.params.id,
+        oldData: oldVehicleSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteVehicleMaster:", logError);
+    }
+
     return res.status(200).json({
       message: "Vehicle deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'MaintenanceDevice',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error deleting vehicle",
       error: error.message,
@@ -465,6 +577,8 @@ exports.updateVehicleStatus = async (req, res) => {
       });
     }
 
+    const oldVehicleSnapshot = vehicle && typeof vehicle.toObject === 'function' ? vehicle.toObject() : vehicle;
+
     if (isAssigned === false && vehicle.isAssigned === false) {
       return res.status(400).json({ 
         success: false, 
@@ -488,6 +602,25 @@ exports.updateVehicleStatus = async (req, res) => {
       await unassignDriverFromVehicle(vehicle._id);
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE_STATUS',
+        module: 'MaintenanceDevice',
+        recordId: vehicle._id,
+        oldData: oldVehicleSnapshot,
+        newData: vehicle && typeof vehicle.toObject === 'function' ? vehicle.toObject() : vehicle,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateVehicleStatus:", logError);
+    }
+
     return res.status(200).json({
       success: true,
       message: `Vehicle status successfully updated to ${isAssigned ? 'Assigned' : 'Available'}`,
@@ -495,6 +628,22 @@ exports.updateVehicleStatus = async (req, res) => {
     });
 
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE_STATUS',
+        module: 'MaintenanceDevice',
+        recordId: req.params?.vehicleId || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Update Vehicle Status Error:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
   }

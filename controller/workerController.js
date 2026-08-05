@@ -3,6 +3,7 @@ const { encrypt, comparePassword, decrypt } = require("../utils/crypto");
 const jwt = require("jsonwebtoken");
 const { compressImage } = require("../utils/helperFunctions");
 const WorkerProfileImage = require("../model/workerProfileImgModel");
+const { logAction } = require("../utils/logger");
 
 exports.workerLogin = async (req, res) => {
     try {
@@ -34,6 +35,23 @@ exports.workerLogin = async (req, res) => {
             process.env.JWT_SECRET,
         );
 
+        try {
+            await logAction({
+                userId: worker._id,
+                userType: 'Worker',
+                action: 'LOGIN',
+                module: 'Worker',
+                recordId: worker._id,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for workerLogin:", logError);
+        }
+
         return res.status(200).json({
             success: true,
             message: "Login successful",
@@ -49,6 +67,22 @@ exports.workerLogin = async (req, res) => {
         });
 
     } catch (error) {
+        try {
+            await logAction({
+                userId: null,
+                userType: 'Worker',
+                action: 'LOGIN',
+                module: 'Worker',
+                recordId: null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         console.error("Login error:", error);
         return res.status(500).json({ message: "Server error: " + error.message });
     }
@@ -95,8 +129,44 @@ exports.createWorker = async (req, res) => {
             });
 
         worker.password = undefined;
+
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'CREATE',
+                module: 'Worker',
+                recordId: worker._id,
+                oldData: null,
+                newData: worker && typeof worker.toObject === 'function' ? worker.toObject() : worker,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for createWorker:", logError);
+        }
+
         return res.status(201).json({ success: true, message: "Worker created successfully", worker });
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'CREATE',
+                module: 'Worker',
+                recordId: null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         if (error.code === 11000 && error.keyPattern && error.keyPattern.username) return res.status(400).json({ message: "Branch name already exists" });
         return res.status(500).json({ message: error.message });
     }
@@ -132,6 +202,11 @@ exports.updateWorker = async (req, res) => {
     try {
         const { id } = req.params;
         const { name, email, phone, password } = req.body;
+
+        const existingWorker = await Worker.findById(id);
+        const oldWorkerSnapshot = existingWorker && typeof existingWorker.toObject === 'function' ? existingWorker.toObject() : existingWorker;
+        if (oldWorkerSnapshot) oldWorkerSnapshot.password = undefined;
+
         const updateData = {};
         if (name) updateData.name = name.trim();
         if (email) updateData.email = email.trim().toLowerCase();
@@ -165,11 +240,47 @@ exports.updateWorker = async (req, res) => {
         const worker = await Worker.findByIdAndUpdate(id, updateData, { new: true });
         if (!worker) return res.status(404).json({ message: "Worker not found" });
         worker.password = undefined;
+
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'UPDATE',
+                module: 'Worker',
+                recordId: id,
+                oldData: oldWorkerSnapshot,
+                newData: worker && typeof worker.toObject === 'function' ? worker.toObject() : worker,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for updateWorker:", logError);
+        }
+
         return res.status(200).json({
             message: "Worker updated successfully",
             worker,
         });
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'UPDATE',
+                module: 'Worker',
+                recordId: req.params?.id || null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         return res.status(500).json({ message: "Error updating worker", error: error.message });
     }
 };
@@ -179,8 +290,47 @@ exports.deleteWorker = async (req, res) => {
         const { id } = req.params;
         const worker = await Worker.findByIdAndDelete(id);
         if (!worker) return res.status(404).json({ message: "Worker not found" });
+
+        const oldWorkerSnapshot = worker && typeof worker.toObject === 'function' ? worker.toObject() : worker;
+        if (oldWorkerSnapshot) oldWorkerSnapshot.password = undefined;
+
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'DELETE',
+                module: 'Worker',
+                recordId: id,
+                oldData: oldWorkerSnapshot,
+                newData: null,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for deleteWorker:", logError);
+        }
+
         return res.status(200).json({ message: "Worker deleted successfully" });
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'DELETE',
+                module: 'Worker',
+                recordId: req.params?.id || null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         return res.status(500).json({ message: "Error deleting worker", error: error.message });
     }
 };
@@ -221,3 +371,6 @@ exports.getWorkerProfileImage = async (req, res) => {
         return res.status(500).json({ error: error.message });
     }
 };
+
+const { saveOrUpdateToken } = require("./vendorController");
+exports.saveOrUpdateToken = saveOrUpdateToken;

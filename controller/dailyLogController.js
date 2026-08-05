@@ -5,6 +5,7 @@ const DailyLogSignatureImage = require('../model/dailyLogSignatureImageModel'); 
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Driver = require('../model/driverModel');
 const { compressImage, getDuration } = require('../utils/helperFunctions');
+const { logAction } = require('../utils/logger');
 
 exports.createDailyLog = async (req, res) => {
     try {
@@ -95,8 +96,43 @@ exports.createDailyLog = async (req, res) => {
             ...(signatureImageDoc && { signatureId: signatureImageDoc?._id }),
         });
 
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'CREATE',
+                module: 'DailyLog',
+                recordId: newLog._id,
+                oldData: null,
+                newData: newLog && typeof newLog.toObject === 'function' ? newLog.toObject() : newLog,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for createDailyLog:", logError);
+        }
+
         return res.status(201).json(newLog);
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'CREATE',
+                module: 'DailyLog',
+                recordId: null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         console.error("Error creating daily log:", error.message);
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -171,6 +207,8 @@ exports.updateDailyLog = async (req, res) => {
             return res.status(404).json({ success: false, message: "Daily log not found" });
         }
 
+        const oldLogSnapshot = log && typeof log.toObject === 'function' ? log.toObject() : log;
+
         if (req.user.role !== "driver" && req.user.role !== "user") {
             return res.status(403).json({ success: false, message: "Unauthorized access" });
         }
@@ -214,8 +252,43 @@ exports.updateDailyLog = async (req, res) => {
             { new: true }
         );
 
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'UPDATE',
+                module: 'DailyLog',
+                recordId: logId,
+                oldData: oldLogSnapshot,
+                newData: updatedLog && typeof updatedLog.toObject === 'function' ? updatedLog.toObject() : updatedLog,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for updateDailyLog:", logError);
+        }
+
         return res.status(200).json({ success: true, message: "Daily log updated", data: updatedLog });
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'UPDATE',
+                module: 'DailyLog',
+                recordId: req.params?.id || null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         console.error("Error updating daily log:", error.message);
         return res.status(500).json({ success: false, message: "Server error" + error.message });
     }
@@ -235,6 +308,8 @@ exports.deleteDailyLog = async (req, res) => {
             return res.status(404).json({ success: false, message: "DailyLog not found" });
         }
 
+        const oldLogSnapshot = log && typeof log.toObject === 'function' ? log.toObject() : log;
+
         if (req.user.role !== "driver" && req.user.role !== "user") {
             return res.status(403).json({ success: false, message: "Unauthorized access" });
         }
@@ -250,8 +325,43 @@ exports.deleteDailyLog = async (req, res) => {
 
         await DailyLog.findByIdAndDelete(id);
 
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'DELETE',
+                module: 'DailyLog',
+                recordId: id,
+                oldData: oldLogSnapshot,
+                newData: null,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for deleteDailyLog:", logError);
+        }
+
         return res.status(200).json({ success: true, message: "DailyLog deleted successfully" });
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'DELETE',
+                module: 'DailyLog',
+                recordId: req.params?.id || null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         console.error("Error deleting DailyLog:", error.message);
         return res.status(500).json({ success: false, message: "Server error" + error.message });
     }

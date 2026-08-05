@@ -1,4 +1,5 @@
 const Location = require("../model/location");
+const { logAction } = require("../utils/logger");
 
 
 const roleModelMap = {
@@ -65,11 +66,46 @@ exports.createLocation = async (req, res) => {
 
     const location = await Location.create(payload);
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'Location',
+        recordId: location._id,
+        oldData: null,
+        newData: location && typeof location.toObject === 'function' ? location.toObject() : location,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createLocation:", logError);
+    }
+
     return res.status(201).json({
       message: "Location created successfully",
       location,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Location',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error creating location",
       error: error.message,
@@ -184,6 +220,8 @@ exports.updateLocation = async (req, res) => {
       return res.status(404).json({ message: "Location not found" });
     }
 
+    const oldLocationSnapshot = location && typeof location.toObject === 'function' ? location.toObject() : location;
+
     const { locationName, latitude, longitude, status } = req.body;
 
     if (locationName) location.locationName = locationName.trim();
@@ -193,11 +231,46 @@ exports.updateLocation = async (req, res) => {
 
     await location.save();
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'Location',
+        recordId: location._id,
+        oldData: oldLocationSnapshot,
+        newData: location && typeof location.toObject === 'function' ? location.toObject() : location,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateLocation:", logError);
+    }
+
     return res.status(200).json({
       message: "Location updated successfully",
       location,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Location',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error updating location",
       error: error.message,
@@ -220,16 +293,54 @@ exports.deleteLocation = async (req, res) => {
       query.supervisorId = req.user.supervisor;
     }
 
+    const oldLocation = await Location.findOne(query);
+    const oldLocationSnapshot = oldLocation && typeof oldLocation.toObject === 'function' ? oldLocation.toObject() : oldLocation;
+
     const location = await Location.findOneAndDelete(query);
 
     if (!location) {
       return res.status(404).json({ message: "Location not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'Location',
+        recordId: req.params.id,
+        oldData: oldLocationSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteLocation:", logError);
+    }
+
     return res.status(200).json({
       message: "Location deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'Location',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error deleting location",
       error: error.message,

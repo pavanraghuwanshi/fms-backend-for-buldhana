@@ -1,6 +1,7 @@
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const VehicleDocument = require("../model/vehicleDocumentModel");
 const { compressImage } = require("../utils/helperFunctions");
+const { logAction } = require("../utils/logger");
 
 
 exports.addVehicleDocument = async (req, res) => {
@@ -65,6 +66,25 @@ exports.addVehicleDocument = async (req, res) => {
           }
         );
 
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'User',
+            action: 'CREATE',
+            module: 'VehicleDocument',
+            recordId: existingDocument._id,
+            oldData: null,
+            newData: null,
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            status: 'SUCCESS'
+          });
+        } catch (logError) {
+          console.error("Audit log failed for addVehicleDocument Insurance:", logError);
+        }
+
         return res
           .status(201)
           .json({ message: "Vehicle document saved successfully" });
@@ -89,6 +109,25 @@ exports.addVehicleDocument = async (req, res) => {
           }
         );
 
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'User',
+            action: 'CREATE',
+            module: 'VehicleDocument',
+            recordId: existingDocument._id,
+            oldData: null,
+            newData: null,
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            status: 'SUCCESS'
+          });
+        } catch (logError) {
+          console.error("Audit log failed for addVehicleDocument RC:", logError);
+        }
+
         return res
           .status(201)
           .json({ message: "Vehicle document saved successfully" });
@@ -112,6 +151,25 @@ exports.addVehicleDocument = async (req, res) => {
             },
           }
         );
+
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'User',
+            action: 'CREATE',
+            module: 'VehicleDocument',
+            recordId: existingDocument._id,
+            oldData: null,
+            newData: null,
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            status: 'SUCCESS'
+          });
+        } catch (logError) {
+          console.error("Audit log failed for addVehicleDocument PUC:", logError);
+        }
 
         return res
           .status(201)
@@ -142,6 +200,25 @@ exports.addVehicleDocument = async (req, res) => {
             },
           }
         );
+
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'User',
+            action: 'CREATE',
+            module: 'VehicleDocument',
+            recordId: existingDocument._id,
+            oldData: null,
+            newData: null,
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            status: 'SUCCESS'
+          });
+        } catch (logError) {
+          console.error("Audit log failed for addVehicleDocument Fitness:", logError);
+        }
 
         return res
           .status(201)
@@ -184,11 +261,46 @@ exports.addVehicleDocument = async (req, res) => {
 
     await newDocument.save();
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'VehicleDocument',
+        recordId: newDocument._id,
+        oldData: null,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for addVehicleDocument:", logError);
+    }
+
     return res.status(201).json({
       message: "Vehicle document saved successfully",
       data: newDocument,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'VehicleDocument',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error saving vehicle document",
       error: error.message,
@@ -238,9 +350,44 @@ exports.updateVehicleDocument = async (req, res) => {
             { new: true }
         );
 
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'User',
+            action: 'UPDATE',
+            module: 'VehicleDocument',
+            recordId: updatedDocument._id,
+            oldData: null,
+            newData: null,
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            status: 'SUCCESS'
+          });
+        } catch (logError) {
+          console.error("Audit log failed for updateVehicleDocument:", logError);
+        }
+
         return res.status(200).json({ message: "Vehicle document updated successfully", data: updatedDocument });
 
     } catch (error) {
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'System',
+            action: 'UPDATE',
+            module: 'VehicleDocument',
+            recordId: req.params?.id || null,
+            status: 'FAILED',
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            error: error.message
+          });
+        } catch (logErr) {}
+
         return res.status(500).json({ message: "Error updating vehicle document", error: error.message });
     }
 };
@@ -307,6 +454,26 @@ exports.deleteVehicleDocumentImage = async (req, res) => {
             await VehicleDocument.findOneAndUpdate({ vehicleId }, {
                 $unset: { 'documents.Insurance': 1 }
             }).select(`documents.${field}`);
+
+            try {
+              await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'DELETE_IMAGE',
+                module: 'VehicleDocument',
+                recordId: vehicleDocument._id,
+                oldData: null,
+                newData: null,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+              });
+            } catch (logError) {
+              console.error("Audit log failed for deleteVehicleDocumentImage Insurance:", logError);
+            }
+
             return res.status(200).json({ message: "Vehicle document deleted successfully" });
         } else if (field === 'rc') {
             if (!vehicleDocument.documents.rc.image.base64Data) {
@@ -315,6 +482,26 @@ exports.deleteVehicleDocumentImage = async (req, res) => {
             await VehicleDocument.findOneAndUpdate({ vehicleId }, {
                 $unset: { 'documents.rc': 1 }
             }).select(`documents.${field}`);
+
+            try {
+              await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'DELETE_IMAGE',
+                module: 'VehicleDocument',
+                recordId: vehicleDocument._id,
+                oldData: null,
+                newData: null,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+              });
+            } catch (logError) {
+              console.error("Audit log failed for deleteVehicleDocumentImage RC:", logError);
+            }
+
             return res.status(200).json({ message: "Vehicle document deleted successfully" });
         } else if (field === 'puc') {
             if (!vehicleDocument.documents.puc.image.base64Data) {
@@ -323,6 +510,26 @@ exports.deleteVehicleDocumentImage = async (req, res) => {
             await VehicleDocument.findOneAndUpdate({ vehicleId }, {
                 $unset: { 'documents.puc': 1 }
             }).select(`documents.${field}`);
+
+            try {
+              await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'DELETE_IMAGE',
+                module: 'VehicleDocument',
+                recordId: vehicleDocument._id,
+                oldData: null,
+                newData: null,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+              });
+            } catch (logError) {
+              console.error("Audit log failed for deleteVehicleDocumentImage PUC:", logError);
+            }
+
             return res.status(200).json({ message: "Vehicle document deleted successfully" });
 
         } else if (field === 'fitnessCertificate') {
@@ -332,12 +539,48 @@ exports.deleteVehicleDocumentImage = async (req, res) => {
             await VehicleDocument.findOneAndUpdate({ vehicleId }, {
                 $unset: { 'documents.fitnessCertificate': 1 }
             }).select(`documents.${field}`);
+
+            try {
+              await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'DELETE_IMAGE',
+                module: 'VehicleDocument',
+                recordId: vehicleDocument._id,
+                oldData: null,
+                newData: null,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+              });
+            } catch (logError) {
+              console.error("Audit log failed for deleteVehicleDocumentImage Fitness:", logError);
+            }
+
             return res.status(200).json({ message: "Vehicle document deleted successfully" });
         } else {
             return res.status(400).json({ message: "Invalid field" });
         }
 
     } catch (error) {
+        try {
+          await logAction({
+            userId: req.user?._id || req.user?.id,
+            userType: req.user?.role || 'System',
+            action: 'DELETE_IMAGE',
+            module: 'VehicleDocument',
+            recordId: null,
+            status: 'FAILED',
+            ipAddress: req.ip,
+            userAgent: req.headers ? req.headers['user-agent'] : null,
+            apiEndpoint: req.originalUrl,
+            requestMethod: req.method,
+            error: error.message
+          });
+        } catch (logErr) {}
+
         return res.status(500).json({ message: "Error deleting image", error: error.message });
     }
 };

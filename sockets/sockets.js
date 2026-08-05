@@ -6,7 +6,7 @@ const Vendor = require("../model/vendor");
 const Worker = require("../model/workerModel");
 
 
-function initSockets(server) {
+function initSockets(server, app) {
     const io = new Server(server, {
         cors: {
             origin: "*",
@@ -17,6 +17,10 @@ function initSockets(server) {
             threshold: 1024,
         }
     });
+
+    if (app) {
+        app.set("io", io);
+    }
 
     io.use(async (socket, next) => {
         try {
@@ -61,7 +65,10 @@ function initSockets(server) {
 
     io.on("connection", (socket) => {
         try {
-            console.log("A new user connected", socket.user.username || "Driver...");
+            const userIdStr = String(socket.user.id);
+            socket.join(userIdStr);
+
+            console.log(`[Socket Connected] User: ${userIdStr} (${socket.user.username || socket.user.role || 'User'}), Socket: ${socket.id}`);
 
             socket.emit("connectionAcknowledged", {
                 message: "Connected to chat server",

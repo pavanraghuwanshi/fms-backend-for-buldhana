@@ -9,149 +9,7 @@ const ServiceImage = require("../model/serviceImageModel");
 const VehicleExpenseImage = require("../model/vehicleExpenseImageModel");
 const DailyVehicleDistanceCache = require("../model/dailyVehicleDistanceCacheModel");
 const { default: mongoose } = require("mongoose");
-
-
-
-// exports.setData = async (req, res) => {
-//   try {
-//     const allowedRoles = ["superadmin", "user", "driver"];
-//     if (!req.user?.role || !allowedRoles.includes(req.user.role)) {
-//       return res.status(403).json({ message: "Unauthorized Access" });
-//     }
-
-//     const {
-//       date,
-//       serviceType,
-//       description,
-//       amount,
-//       paymentMode,
-//       nextService,
-//       location,
-//       vendor,
-//       lat,
-//       long
-//     } = req.body;
-
-//     const { vehicleId } = req.query;
-
-//     if (!vehicleId) {
-//       return res.status(400).json({ message: "Vehicle ID is required" });
-//     }
-
-//     if (!date || !serviceType || !description || !amount || !paymentMode || !nextService) {
-//       return res.status(400).json({ message: "Missing required fields" });
-//     }
-
-//     if (isNaN(amount) || amount < 0) {
-//       return res.status(400).json({ message: "Invalid amount" });
-//     }
-
-//     const vehicle = await Device.findById(vehicleId).select("name user");
-//     if (!vehicle) {
-//       return res.status(404).json({ message: "Vehicle not found" });
-//     }
-
-//     const driver = await Driver.findOne({ currentVehicle: vehicleId }).select("name currentTripId");
-//     if (!driver) {
-//       return res.status(404).json({ message: "No driver assigned to this vehicle" });
-//     }
-
-//     const trip = await Trip.findById(driver.currentTripId);
-//     if (!trip) {
-//       return res.status(404).json({ message: "No active trip assigned to this driver" });
-//     }
-//     const serviceImg = req.files?.["serviceImg"]?.[0];
-//     let serviceImgId = null;
-
-//     if (serviceImg) {
-//       const { base64Data, contentType } = await compressImage(serviceImg);
-//       const imgDoc = new VehicleExpenseImage({ base64Data, contentType });
-//       await imgDoc.save();
-//       serviceImgId = imgDoc._id;
-//     }
-
-//     // Handle odometer data
-//     let odometerData = await ServiceOdometer.findOne({ vehicleId });
-//     if (!odometerData) {
-//       odometerData = new ServiceOdometer({
-//         vehicleId,
-//         currentOdometer: 0,
-//         lastService: 0,
-//         nextServiceDue: nextService
-//       });
-//       await odometerData.save();
-//     } else {
-//       odometerData.nextServiceDue = nextService;
-//       odometerData.lastService = odometerData.currentOdometer;
-//       await odometerData.save();
-//     }
-
-//     const newExpense = new Vehicleexpense({
-//       driverId: driver._id,
-//       vehicleId,
-//       vehicleName: vehicle.name,
-//       amount: parseFloat(amount),
-//       expenseType: serviceType,
-//       date: new Date(date),
-//       description,
-//       paymentMode,
-//       vendor: vendor,
-//       billImg: serviceImgId,
-//       location: location,
-//       lat: lat && lat,
-//       long: long && long
-//     });
-
-//     await newExpense.save();
-//     // Create new service with embedded lastService and nextServiceDue
-//     const newService = new Service({
-//       vehicleId,
-//       vehicleName: vehicle.name,
-//       driverId: driver._id,
-//       trip: trip._id,
-//       date: new Date(date),
-//       serviceType,
-//       serviceImg: serviceImgId,
-//       expenseId: newExpense._id,
-//       description,
-//       amount: parseFloat(amount),
-//       paymentMode,
-//       location: location,
-//       lastService: odometerData.lastService,
-//       nextServiceDue: nextService,
-//       vendor: vendor,
-//       lat: lat && lat,
-//       long: long && long
-//     });
-
-//     await newService.save();
-
-//     // Update odometer with reference to serviceId
-//     odometerData.serviceId = newService._id;
-//     await odometerData.save();
-
-//     const returnResponse = {
-//       serviceData: newService,
-//       odometerData,
-//       expenseData: newExpense,
-//       imageData: serviceImgId ? await ServiceImage.findById(serviceImgId) : null
-//     };
-
-//     return res.status(201).json({
-//       message: "Service, expense, and image data recorded successfully",
-//       data: returnResponse
-//     });
-
-//   } catch (error) {
-//     console.error("Error in setData:", error);
-//     return res.status(500).json({
-//       message: "Internal Server Error",
-//       error: error.message || "An error occurred"
-//     });
-//   }
-// };
-
-
+const { logAction } = require("../utils/logger");
 
 exports.setData = async (req, res) => {
   try {
@@ -306,12 +164,47 @@ exports.setData = async (req, res) => {
       imageData: serviceImgId ? await VehicleExpenseImage.findById(serviceImgId) : null,
     };
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'VehicleService',
+        recordId: newService._id,
+        oldData: null,
+        newData: newService && typeof newService.toObject === 'function' ? newService.toObject() : newService,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for setData:", logError);
+    }
+
     return res.status(201).json({
       message: "Service, expense, and image data recorded successfully",
       data: returnResponse,
     });
 
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'VehicleService',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Error in setData:", error);
     return res.status(500).json({
       message: "Internal Server Error",
@@ -350,6 +243,8 @@ exports.editService = async (req, res) => {
     if (!service) {
       return res.status(404).json({ message: "Service not found." });
     }
+
+    const oldServiceSnapshot = service && typeof service.toObject === 'function' ? service.toObject() : service;
 
     // Update basic fields
     if (date) service.date = date;
@@ -407,11 +302,46 @@ exports.editService = async (req, res) => {
 
     await vehicleExpense.save();
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'VehicleService',
+        recordId: service._id,
+        oldData: oldServiceSnapshot,
+        newData: service && typeof service.toObject === 'function' ? service.toObject() : service,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for editService:", logError);
+    }
+
     return res.status(200).json({
       message: "Service updated successfully",
       data: service,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'VehicleService',
+        recordId: req.params?.serviceId || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Error editing service:", error);
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
@@ -430,17 +360,56 @@ exports.deleteService = async (req, res) => {
       return res.status(400).json({ message: "Service ID not provided." });
     }
 
+    const oldService = await Service.findById(serviceId);
+    const oldServiceSnapshot = oldService && typeof oldService.toObject === 'function' ? oldService.toObject() : oldService;
+
     const service = await Service.findByIdAndDelete(serviceId);
     if (!service) {
       return res.status(404).json({ message: "Failed to delete service." });
     }
     await Vehicleexpense.findByIdAndDelete(service.expenseId);
     const deleteImage = await VehicleExpenseImage.findByIdAndDelete(service.serviceImg);
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'VehicleService',
+        recordId: serviceId,
+        oldData: oldServiceSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteService:", logError);
+    }
+
     if (!deleteImage) {
       return res.status(404).json({ message: "Failed to delete Image, may be image not found." });
     }
     return res.status(200).json({ message: "Service deleted successfully." });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'VehicleService',
+        recordId: req.params?.serviceId || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Error deleting service:", error);
     return res.status(500).json({ message: "Internal Server Error" + error.message });
   }
@@ -531,15 +500,51 @@ exports.updateOdometer = async (req, res) => {
     }
     console.log(currentOdometer);
 
+    const oldOdometerSnapshot = odometerEntry && typeof odometerEntry.toObject === 'function' ? odometerEntry.toObject() : odometerEntry;
 
     odometerEntry.currentOdometer = currentOdometer;
     await odometerEntry.save();
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE_ODOMETER',
+        module: 'VehicleService',
+        recordId: odometerEntry._id,
+        oldData: oldOdometerSnapshot,
+        newData: odometerEntry && typeof odometerEntry.toObject === 'function' ? odometerEntry.toObject() : odometerEntry,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateOdometer:", logError);
+    }
 
     return res.status(200).json({
       message: "Odometer updated successfully",
       data: odometerEntry
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE_ODOMETER',
+        module: 'VehicleService',
+        recordId: req.params?.vehicleId || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Error updating odometer:", error);
     return res.status(500).json({ message: "Internal Server Error" + error.message });
   }

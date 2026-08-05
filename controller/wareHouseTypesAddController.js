@@ -2,6 +2,7 @@ const Warehouse = require("../model/wareHouseAddModel");
 const ProductList = require("../model/wareHouseProductAddModel");
 const Worker = require("../model/workerModel");
 const mongoose = require("mongoose"); 
+const { logAction } = require("../utils/logger");
 
 
 //CREATE Warehouse
@@ -44,12 +45,47 @@ exports.createWarehouse = async (req, res) => {
       createdBy: id,   // 🔥 audit
     });
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'Warehouse',
+        recordId: warehouse._id,
+        oldData: null,
+        newData: warehouse && typeof warehouse.toObject === 'function' ? warehouse.toObject() : warehouse,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createWarehouse:", logError);
+    }
+
     return res.status(201).json({
       msg: "Warehouse created successfully",
       data: warehouse,
     });
 
   } catch (err) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Warehouse',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: err.message
+      });
+    } catch (logErr) {}
+
     console.error(err);
     return res.status(500).json({
       msg: "Error creating warehouse",
@@ -161,7 +197,7 @@ exports.getWarehouseById = async (req, res) => {
 exports.updateWarehouse = async (req, res) => {
   try {
     const warehouseId = req.params.id;
-const { role, id } = req.user;
+    const { role, id } = req.user;
 
     //Only supervisor allowed
     if (role !== "user") {
@@ -176,15 +212,53 @@ const { role, id } = req.user;
       userId: id, // ownership check
     };
 
+    const oldWarehouse = await Warehouse.findOne(filter);
+    const oldWarehouseSnapshot = oldWarehouse && typeof oldWarehouse.toObject === 'function' ? oldWarehouse.toObject() : oldWarehouse;
+
     const updated = await Warehouse.findOneAndUpdate(filter, req.body, { new: true });
 
     if (!updated) {
       return res.status(404).json({ msg: "Warehouse not found or unauthorized" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'Warehouse',
+        recordId: warehouseId,
+        oldData: oldWarehouseSnapshot,
+        newData: updated && typeof updated.toObject === 'function' ? updated.toObject() : updated,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateWarehouse:", logError);
+    }
+
     res.status(200).json({ msg: "Warehouse updated", data: updated });
 
   } catch (err) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Warehouse',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: err.message
+      });
+    } catch (logErr) {}
+
     res.status(500).json({ msg: "Error updating warehouse", error: err.message });
   }
 };
@@ -195,7 +269,7 @@ exports.deleteWarehouse = async (req, res) => {
   try {
     const warehouseId = req.params.id;
 
-   const { role, id } = req.user;
+    const { role, id } = req.user;
 
     //Only supervisor allowed
     if (role !== "user") {
@@ -210,15 +284,53 @@ exports.deleteWarehouse = async (req, res) => {
       userId: id, // ownership check
     };
 
+    const oldWarehouse = await Warehouse.findOne(filter);
+    const oldWarehouseSnapshot = oldWarehouse && typeof oldWarehouse.toObject === 'function' ? oldWarehouse.toObject() : oldWarehouse;
+
     const deleted = await Warehouse.findOneAndDelete(filter);
 
     if (!deleted) {
       return res.status(404).json({ msg: "Warehouse not found or unauthorized" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'Warehouse',
+        recordId: warehouseId,
+        oldData: oldWarehouseSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteWarehouse:", logError);
+    }
+
     res.status(200).json({ msg: "Warehouse deleted" });
 
   } catch (err) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'Warehouse',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: err.message
+      });
+    } catch (logErr) {}
+
     res.status(500).json({ msg: "Error deleting warehouse", error: err.message });
   }
 };
@@ -309,12 +421,47 @@ exports.createProduct = async (req, res) => {
       userId: ownerUserId
     });
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'WarehouseProductList',
+        recordId: newProduct._id,
+        oldData: null,
+        newData: newProduct && typeof newProduct.toObject === 'function' ? newProduct.toObject() : newProduct,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createProduct:", logError);
+    }
+
     return res.status(201).json({
       msg: "Product created successfully",
       data: newProduct
     });
 
   } catch (err) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'WarehouseProductList',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: err.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       msg: "Error creating product",
       error: err.message
@@ -457,6 +604,9 @@ exports.updateProduct = async (req, res) => {
 
     // Superadmin → no ownership restriction
 
+    const oldProduct = await ProductList.findOne(filter);
+    const oldProductSnapshot = oldProduct && typeof oldProduct.toObject === 'function' ? oldProduct.toObject() : oldProduct;
+
     const updated = await ProductList.findOneAndUpdate(
       filter,
       req.body,
@@ -469,12 +619,47 @@ exports.updateProduct = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'WarehouseProductList',
+        recordId: productId,
+        oldData: oldProductSnapshot,
+        newData: updated && typeof updated.toObject === 'function' ? updated.toObject() : updated,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateProduct:", logError);
+    }
+
     return res.status(200).json({
       message: "Product updated successfully",
       data: updated,
     });
 
   } catch (err) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'WarehouseProductList',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: err.message
+      });
+    } catch (logErr) {}
+
     console.error("UPDATE PRODUCT ERROR:", err);
     return res.status(500).json({
       message: "Error updating product",
@@ -514,6 +699,9 @@ exports.deleteProduct = async (req, res) => {
 
     // Superadmin → no ownership restriction
 
+    const oldProduct = await ProductList.findOne(filter);
+    const oldProductSnapshot = oldProduct && typeof oldProduct.toObject === 'function' ? oldProduct.toObject() : oldProduct;
+
     const deleted = await ProductList.findOneAndDelete(filter);
 
     if (!deleted) {
@@ -522,11 +710,46 @@ exports.deleteProduct = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'WarehouseProductList',
+        recordId: productId,
+        oldData: oldProductSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteProduct:", logError);
+    }
+
     return res.status(200).json({
       message: "Product deleted successfully",
     });
 
   } catch (err) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'WarehouseProductList',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: err.message
+      });
+    } catch (logErr) {}
+
     console.error("DELETE PRODUCT ERROR:", err);
     return res.status(500).json({
       message: "Error deleting product",

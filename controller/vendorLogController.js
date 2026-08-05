@@ -132,19 +132,24 @@ exports.createLog = async (req, res) => {
     processFilePaths(req.files, logData);
 
     const log = await VendorLog.create(logData);
-    logAction({
-      userId: req.user?._id || req.user?.id || '60d5ec49f1b2c4001f8e4b8e',
-      userType: req.user.role || 'Vendor',
-      action: 'CREATE',
-      module: 'VendorLog',
-      recordId: log._id,
-      newData: log,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      apiEndpoint: req.originalUrl,
-      requestMethod: req.method,
-      status: 'SUCCESS'
-    });
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id || '60d5ec49f1b2c4001f8e4b8e',
+        userType: req.user?.role || 'Vendor',
+        action: 'CREATE',
+        module: 'VendorLog',
+        recordId: log._id,
+        oldData: null,
+        newData: log && typeof log.toObject === 'function' ? log.toObject() : log,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createLog:", logError);
+    }
 
     if (finalSupervisorId && (req.user?.role === 'vendor' || log.createdBy === 'vendor')) {
       notifySupervisorVendorExpense(finalSupervisorId, null, log.vendorId, log).catch((err) => {
@@ -159,17 +164,22 @@ exports.createLog = async (req, res) => {
     });
 
   } catch (error) {
-    logAction({
-      userId: req.user?._id || 'SYSTEM',
-      userType: req.user?.role || 'System',
-      action: 'CREATE',
-      module: 'VendorLog',
-      recordId: null, // No ID created on failure
-      status: 'FAILED',
-      ipAddress: req.ip,
-      apiEndpoint: req.originalUrl,
-      requestMethod: req.method
-    });
+    try {
+      await logAction({
+        userId: req.user?._id || 'SYSTEM',
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'VendorLog',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     rollbackUploadedFiles(req.files);
     return handleApiError(error, res);
   }
@@ -233,20 +243,24 @@ exports.patchVendorLog = async (req, res) => {
     const updatedLog = await existingLog.save();
 
     deleteFilesSilently(oldFilesToDelete);
-    logAction({
-      userId: req.user?._id || req.user?.id,
-      userType: req.user.role || 'Vendor',
-      action: 'UPDATE',
-      module: 'VendorLog',
-      recordId: logId,
-      oldData: oldDataSnapshot,
-      newData: updatedLog,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      apiEndpoint: req.originalUrl,
-      requestMethod: req.method,
-      status: 'SUCCESS'
-    });
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'Vendor',
+        action: 'UPDATE',
+        module: 'VendorLog',
+        recordId: logId,
+        oldData: oldDataSnapshot,
+        newData: updatedLog && typeof updatedLog.toObject === 'function' ? updatedLog.toObject() : updatedLog,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for patchVendorLog:", logError);
+    }
 
     if (updatedLog.supervisorId) {
       notifySupervisorVendorTaskUpdate(updatedLog.supervisorId, null, updatedLog.vendorId, updatedLog).catch((err) => {
@@ -261,18 +275,22 @@ exports.patchVendorLog = async (req, res) => {
     });
 
   } catch (error) {
-    logAction({
-      userId: req.user?._id || req.user?.id,
-      userType: req.user?.role || 'System',
-      action: 'UPDATE',
-      module: 'VendorLog',
-      recordId: req.params.id,
-      status: 'FAILED',
-      ipAddress: req.ip,
-      apiEndpoint: req.originalUrl,
-      requestMethod: req.method,
-      error: error.message
-    });
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'VendorLog',
+        recordId: req.params.id,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     rollbackUploadedFiles(req.files);
     return handleApiError(error, res);
   }
@@ -456,20 +474,24 @@ exports.updateLog = async (req, res) => {
     const updatedLog = await existingLog.save();
     deleteFilesSilently(oldFilesToDelete);
 
-    logAction({
-      userId: req.user?._id || req.user?.id,
-      userType: req.user.role || 'User',
-      action: 'UPDATE',
-      module: 'VendorLog',
-      recordId: logId,
-      oldData: oldDataSnapshot,
-      newData: updatedLog,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      apiEndpoint: req.originalUrl,
-      requestMethod: req.method,
-      status: 'SUCCESS'
-    });
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'VendorLog',
+        recordId: logId,
+        oldData: oldDataSnapshot,
+        newData: updatedLog && typeof updatedLog.toObject === 'function' ? updatedLog.toObject() : updatedLog,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateLog:", logError);
+    }
 
     if (req.user?.role === 'vendor' && updatedLog.supervisorId) {
       notifySupervisorVendorTaskUpdate(updatedLog.supervisorId, null, updatedLog.vendorId, updatedLog).catch((err) => {
@@ -484,18 +506,22 @@ exports.updateLog = async (req, res) => {
     });
 
   } catch (error) {
-    logAction({
-      userId: req.user?._id || req.user?.id,
-      userType: req.user?.role || 'System',
-      action: 'UPDATE',
-      module: 'VendorLog',
-      recordId: logId,
-      status: 'FAILED',
-      ipAddress: req.ip,
-      apiEndpoint: req.originalUrl,
-      requestMethod: req.method,
-      error: error.message
-    });
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'VendorLog',
+        recordId: logId,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     if (req.files) rollbackUploadedFiles(req.files);
     return handleApiError(error, res);
   }
@@ -505,9 +531,45 @@ exports.deleteLog = async (req, res) => {
   try {
     const log = await VendorLog.findOneAndDelete({ _id: req.params.id, supervisorId: req.user.id });
     if (!log) return res.status(404).json({ message: "Log not found" });
-    res.status(200).json({ success: true, message: "Log deleted" });
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'VendorLog',
+        recordId: req.params.id,
+        oldData: log && typeof log.toObject === 'function' ? log.toObject() : log,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteLog:", logError);
+    }
+
+    return res.status(200).json({ success: true, message: "Log deleted" });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Error deleting log" });
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'VendorLog',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
+    return res.status(500).json({ success: false, message: "Error deleting log" });
   }
 };
 
@@ -554,20 +616,26 @@ exports.updateLogStatus = async (req, res) => {
     const oldDataSnapshot = log.toObject();
     log.status = status;
     await log.save();
-    logAction({
-      userId: req.user?._id || req.user?.id,
-      userType: req.user.role || 'User',
-      action: 'UPDATE_STATUS',
-      module: 'VendorLog',
-      recordId: logId,
-      oldData: oldDataSnapshot,
-      newData: updatedLog,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      apiEndpoint: req.originalUrl,
-      requestMethod: req.method,
-      status: 'SUCCESS'
-    });
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE_STATUS',
+        module: 'VendorLog',
+        recordId: logId,
+        oldData: oldDataSnapshot,
+        newData: log && typeof log.toObject === 'function' ? log.toObject() : log,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateLogStatus:", logError);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Log status updated successfully.",
@@ -575,18 +643,22 @@ exports.updateLogStatus = async (req, res) => {
     });
 
   } catch (error) {
-    logAction({
-      userId: req.user?._id || req.user?.id,
-      userType: req.user?.role || 'System',
-      action: 'UPDATE_STATUS',
-      module: 'VendorLog',
-      recordId: logId,
-      status: 'FAILED',
-      ipAddress: req.ip,
-      apiEndpoint: req.originalUrl,
-      requestMethod: req.method,
-      error: error.message
-    });
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE_STATUS',
+        module: 'VendorLog',
+        recordId: logId,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return handleApiError(error, res);
   }
 };

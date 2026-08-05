@@ -4,6 +4,7 @@ const Railhead = require("../model/Railhead");
 const WarehouseProduct = require("../model/wareHouseModel");
 const WarehouseProducts = require("../model/wareHouseStockModel");
 const Counter = require("../model/counterModel");
+const { logAction } = require("../utils/logger");
 
 const fs = require("fs");
 const path = require("path");
@@ -372,6 +373,25 @@ exports.createGodownLorryReceipt = async (req, res) => {
       }
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'GodownLorryReceipt',
+        recordId: newReceipt._id,
+        oldData: null,
+        newData: newReceipt && typeof newReceipt.toObject === 'function' ? newReceipt.toObject() : newReceipt,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createGodownLorryReceipt:", logError);
+    }
+
     return res.status(201).json(newReceipt);
   } catch (error) {
     //ROLLBACK LOGIC
@@ -390,6 +410,22 @@ exports.createGodownLorryReceipt = async (req, res) => {
         });
       }
     }
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'GodownLorryReceipt',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
 
     return res.status(500).json({ message: error.message });
   }
@@ -488,6 +524,9 @@ exports.softDeleteGodownLorryReceipt = async (req, res) => {
 
     const { id } = req.params;
 
+    const oldReceipt = await GodownLorryReceipt.findById(id);
+    const oldReceiptSnapshot = oldReceipt && typeof oldReceipt.toObject === 'function' ? oldReceipt.toObject() : oldReceipt;
+
     const receipt = await GodownLorryReceipt.findByIdAndUpdate(
       id,
       { isDeleted: true },
@@ -498,8 +537,43 @@ exports.softDeleteGodownLorryReceipt = async (req, res) => {
       return res.status(404).json({ message: "Lorry receipt not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'GodownLorryReceipt',
+        recordId: id,
+        oldData: oldReceiptSnapshot,
+        newData: receipt && typeof receipt.toObject === 'function' ? receipt.toObject() : receipt,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for softDeleteGodownLorryReceipt:", logError);
+    }
+
     return res.status(200).json({ message: "Receipt soft deleted" });
   } catch (err) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'GodownLorryReceipt',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: err.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({ message: err.message });
   }
 };
@@ -515,14 +589,52 @@ exports.deleteGodownLorryReceipt = async (req, res) => {
 
     const { id } = req.params;
 
+    const oldReceipt = await GodownLorryReceipt.findById(id);
+    const oldReceiptSnapshot = oldReceipt && typeof oldReceipt.toObject === 'function' ? oldReceipt.toObject() : oldReceipt;
+
     const receipt = await GodownLorryReceipt.findByIdAndDelete(id);
 
     if (!receipt) {
       return res.status(404).json({ message: "Lorry receipt not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'GodownLorryReceipt',
+        recordId: id,
+        oldData: oldReceiptSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteGodownLorryReceipt:", logError);
+    }
+
     return res.status(200).json({ message: "Receipt permanently deleted" });
   } catch (err) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'GodownLorryReceipt',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: err.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({ message: err.message });
   }
 };
@@ -545,8 +657,10 @@ exports.updateLorryReceiptStatus = async (req, res) => {
     }
 
     const receipt = await GodownLorryReceipt.findById(id);
-    const oldStatus = receipt.status;
+    const oldStatus = receipt ? receipt.status : null;
     if (!receipt) return res.status(404).json({ message: "Receipt not found" });
+
+    const oldReceiptSnapshot = receipt && typeof receipt.toObject === 'function' ? receipt.toObject() : receipt;
 
     if (receipt.status === "Cancelled") {
       return res.status(400).json({
@@ -638,6 +752,25 @@ exports.updateLorryReceiptStatus = async (req, res) => {
       receipt.status = "Cancelled";
       await receipt.save();
 
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'CANCEL',
+          module: 'GodownLorryReceipt',
+          recordId: id,
+          oldData: oldReceiptSnapshot,
+          newData: receipt && typeof receipt.toObject === 'function' ? receipt.toObject() : receipt,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for cancel in updateLorryReceiptStatus:", logError);
+      }
+
       return res.status(200).json({
         message: "Receipt cancelled and stock reverted successfully",
         receipt,
@@ -711,6 +844,25 @@ exports.updateLorryReceiptStatus = async (req, res) => {
             `/uploads/AcknowledgementImage/${req.file.filename}`;
         }
       await receipt.save();
+
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'UPDATE_PARTIAL',
+          module: 'GodownLorryReceipt',
+          recordId: id,
+          oldData: oldReceiptSnapshot,
+          newData: receipt && typeof receipt.toObject === 'function' ? receipt.toObject() : receipt,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for updateLorryReceiptStatus partial:", logError);
+      }
 
       return res.json({ message: "Partial correction done", receipt });
     }
@@ -857,8 +1009,43 @@ exports.updateLorryReceiptStatus = async (req, res) => {
 
     await receipt.save();
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'GodownLorryReceipt',
+        recordId: id,
+        oldData: oldReceiptSnapshot,
+        newData: receipt && typeof receipt.toObject === 'function' ? receipt.toObject() : receipt,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateLorryReceiptStatus:", logError);
+    }
+
     return res.json({ message: "Updated", receipt });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'GodownLorryReceipt',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({ message: error.message });
   }
 };
@@ -894,6 +1081,25 @@ exports.rejectedByParty = async (req, res) => {
         products: formattedProducts,
         supervisorId: userId,
       });
+
+      try {
+        await logAction({
+          userId: req.user?._id || req.user?.id,
+          userType: req.user?.role || 'User',
+          action: 'REJECTED_BY_PARTY',
+          module: 'GodownLorryReceipt',
+          recordId: warehouseStock._id,
+          oldData: null,
+          newData: warehouseStock && typeof warehouseStock.toObject === 'function' ? warehouseStock.toObject() : warehouseStock,
+          ipAddress: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : null,
+          apiEndpoint: req.originalUrl,
+          requestMethod: req.method,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error("Audit log failed for rejectedByParty create:", logError);
+      }
 
       return res.status(201).json({
         message: "Warehouse stock created successfully",
@@ -936,11 +1142,46 @@ exports.rejectedByParty = async (req, res) => {
 
     await warehouseStock.save();
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'REJECTED_BY_PARTY',
+        module: 'GodownLorryReceipt',
+        recordId: warehouseStock._id,
+        oldData: null,
+        newData: warehouseStock && typeof warehouseStock.toObject === 'function' ? warehouseStock.toObject() : warehouseStock,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for rejectedByParty update:", logError);
+    }
+
     res.status(200).json({
       message: "Warehouse stock updated successfully",
       data: warehouseStock,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'REJECTED_BY_PARTY',
+        module: 'GodownLorryReceipt',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     console.error("Add Warehouse Products Error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
@@ -961,6 +1202,8 @@ exports.updateAcknowledgementImage = async (req, res) => {
     if (!receipt) {
       return res.status(404).json({ message: "Receipt not found" });
     }
+
+    const oldReceiptSnapshot = receipt && typeof receipt.toObject === 'function' ? receipt.toObject() : receipt;
 
     if (
       req.user.role === "user" &&
@@ -991,11 +1234,46 @@ exports.updateAcknowledgementImage = async (req, res) => {
 
     await receipt.save();
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE_ACKNOWLEDGEMENT_IMAGE',
+        module: 'GodownLorryReceipt',
+        recordId: id,
+        oldData: oldReceiptSnapshot,
+        newData: receipt && typeof receipt.toObject === 'function' ? receipt.toObject() : receipt,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateAcknowledgementImage:", logError);
+    }
+
     return res.status(200).json({
       message: "Acknowledgement image updated successfully",
       receipt,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE_ACKNOWLEDGEMENT_IMAGE',
+        module: 'GodownLorryReceipt',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({ message: error.message });
   }
 };

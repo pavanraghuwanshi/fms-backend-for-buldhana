@@ -365,8 +365,6 @@ exports.checkoutAttendanceByDriver = async (req, res) => {
   }
 };
 
-
-
 exports.getTodayAttendanceById = async (req, res) => {
   try {
     const { id } = req.user;

@@ -1,14 +1,20 @@
 const admin = require('../config/firebaseConfig');
 const Vendor = require('../model/vendor');
 const Driver = require('../model/driverModel');
+const Worker = require('../model/workerModel');
+const User = require('../model/userModel');
 const School = require('../model/school');
 const Branch = require('../model/branch');
 const BranchGroup = require('../model/branchGroup');
 const NotificationPermissions = require('../model/notificationPermissionsSchema');
+const { findAuthEntityById } = require('../middleware/authHelper');
 
 const UNREGISTERED_TOKEN_ERRORS = [
   'messaging/invalid-registration-token',
-  'messaging/registration-token-not-registered'
+  'messaging/registration-token-not-registered',
+  'messaging/mismatched-credential',
+  'invalid-registration-token',
+  'registration-token-not-registered'
 ];
 
 const filterUnregisteredTokens = (response, tokens) => {
@@ -16,14 +22,51 @@ const filterUnregisteredTokens = (response, tokens) => {
   return response.responses
     .map((resp, index) => {
       if (!resp.success) {
-        console.error(`[Notification] FCM send error for token ${tokens[index]}:`, resp.error?.code, resp.error?.message);
-        if (resp.error?.code && UNREGISTERED_TOKEN_ERRORS.includes(resp.error.code)) {
+        const errCode = resp.error?.code || '';
+        const errMsg = resp.error?.message || '';
+        console.error(`[Notification] FCM send error for token ${tokens[index]}:`, errCode, errMsg);
+        if (
+          UNREGISTERED_TOKEN_ERRORS.includes(errCode) ||
+          errMsg.includes('NotRegistered') ||
+          errMsg.includes('invalid-registration-token') ||
+          errCode.includes('not-registered')
+        ) {
           return tokens[index];
         }
       }
       return null;
     })
     .filter(Boolean);
+};
+
+const removeFailedTokens = async (targetId, failedTokens) => {
+  if (!targetId || !failedTokens || !failedTokens.length) return;
+  try {
+    const models = [User, School, Branch, BranchGroup, Driver, Vendor, Worker];
+    await Promise.allSettled(
+      models.map(Model =>
+        Model.findByIdAndUpdate(targetId, {
+          $pull: {
+            fcmToken: { $in: failedTokens },
+            fcmTokens: { token: { $in: failedTokens } },
+            firebaseToken: { $in: failedTokens }
+          }
+        })
+      )
+    );
+    await Promise.allSettled(
+      models.map(Model =>
+        Model.findByIdAndUpdate(targetId, {
+          $pull: {
+            fcmTokens: { $in: failedTokens }
+          }
+        })
+      )
+    );
+    console.log(`[Notification] Removed ${failedTokens.length} unregistered FCM token(s) for ID: ${targetId}`);
+  } catch (err) {
+    console.error(`[Notification] Error removing failed tokens for ${targetId}:`, err);
+  }
 };
 
 const extractUniqueTokens = (rawTokens) => {
@@ -204,6 +247,27 @@ const modelMap = {
   School,
   Branch,
   BranchGroup
+};
+
+const getSupervisorDoc = async (supervisorId, supervisorModel) => {
+  if (!supervisorId) return null;
+  let supervisorDoc = null;
+  if (supervisorModel && modelMap[supervisorModel]) {
+    supervisorDoc = await modelMap[supervisorModel].findById(supervisorId).select('fcmToken fcmTokens Notification');
+  }
+  if (!supervisorDoc) {
+    supervisorDoc = (await Promise.all(
+      supervisorModels.map((Model) => Model.findById(supervisorId).select('fcmToken fcmTokens Notification'))
+    )).find(Boolean);
+  }
+  if (!supervisorDoc) {
+    supervisorDoc = await User.findById(supervisorId).select('fcmToken fcmTokens Notification');
+  }
+  if (!supervisorDoc) {
+    const authData = await findAuthEntityById(supervisorId);
+    if (authData?.user) supervisorDoc = authData.user;
+  }
+  return supervisorDoc;
 };
 
 const notifySupervisorAttendance = async (supervisorId, driver, attendance) => {
@@ -994,6 +1058,120 @@ const notifySupervisorVendorTaskUpdate = async (supervisorId, supervisorModel, v
   }
 };
 
+const notifyChatMessage = async ({ senderId, senderRole, senderName, receiverId, receiverModel, text, messageId }) => {
+  try {
+    if (!receiverId || !text) {
+      console.warn(`[Notification] NOT SENT for chat: receiverId or text missing.`);
+      return;
+    }
+
+    if (senderId && receiverId && String(senderId) === String(receiverId)) {
+      console.warn(`[Notification] NOT SENT for chat: senderId and receiverId are identical (${senderId}). Skipping self notification.`);
+      return;
+    }
+
+    // 1. Resolve Sender Name if missing
+    let finalSenderName = senderName;
+    if (!finalSenderName && senderId) {
+      if (senderRole === 'driver') {
+        const d = await Driver.findById(senderId).select('name').lean();
+        finalSenderName = d?.name || 'Driver';
+      } else if (senderRole === 'vendor') {
+        const v = await Vendor.findById(senderId).select('vendorName').lean();
+        finalSenderName = v?.vendorName || 'Vendor';
+      } else if (senderRole === 'worker') {
+        const w = await Worker.findById(senderId).select('name').lean();
+        finalSenderName = w?.name || 'Worker';
+      } else if (senderRole === 'user') {
+        const sDoc = await getSupervisorDoc(senderId, senderRole);
+        finalSenderName = sDoc?.username || sDoc?.custName || sDoc?.name || 'Supervisor';
+      }
+    }
+    if (!finalSenderName) finalSenderName = 'Sender';
+
+    // 2. Fetch Receiver and FCM Tokens
+    let receiverDoc = null;
+    let rawTokens = [];
+
+    if (senderRole === 'user') {
+      // Sender is User (supervisor) -> Receiver is Driver, Vendor, or Worker (receiverId)
+      receiverDoc = await Driver.findById(receiverId).select('+fcmTokens +fcmToken').lean();
+      if (!receiverDoc) {
+        receiverDoc = await Vendor.findById(receiverId).select('+fcmTokens +fcmToken').lean();
+      }
+      if (!receiverDoc) {
+        receiverDoc = await Worker.findById(receiverId).select('+firebaseToken +fcmTokens +fcmToken').lean();
+      }
+      if (!receiverDoc) {
+        receiverDoc = await getSupervisorDoc(receiverId, receiverModel);
+      }
+    } else {
+      // Sender is driver, vendor, or worker -> Receiver is supervisor/User (receiverId)
+      receiverDoc = await getSupervisorDoc(receiverId, receiverModel);
+      if (!receiverDoc) {
+        receiverDoc = await Driver.findById(receiverId).select('+fcmTokens +fcmToken').lean();
+        if (!receiverDoc) {
+          receiverDoc = await Vendor.findById(receiverId).select('+fcmTokens +fcmToken').lean();
+        }
+        if (!receiverDoc) {
+          receiverDoc = await Worker.findById(receiverId).select('+firebaseToken +fcmTokens +fcmToken').lean();
+        }
+      }
+    }
+
+    console.log(`================ [NOTIFICATION USER DATA LOG] ================`);
+    console.log(`Target Receiver ID : ${receiverId}`);
+    console.log(`Sender ID          : ${senderId} (Role: ${senderRole}, Name: ${finalSenderName})`);
+    if (receiverDoc) {
+      console.log(`Full Receiver User Data :`, JSON.stringify(receiverDoc, null, 2));
+    } else {
+      console.log(`Full Receiver User Data : NOT FOUND IN DB for ID ${receiverId}`);
+    }
+
+    if (receiverDoc) {
+      if (receiverDoc.fcmTokens && Array.isArray(receiverDoc.fcmTokens)) {
+        rawTokens = receiverDoc.fcmTokens;
+      } else if (receiverDoc.fcmToken) {
+        rawTokens = Array.isArray(receiverDoc.fcmToken) ? receiverDoc.fcmToken : [receiverDoc.fcmToken];
+      } else if (receiverDoc.firebaseToken) {
+        rawTokens = Array.isArray(receiverDoc.firebaseToken) ? receiverDoc.firebaseToken : [receiverDoc.firebaseToken];
+      }
+    }
+
+    const tokens = extractUniqueTokens(rawTokens);
+    console.log(`Extracted FCM Tokens (${tokens.length}) :`, tokens);
+    console.log(`==============================================================`);
+
+    if (!tokens.length) {
+      console.warn(`[Notification] Chat notification NOT SENT to ${receiverId}. Reason: No registered FCM tokens found.`);
+      return;
+    }
+
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title: `New message from ${finalSenderName}`,
+        body: text
+      },
+      data: {
+        type: 'CHAT_MESSAGE',
+        senderId: senderId ? senderId.toString() : '',
+        receiverId: receiverId ? receiverId.toString() : '',
+        messageId: messageId ? messageId.toString() : ''
+      }
+    });
+
+    console.log(`[Notification] Chat message notification SENT to ${receiverId}. Dispatch complete. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+
+    const failedTokens = filterUnregisteredTokens(response, tokens);
+    if (failedTokens.length) {
+      await removeFailedTokens(receiverId, failedTokens);
+    }
+  } catch (error) {
+    console.error(`[Notification] Critical error sending chat notification to ${receiverId}:`, error);
+  }
+};
+
 module.exports = {
   notifyVendor,
   notifyDriverBuiltyAssignment,
@@ -1008,5 +1186,6 @@ module.exports = {
   notifySupervisorDriverExpense,
   notifySupervisorVendorExpense,
   notifySupervisorVendorTaskUpdate,
+  notifyChatMessage,
   checkSupervisorNotificationPermission
 };

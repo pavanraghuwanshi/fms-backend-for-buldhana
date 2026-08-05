@@ -14,6 +14,17 @@ const workerSchema = new mongoose.Schema(
         supervisorName: { type: String, },
         supervisor: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
         firebaseToken: [{ type: String }],
+        fcmTokens: {
+            type: [
+                {
+                    token: { type: String, required: true },
+                    deviceId: String,
+                    updatedAt: { type: Date, default: Date.now },
+                    createdAt: { type: Date, default: Date.now },
+                }
+            ],
+            select: false
+        },
         notificationAllow: { type: Boolean, default: false }
     },
     {

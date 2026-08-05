@@ -2,6 +2,7 @@ const WarehouseProduct = require("../model/wareHouseModel");
 const WarehouseStock = require("../model/wareHouseStockModel");
 const { maintenanceDB } = require("../database/database");
 const Worker = require("../model/workerModel");
+const { logAction } = require("../utils/logger");
 
 exports.addWarehouseProducts = async (req, res) => {
   const undoOps = [];  // <-- store rollback actions
@@ -101,6 +102,25 @@ exports.addWarehouseProducts = async (req, res) => {
       await WarehouseProduct.deleteOne({ _id: batch._id });
     });
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'WarehouseProduct',
+        recordId: batch._id,
+        oldData: null,
+        newData: batch && typeof batch.toObject === 'function' ? batch.toObject() : batch,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for addWarehouseProducts:", logError);
+    }
+
     return res.status(201).json({
       msg: "Products added successfully",
       data: batch,
@@ -116,6 +136,22 @@ exports.addWarehouseProducts = async (req, res) => {
         console.log("Rollback step failed:", err);
       }
     }
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'WarehouseProduct',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message || error
+      });
+    } catch (logErr) {}
 
     console.log(error);
     return res.status(500).json({
@@ -244,6 +280,7 @@ exports.updateWarehouseProducts = async (req, res) => {
       });
     }
 
+    const oldBatchSnapshot = oldBatch && typeof oldBatch.toObject === 'function' ? oldBatch.toObject() : oldBatch;
 
     const warehouseId = oldBatch.warehouseId;
 
@@ -379,6 +416,25 @@ exports.updateWarehouseProducts = async (req, res) => {
     // SUCCESS RESPONSE
     // ===============================================
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'WarehouseProduct',
+        recordId: oldBatch._id,
+        oldData: oldBatchSnapshot,
+        newData: oldBatch && typeof oldBatch.toObject === 'function' ? oldBatch.toObject() : oldBatch,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateWarehouseProducts:", logError);
+    }
+
     return res.status(200).json({
       msg: "Warehouse batch updated successfully",
       data: oldBatch,
@@ -398,6 +454,22 @@ exports.updateWarehouseProducts = async (req, res) => {
         console.log("Rollback failed:", err);
       }
     }
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'WarehouseProduct',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message || error
+      });
+    } catch (logErr) {}
 
     return res.status(500).json({
       msg: "Update failed — All changes reverted",
@@ -437,6 +509,7 @@ try {
       });
     }
 
+    const oldBatchSnapshot = batch && typeof batch.toObject === 'function' ? batch.toObject() : batch;
     const warehouseId = batch.warehouseId;
 
     // ===============================================
@@ -491,6 +564,25 @@ try {
     // SUCCESS
     // ===============================================
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'WarehouseProduct',
+        recordId: id,
+        oldData: oldBatchSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteWarehouseProducts:", logError);
+    }
+
     return res.status(200).json({
       msg: "Warehouse batch deleted successfully",
     });
@@ -509,6 +601,22 @@ try {
         console.log("Rollback failed:", err);
       }
     }
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'WarehouseProduct',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message || error
+      });
+    } catch (logErr) {}
 
     return res.status(500).json({
       msg: "Delete failed — All changes reverted",

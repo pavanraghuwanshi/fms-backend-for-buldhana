@@ -2,6 +2,7 @@
 
 const MaterialOwner = require("../model/materialOwner");
 const mongoose = require("mongoose");
+const { logAction } = require("../utils/logger");
 
 
 // ➤ CREATE
@@ -68,6 +69,25 @@ exports.createMaterialOwner = async (req, res) => {
 
     await data.save();
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'MaterialOwner',
+        recordId: data._id,
+        oldData: null,
+        newData: data && typeof data.toObject === 'function' ? data.toObject() : data,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createMaterialOwner:", logError);
+    }
+
     res.status(201).json({
       success: true,
       message: "Material Owner created",
@@ -75,6 +95,22 @@ exports.createMaterialOwner = async (req, res) => {
     });
 
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'MaterialOwner',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(400).json({
       success: false,
       message: error.message,
@@ -170,8 +206,6 @@ exports.getMaterialOwnerDropdown = async (req, res) => {
     const data = await MaterialOwner.find(filter)
       .select("_id name")
       .sort({ name: 1 })
-      // .skip((page - 1) * limit)
-      // .limit(limit);
 
     const total = await MaterialOwner.countDocuments(filter);
 
@@ -206,6 +240,9 @@ exports.updateMaterialOwner = async (req, res) => {
       filter.supervisorId = req.user.supervisor;
     }
 
+    const oldData = await MaterialOwner.findOne(filter);
+    const oldDataSnapshot = oldData && typeof oldData.toObject === 'function' ? oldData.toObject() : oldData;
+
     const data = await MaterialOwner.findOneAndUpdate(
       filter,
       req.body,
@@ -219,6 +256,25 @@ exports.updateMaterialOwner = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'MaterialOwner',
+        recordId: id,
+        oldData: oldDataSnapshot,
+        newData: data && typeof data.toObject === 'function' ? data.toObject() : data,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateMaterialOwner:", logError);
+    }
+
     res.json({
       success: true,
       message: "Updated successfully",
@@ -226,6 +282,22 @@ exports.updateMaterialOwner = async (req, res) => {
     });
 
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'MaterialOwner',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(400).json({ success: false, message: error.message });
   }
 };
@@ -246,6 +318,9 @@ exports.deleteMaterialOwner = async (req, res) => {
       filter.supervisorId = req.user.supervisor;
     }
 
+    const oldData = await MaterialOwner.findOne(filter);
+    const oldDataSnapshot = oldData && typeof oldData.toObject === 'function' ? oldData.toObject() : oldData;
+
     const data = await MaterialOwner.findOneAndDelete(filter);
 
     if (!data) {
@@ -255,12 +330,47 @@ exports.deleteMaterialOwner = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'MaterialOwner',
+        recordId: id,
+        oldData: oldDataSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteMaterialOwner:", logError);
+    }
+
     res.json({
       success: true,
       message: "Material Owner deleted permanently",
     });
 
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'MaterialOwner',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(500).json({
       success: false,
       message: error.message,

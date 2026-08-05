@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const GodownLorryReceipt = require("../model/GodownLorryReceiptModel");
+const { logAction } = require("../utils/logger");
 
 exports.monthlyConsigneeReport = async (req, res) => {
   try {
@@ -62,8 +63,43 @@ exports.monthlyConsigneeReport = async (req, res) => {
       },
     ]);
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'FETCH_REPORT',
+        module: 'Report',
+        recordId: null,
+        oldData: null,
+        newData: { month, year, consigneeId, status, reportCount: report.length },
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for monthlyConsigneeReport:", logError);
+    }
+
     res.status(200).json(report);
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'FETCH_REPORT',
+        module: 'Report',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(500).json({ message: error.message });
   }
 };

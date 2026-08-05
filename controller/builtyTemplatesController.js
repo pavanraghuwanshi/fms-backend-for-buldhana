@@ -1,5 +1,7 @@
 const BuiltyTemplate = require("../model/BuiltyTemplate");
 const mongoose = require("mongoose");
+const { logAction } = require("../utils/logger");
+
 exports.createTemplate = async (req, res) => {
   try {
     const { templateName } = req.body;
@@ -18,11 +20,45 @@ exports.createTemplate = async (req, res) => {
 
     const newTemplate = await BuiltyTemplate.create(templateData);
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'BuiltyTemplate',
+        recordId: newTemplate._id,
+        oldData: null,
+        newData: newTemplate && typeof newTemplate.toObject === 'function' ? newTemplate.toObject() : newTemplate,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createTemplate:", logError);
+    }
+
     res.status(201).json({
       message: "Template created successfully",
       template: newTemplate
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'BuiltyTemplate',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
 
     res.status(500).json({
       message: "Error creating template",
@@ -101,11 +137,32 @@ exports.updateBuiltyTemplate = async (req, res) => {
       return res.status(404).json({ message: "Template not found" });
     }
 
+    const oldTemplateSnapshot = template && typeof template.toObject === 'function' ? template.toObject() : template;
+
     const updatedTemplate = await BuiltyTemplate.findByIdAndUpdate(
       id,
       { $set: updateData },
       { new: true, runValidators: true }
     );
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'BuiltyTemplate',
+        recordId: id,
+        oldData: oldTemplateSnapshot,
+        newData: updatedTemplate && typeof updatedTemplate.toObject === 'function' ? updatedTemplate.toObject() : updatedTemplate,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateBuiltyTemplate:", logError);
+    }
 
     res.status(200).json({
       message: "Template updated successfully",
@@ -113,6 +170,22 @@ exports.updateBuiltyTemplate = async (req, res) => {
     });
 
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'BuiltyTemplate',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(500).json({
       message: "Error updating template",
       error: error.message,
@@ -144,6 +217,8 @@ exports.deleteBuiltyTemplate = async (req, res) => {
       });
     }
 
+    const oldTemplateSnapshot = template && typeof template.toObject === 'function' ? template.toObject() : template;
+
     // if (template.supervisorId.toString() !== req.user.id) {
     //   return res.status(403).json({
     //     message: "You are not authorized to delete this template.",
@@ -152,10 +227,45 @@ exports.deleteBuiltyTemplate = async (req, res) => {
 
     await BuiltyTemplate.findByIdAndDelete(id);
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'BuiltyTemplate',
+        recordId: id,
+        oldData: oldTemplateSnapshot,
+        newData: null,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for deleteBuiltyTemplate:", logError);
+    }
+
     return res.status(200).json({
       message: "Template deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'BuiltyTemplate',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     return res.status(500).json({
       message: "Error deleting template",
       error: error.message,

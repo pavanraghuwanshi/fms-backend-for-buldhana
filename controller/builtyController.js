@@ -301,6 +301,18 @@ exports.createBuilty = async (req, res) => {
       payload.bagWeight = Number(payload.bagWeight);
     }
 
+    if (payload.poch_bal !== undefined && payload.poch_bal !== "") {
+      payload.poch_bal = payload.poch_bal === null ? null : Number(payload.poch_bal);
+    }
+
+    if (payload.fuel_amount !== undefined && payload.fuel_amount !== "") {
+      payload.fuel_amount = payload.fuel_amount === null ? null : Number(payload.fuel_amount);
+    }
+
+    if (payload.tds !== undefined && payload.tds !== "") {
+      payload.tds = Boolean(payload.tds === true || payload.tds === "true" || payload.tds === 1 || payload.tds === "1");
+    }
+
     const builty = await Builty.create(payload);
 
     let createdTrip = null;
@@ -389,38 +401,45 @@ exports.createBuilty = async (req, res) => {
         console.error("Async worker builty notification error:", err);
       });
     }
-    logAction({
-      userId: req.user?._id || req.user?.id,
-      userType: req.user.role || 'User',
-      action: 'CREATE',
-      module: 'Builty',
-      recordId: builty._id, // Use 'builty' here
-      oldData: null,
-      newData: builty,     // Use 'builty' here
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      apiEndpoint: req.originalUrl,
-      requestMethod: req.method,
-      status: 'SUCCESS'
-    });
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'Builty',
+        recordId: builty?._id || null,
+        oldData: null,
+        newData: builty && typeof builty.toObject === 'function' ? builty.toObject() : builty,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for create:", logError);
+    }
     return res.status(201).json({
       message: "Builty created successfully",
       builty,
       trip: createdTrip,
     });
   } catch (error) {
-    logAction({
-      userId: req.user?._id || req.user?.id,
-      userType: req.user?.role || 'System',
-      action: 'CREATE',
-      module: 'Builty',
-      recordId: null, // Safest to use null if creation failed
-      status: 'FAILED',
-      ipAddress: req.ip,
-      apiEndpoint: req.originalUrl,
-      requestMethod: req.method,
-      error: error.message
-    });
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Builty',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
     return res.status(500).json({
       message: "Error creating builty",
       error: error.message,
@@ -731,6 +750,18 @@ exports.updateBuilty = async (req, res) => {
       payload.quantity = Number(payload.quantity);
     }
 
+    if (payload.poch_bal !== undefined && payload.poch_bal !== "") {
+      payload.poch_bal = payload.poch_bal === null ? null : Number(payload.poch_bal);
+    }
+
+    if (payload.fuel_amount !== undefined && payload.fuel_amount !== "") {
+      payload.fuel_amount = payload.fuel_amount === null ? null : Number(payload.fuel_amount);
+    }
+
+    if (payload.tds !== undefined && payload.tds !== "") {
+      payload.tds = Boolean(payload.tds === true || payload.tds === "true" || payload.tds === 1 || payload.tds === "1");
+    }
+
     if (payload.products && Array.isArray(payload.products)) {
       payload.products = payload.products.map((product) => {
         return {
@@ -996,6 +1027,21 @@ exports.updateBuilty = async (req, res) => {
       trip: updatedTrip,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Builty',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
     return res.status(500).json({
       message: "Error updating builty",
       error: error.message,
@@ -1229,7 +1275,21 @@ exports.dispatchBuilty = async (req, res) => {
       builty,
     });
   } catch (error) {
-
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DISPATCH',
+        module: 'Builty',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
     return res.status(500).json({
       message: "Error dispatching builty",
       error: error.message,
@@ -1357,6 +1417,21 @@ exports.completeBuilty = async (req, res) => {
       builty,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'COMPLETE',
+        module: 'Builty',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
     return res.status(500).json({
       message: "Error completing builty",
       error: error.message,
@@ -1377,6 +1452,8 @@ exports.cancelBuilty = async (req, res) => {
     if (!builty) {
       return res.status(404).json({ message: "Builty not found" });
     }
+
+    const oldBuiltySnapshot = builty.toObject();
 
     if (builty.status === "Completed") {
       return res.status(400).json({
@@ -1442,12 +1519,46 @@ exports.cancelBuilty = async (req, res) => {
       });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user.role || 'User',
+        action: 'CANCEL',
+        module: 'Builty',
+        recordId: builty._id,
+        oldData: oldBuiltySnapshot,
+        newData: builty.toObject(),
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for cancel:", logError);
+    }
+
     return res.status(200).json({
       message: "Builty cancelled successfully",
       builty,
       trip,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CANCEL',
+        module: 'Builty',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
     return res.status(500).json({
       message: "Error cancelling builty",
       error: error.message,
@@ -1827,7 +1938,7 @@ exports.getBuiltysByTripId = async (req, res) => {
         .select("-createdAt -updatedAt -__v -createdByRole -createdBy -consigneeId -supervisorModel -consignerId -vendorId -vehicleId -pickupLocationId -destinationLocationId -supervisorId -permittedGVW -vendorType -description -vehicleOwnership")
         .populate("transporterId", "transporterName contactPerson contactNumber")
         .populate("commissionAgentId", "name contactNumber contactPerson")
-        .populate("driverId", "name")
+        .populate("driverId", "name contactNumber")
         .populate(
           "invoice",
           "totalAmount paidAmount pendingAmount paymentStatus"

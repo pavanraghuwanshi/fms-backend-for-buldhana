@@ -6,6 +6,8 @@ const Branch = require("../model/branch");
 const School = require("../model/school");
 const Vendor = require("../model/vendor");
 const BranchGroup = require("../model/branchGroup");
+const { logAction } = require("../utils/logger");
+
 exports.createIssue = async (req, res) => {
     try {
        const authorizedRoles = ['superadmin', 'user', 'driver', 'worker','vendor'];
@@ -17,14 +19,15 @@ exports.createIssue = async (req, res) => {
         if (!ticketType) return res.status(400).json({ error: 'ticketType are required' });
         if (!description) return res.status(400).json({ error: 'description are required' });
 
+        let createdIssueDoc = null;
+        let responseData = null;
+
         if (req.user.role === 'superadmin') {
             const newIssue = new HelpAndSupport({ vehicle, ticketType, description, createdBy: req.user.role });
-            await newIssue.save();
-            return res.status(201).json({ message: 'Ticket Raised successfully' });
+            createdIssueDoc = await newIssue.save();
         } else if (req.user.role === 'user') {
             const newIssue = new HelpAndSupport({ user, vehicle, ticketType, description, createdBy: req.user.role });
-            await newIssue.save();
-            return res.status(201).json({ message: 'Ticket Raised successfully' });
+            createdIssueDoc = await newIssue.save();
         } else if (req.user.role === 'driver') {
             const driver = await Driver.findById(req.user.id).select('supervisor').lean();
             const newIssue = new HelpAndSupport({
@@ -35,11 +38,10 @@ exports.createIssue = async (req, res) => {
                 description,
                 createdBy: req.user.role
             });
-            const driverdata = await newIssue.save();
-            return res.status(201).json({ message: 'Ticket Raised successfully', data: driverdata });
+            createdIssueDoc = await newIssue.save();
+            responseData = createdIssueDoc;
         }
         else if (req.user.role === 'worker') {
-            // 3. Logic for 'worker' role
             const worker = await Worker.findById( req.user.id).select('supervisor').lean();
             const newIssue = new HelpAndSupport({
                 worker:  req.user.id,
@@ -49,8 +51,8 @@ exports.createIssue = async (req, res) => {
                 description,
                 createdBy: req.user.role
             });
-            const newData = await newIssue.save();
-            return res.status(201).json({ message: 'Ticket Raised successfully', data: newData });
+            createdIssueDoc = await newIssue.save();
+            responseData = createdIssueDoc;
         }else if (req.user.role === 'vendor') {
             const vendor = await Vendor.findById(req.user.id).select('supervisorId').lean();
             const newIssue = new HelpAndSupport({
@@ -61,10 +63,53 @@ exports.createIssue = async (req, res) => {
                 description,
                 createdBy: req.user.role
             });
-            const newData = await newIssue.save();
-            return res.status(201).json({ message: 'Ticket Raised successfully', data: newData });
+            createdIssueDoc = await newIssue.save();
+            responseData = createdIssueDoc;
+        }
+
+        if (createdIssueDoc) {
+            try {
+                await logAction({
+                    userId: req.user?._id || req.user?.id,
+                    userType: req.user?.role || 'User',
+                    action: 'CREATE',
+                    module: 'HelpAndSupport',
+                    recordId: createdIssueDoc._id,
+                    oldData: null,
+                    newData: createdIssueDoc && typeof createdIssueDoc.toObject === 'function' ? createdIssueDoc.toObject() : createdIssueDoc,
+                    ipAddress: req.ip,
+                    userAgent: req.headers ? req.headers['user-agent'] : null,
+                    apiEndpoint: req.originalUrl,
+                    requestMethod: req.method,
+                    status: 'SUCCESS'
+                });
+            } catch (logError) {
+                console.error("Audit log failed for createIssue:", logError);
+            }
+        }
+
+        if (responseData) {
+            return res.status(201).json({ message: 'Ticket Raised successfully', data: responseData });
+        } else {
+            return res.status(201).json({ message: 'Ticket Raised successfully' });
         }
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'CREATE',
+                module: 'HelpAndSupport',
+                recordId: null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         console.error('Error in Ticket Raise:', error);
         return res.status(500).json({ error: 'Internal server error' + error.message });
     }
@@ -156,6 +201,8 @@ exports.updateTicket = async (req, res) => {
         const ticket = await HelpAndSupport.findById(id);
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
+        const oldTicketSnapshot = ticket && typeof ticket.toObject === 'function' ? ticket.toObject() : ticket;
+
         if (vehicle !== undefined) ticket.vehicle = vehicle;
         if (ticketType !== undefined) ticket.ticketType = ticketType;
         if (description !== undefined) ticket.description = description;
@@ -163,8 +210,44 @@ exports.updateTicket = async (req, res) => {
         if (feedback !== undefined) ticket.feedback = feedback;
 
         await ticket.save();
+
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'User',
+                action: 'UPDATE',
+                module: 'HelpAndSupport',
+                recordId: id,
+                oldData: oldTicketSnapshot,
+                newData: ticket && typeof ticket.toObject === 'function' ? ticket.toObject() : ticket,
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                status: 'SUCCESS'
+            });
+        } catch (logError) {
+            console.error("Audit log failed for updateTicket:", logError);
+        }
+
         return res.status(200).json({ message: 'Ticket updated successfully', ticket });
     } catch (error) {
+        try {
+            await logAction({
+                userId: req.user?._id || req.user?.id,
+                userType: req.user?.role || 'System',
+                action: 'UPDATE',
+                module: 'HelpAndSupport',
+                recordId: req.params?.id || null,
+                status: 'FAILED',
+                ipAddress: req.ip,
+                userAgent: req.headers ? req.headers['user-agent'] : null,
+                apiEndpoint: req.originalUrl,
+                requestMethod: req.method,
+                error: error.message
+            });
+        } catch (logErr) {}
+
         console.error('Error updating ticket:', error);
         return res.status(500).json({ error: 'Internal server error: ' + error.message });
     }

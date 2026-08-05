@@ -1,4 +1,5 @@
 const Consignor = require("../model/consignorModel");
+const { logAction } = require("../utils/logger");
 
 
 // CREATE
@@ -35,11 +36,46 @@ exports.createconsignor = async (req, res) => {
 
     const consignorData = await Consignor.create(payload);
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'CREATE',
+        module: 'Consignor',
+        recordId: consignorData._id,
+        oldData: null,
+        newData: consignorData && typeof consignorData.toObject === 'function' ? consignorData.toObject() : consignorData,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for createconsignor:", logError);
+    }
+
     res.status(201).json({
       message: "Consignor created successfully",
       consignor: consignorData,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'Consignor',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(500).json({ message: error.message });
   }
 };
@@ -163,6 +199,13 @@ exports.updateconsignor = async (req, res) => {
       });
     }
 
+    const existingConsignor = await Consignor.findOne({
+      _id: req.params.id,
+      supervisorId: req.user.id,
+      isDeleted: false,
+    });
+    const oldConsignorSnapshot = existingConsignor && typeof existingConsignor.toObject === 'function' ? existingConsignor.toObject() : existingConsignor;
+
     const updatedConsignor = await Consignor.findOneAndUpdate(
       {
         _id: req.params.id,
@@ -177,11 +220,46 @@ exports.updateconsignor = async (req, res) => {
       return res.status(404).json({ message: "Consignor not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'UPDATE',
+        module: 'Consignor',
+        recordId: req.params.id,
+        oldData: oldConsignorSnapshot,
+        newData: updatedConsignor && typeof updatedConsignor.toObject === 'function' ? updatedConsignor.toObject() : updatedConsignor,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateconsignor:", logError);
+    }
+
     res.status(200).json({
       message: "Consignor updated successfully",
       consignor: updatedConsignor,
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'UPDATE',
+        module: 'Consignor',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(500).json({ message: error.message });
   }
 };
@@ -196,6 +274,13 @@ exports.softdeleteconsignor = async (req, res) => {
         message: "Only supervisor can delete consignor",
       });
     }
+
+    const existingConsignor = await Consignor.findOne({
+      _id: req.params.id,
+      supervisorId: req.user.id,
+      isDeleted: false,
+    });
+    const oldConsignorSnapshot = existingConsignor && typeof existingConsignor.toObject === 'function' ? existingConsignor.toObject() : existingConsignor;
 
     const consignor = await Consignor.findOneAndUpdate(
       {
@@ -214,10 +299,45 @@ exports.softdeleteconsignor = async (req, res) => {
       return res.status(404).json({ message: "Consignor not found" });
     }
 
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'User',
+        action: 'DELETE',
+        module: 'Consignor',
+        recordId: req.params.id,
+        oldData: oldConsignorSnapshot,
+        newData: consignor && typeof consignor.toObject === 'function' ? consignor.toObject() : consignor,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for softdeleteconsignor:", logError);
+    }
+
     res.status(200).json({
       message: "Consignor deleted successfully",
     });
   } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id,
+        userType: req.user?.role || 'System',
+        action: 'DELETE',
+        module: 'Consignor',
+        recordId: req.params?.id || null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
     res.status(500).json({ message: error.message });
   }
 };
