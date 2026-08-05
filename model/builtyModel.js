@@ -362,8 +362,8 @@ const builtySchema = new mongoose.Schema(
       default: null,
     },
     tds: {
-      type: Boolean,
-      default: false,
+      type: Number,
+      default: null,
     },
     poch_bal: {
       type: Number,
