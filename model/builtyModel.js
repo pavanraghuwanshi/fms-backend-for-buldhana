@@ -75,7 +75,7 @@ const builtySchema = new mongoose.Schema(
     description: { type: String },
     vendorType: { type: String },
     fuel: { type: Number, default: 0 },
-    helperAmount: { type: Number, required: false},
+    helperAmount: { type: Number, required: false },
     // booking mode is not used
     bookingMode: {
       type: String,
@@ -371,6 +371,10 @@ const builtySchema = new mongoose.Schema(
     },
     fuel_amount: {
       type: Number,
+      default: null,
+    },
+    payer: {
+      type: String,
       default: null,
     },
   },
