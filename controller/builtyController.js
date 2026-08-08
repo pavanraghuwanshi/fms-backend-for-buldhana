@@ -439,7 +439,7 @@ exports.createBuilty = async (req, res) => {
         requestMethod: req.method,
         error: error.message
       });
-    } catch (logErr) {}
+    } catch (logErr) { }
     return res.status(500).json({
       message: "Error creating builty",
       error: error.message,
@@ -1041,7 +1041,7 @@ exports.updateBuilty = async (req, res) => {
         requestMethod: req.method,
         error: error.message
       });
-    } catch (logErr) {}
+    } catch (logErr) { }
     return res.status(500).json({
       message: "Error updating builty",
       error: error.message,
@@ -1289,7 +1289,7 @@ exports.dispatchBuilty = async (req, res) => {
         requestMethod: req.method,
         error: error.message
       });
-    } catch (logErr) {}
+    } catch (logErr) { }
     return res.status(500).json({
       message: "Error dispatching builty",
       error: error.message,
@@ -1431,7 +1431,7 @@ exports.completeBuilty = async (req, res) => {
         requestMethod: req.method,
         error: error.message
       });
-    } catch (logErr) {}
+    } catch (logErr) { }
     return res.status(500).json({
       message: "Error completing builty",
       error: error.message,
@@ -1558,7 +1558,7 @@ exports.cancelBuilty = async (req, res) => {
         requestMethod: req.method,
         error: error.message
       });
-    } catch (logErr) {}
+    } catch (logErr) { }
     return res.status(500).json({
       message: "Error cancelling builty",
       error: error.message,
@@ -1778,12 +1778,38 @@ exports.getMiniBuiltysRollWise = async (req, res) => {
       query.driverId = req.user.id;
     }
 
-    if (search) {
-      query.tpNo = { $regex: search, $options: "i" };
+    if (search && search.trim()) {
+      const searchRegex = { $regex: search.trim(), $options: "i" };
+
+      const [matchingDrivers, matchingVehicles] = await Promise.all([
+        Driver.find({ name: searchRegex }).select("_id").lean(),
+        VehicleMaster.find({
+          $or: [{ vehicleNumber: searchRegex }, { make: searchRegex }],
+        }).select("_id").lean(),
+      ]);
+
+      const matchingDriverIds = matchingDrivers.map((d) => d._id);
+      const matchingVehicleIds = matchingVehicles.map((v) => v._id);
+
+      const searchConditions = [
+        { tpNo: searchRegex },
+        { docNo: searchRegex },
+        { vehicleNumber: searchRegex },
+      ];
+
+      if (matchingDriverIds.length > 0) {
+        searchConditions.push({ driverId: { $in: matchingDriverIds } });
+      }
+
+      if (matchingVehicleIds.length > 0) {
+        searchConditions.push({ vehicleId: { $in: matchingVehicleIds } });
+      }
+
+      query.$or = searchConditions;
     }
 
     const builtys = await Builty.find(query)
-      .select("tpNo docNo driverId vehicleId vehicleNumber")
+      .select("tpNo docNo driverId vehicleId vehicleNumber status")
       .populate("driverId", "name")
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
