@@ -117,7 +117,7 @@ exports.createVehicleMaster = async (req, res) => {
         requestMethod: req.method,
         error: error.message
       });
-    } catch (logErr) {}
+    } catch (logErr) { }
 
     return res.status(500).json({
       message: "Error creating vehicle",
@@ -140,6 +140,9 @@ exports.getVehicleMasters = async (req, res) => {
       search,
       transporterId,
       categoryId,
+      type,
+      vehicleType,
+      ownership,
     } = req.query;
 
     const query = {};
@@ -150,7 +153,21 @@ exports.getVehicleMasters = async (req, res) => {
       query.supervisorId = req.query.supervisorId;
     }
 
-    if (transporterId) query.transporterId = transporterId;
+    if (transporterId) {
+      query.transporterId = transporterId;
+    } else {
+      const filterType = type || vehicleType || ownership || "self";
+      if (filterType === "transporter") {
+        query.transporterId = { $ne: null };
+      } else if (filterType === "all") {
+        // no transporterId filter applied
+      } else if (filterType === "self" || filterType === "our") {
+        query.transporterId = null;
+      } else {
+        query.transporterId = null;
+      }
+    }
+
     if (categoryId) query.categoryId = categoryId;
 
     if (search) {
@@ -300,7 +317,7 @@ exports.updateVehicleMaster = async (req, res) => {
         requestMethod: req.method,
         error: error.message
       });
-    } catch (logErr) {}
+    } catch (logErr) { }
 
     return res.status(500).json({
       message: "Error updating vehicle",
@@ -369,7 +386,7 @@ exports.deleteVehicleMaster = async (req, res) => {
         requestMethod: req.method,
         error: error.message
       });
-    } catch (logErr) {}
+    } catch (logErr) { }
 
     return res.status(500).json({
       message: "Error deleting vehicle",
@@ -414,8 +431,8 @@ exports.getVehicleMasterDropdown = async (req, res) => {
       query.supervisorId = supervisorId;
     }
 
-    // type = our / transporter
-    if (type === "our") {
+    // type = self / our / transporter
+    if (type === "our" || type === "self") {
       query.transporterId = null;
     }
 
@@ -496,7 +513,7 @@ exports.getVehicleMasterDropdownall = async (req, res) => {
       query.supervisorId = supervisorId;
     }
 
-    if (type === "our") {
+    if (type === "our" || type === "self") {
       query.transporterId = null;
     } else if (type === "transporter") {
       query.transporterId = { $ne: null };
@@ -548,12 +565,12 @@ exports.getVehicleMasterDropdownall = async (req, res) => {
 exports.updateVehicleStatus = async (req, res) => {
   try {
     const { vehicleId } = req.params;
-    const { isAssigned, forceUpdate = false } = req.body; 
+    const { isAssigned, forceUpdate = false } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(vehicleId)) {
       return res.status(400).json({ success: false, message: "Invalid Vehicle ID format" });
     }
-    
+
     if (!["superadmin", "user", "worker"].includes(req.user.role)) {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
@@ -561,7 +578,7 @@ exports.updateVehicleStatus = async (req, res) => {
     if (typeof isAssigned !== 'boolean') {
       return res.status(400).json({ success: false, message: "isAssigned must be a boolean (true/false)" });
     }
-    
+
     const query = { _id: vehicleId };
 
     if (req.user.role !== "superadmin") {
@@ -580,9 +597,9 @@ exports.updateVehicleStatus = async (req, res) => {
     const oldVehicleSnapshot = vehicle && typeof vehicle.toObject === 'function' ? vehicle.toObject() : vehicle;
 
     if (isAssigned === false && vehicle.isAssigned === false) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "This vehicle is already unassigned. It is not assigned to anyone." 
+      return res.status(400).json({
+        success: false,
+        message: "This vehicle is already unassigned. It is not assigned to anyone."
       });
     }
 
@@ -595,7 +612,7 @@ exports.updateVehicleStatus = async (req, res) => {
 
     // Update the vehicle
     vehicle.isAssigned = isAssigned;
-    await vehicle.save(); 
+    await vehicle.save();
 
     if (isAssigned === false) {
       console.log("entered in helper function");
@@ -642,7 +659,7 @@ exports.updateVehicleStatus = async (req, res) => {
         requestMethod: req.method,
         error: error.message
       });
-    } catch (logErr) {}
+    } catch (logErr) { }
 
     console.error("Update Vehicle Status Error:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
@@ -653,14 +670,14 @@ const unassignDriverFromVehicle = async (vehicleId) => {
   try {
 
     await Driver.findOneAndUpdate(
-      { deviceId: vehicleId }, 
-      { 
-        $set: { 
-          deviceId: null, 
+      { deviceId: vehicleId },
+      {
+        $set: {
+          deviceId: null,
           isAssigned: false,
           currentVehicle: null,
           currentVehicleName: null
-        } 
+        }
       },
       { new: true } // Returns the updated document
     );
