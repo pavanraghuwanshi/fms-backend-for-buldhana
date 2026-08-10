@@ -378,6 +378,14 @@ const builtySchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    advanceBhadaPaymentMode: {
+      type: String,
+      default: null,
+    },
+    receivedBhadaPaymentMode: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );

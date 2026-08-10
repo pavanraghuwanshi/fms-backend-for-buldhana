@@ -313,6 +313,13 @@ exports.createBuilty = async (req, res) => {
       payload.tds = Boolean(payload.tds === true || payload.tds === "true" || payload.tds === 1 || payload.tds === "1");
     }
 
+    if (payload["ADVANCE BHADA PAYMENT MODE"] !== undefined) {
+      payload.advanceBhadaPaymentMode = payload["ADVANCE BHADA PAYMENT MODE"];
+    }
+    if (payload["RECEIVED BHADA PAYMENT MODE"] !== undefined) {
+      payload.receivedBhadaPaymentMode = payload["RECEIVED BHADA PAYMENT MODE"];
+    }
+
     const builty = await Builty.create(payload);
 
     let createdTrip = null;
@@ -762,6 +769,13 @@ exports.updateBuilty = async (req, res) => {
       payload.tds = Boolean(payload.tds === true || payload.tds === "true" || payload.tds === 1 || payload.tds === "1");
     }
 
+    if (payload["ADVANCE BHADA PAYMENT MODE"] !== undefined) {
+      payload.advanceBhadaPaymentMode = payload["ADVANCE BHADA PAYMENT MODE"];
+    }
+    if (payload["RECEIVED BHADA PAYMENT MODE"] !== undefined) {
+      payload.receivedBhadaPaymentMode = payload["RECEIVED BHADA PAYMENT MODE"];
+    }
+
     if (payload.products && Array.isArray(payload.products)) {
       payload.products = payload.products.map((product) => {
         return {
@@ -1084,6 +1098,8 @@ exports.dispatchBuilty = async (req, res) => {
       loadingCharge,
       loadingStartDate,
       loadingEndDate,
+      advanceBhadaPaymentMode,
+      receivedBhadaPaymentMode,
     } = req.body;
 
     if (loadingEmptyWeight === undefined || loadingLoadedWeight === undefined) {
@@ -1185,6 +1201,12 @@ exports.dispatchBuilty = async (req, res) => {
 
     if (loadingStartDate !== undefined) builty.loadingStartDate = loadingStartDate;
     if (loadingEndDate !== undefined) builty.loadingEndDate = loadingEndDate;
+
+    const advBhadaMode = advanceBhadaPaymentMode || req.body["ADVANCE BHADA PAYMENT MODE"];
+    if (advBhadaMode !== undefined) builty.advanceBhadaPaymentMode = advBhadaMode;
+
+    const recBhadaMode = receivedBhadaPaymentMode || req.body["RECEIVED BHADA PAYMENT MODE"];
+    if (recBhadaMode !== undefined) builty.receivedBhadaPaymentMode = recBhadaMode;
 
     builty.status = "Dispatched";
 
