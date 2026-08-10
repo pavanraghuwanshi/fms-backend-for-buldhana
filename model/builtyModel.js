@@ -386,6 +386,10 @@ const builtySchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    driverBhatta: {
+      type: Number,
+      default: null,
+    },
   },
   { timestamps: true }
 );

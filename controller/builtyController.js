@@ -313,6 +313,10 @@ exports.createBuilty = async (req, res) => {
       payload.tds = Boolean(payload.tds === true || payload.tds === "true" || payload.tds === 1 || payload.tds === "1");
     }
 
+    if (payload.driverBhatta !== undefined && payload.driverBhatta !== "") {
+      payload.driverBhatta = payload.driverBhatta === null ? null : Number(payload.driverBhatta);
+    }
+
     if (payload["ADVANCE BHADA PAYMENT MODE"] !== undefined) {
       payload.advanceBhadaPaymentMode = payload["ADVANCE BHADA PAYMENT MODE"];
     }
@@ -769,6 +773,10 @@ exports.updateBuilty = async (req, res) => {
       payload.tds = Boolean(payload.tds === true || payload.tds === "true" || payload.tds === 1 || payload.tds === "1");
     }
 
+    if (payload.driverBhatta !== undefined && payload.driverBhatta !== "") {
+      payload.driverBhatta = payload.driverBhatta === null ? null : Number(payload.driverBhatta);
+    }
+
     if (payload["ADVANCE BHADA PAYMENT MODE"] !== undefined) {
       payload.advanceBhadaPaymentMode = payload["ADVANCE BHADA PAYMENT MODE"];
     }
@@ -1100,6 +1108,7 @@ exports.dispatchBuilty = async (req, res) => {
       loadingEndDate,
       advanceBhadaPaymentMode,
       receivedBhadaPaymentMode,
+      driverBhatta,
     } = req.body;
 
     if (loadingEmptyWeight === undefined || loadingLoadedWeight === undefined) {
@@ -1207,6 +1216,10 @@ exports.dispatchBuilty = async (req, res) => {
 
     const recBhadaMode = receivedBhadaPaymentMode || req.body["RECEIVED BHADA PAYMENT MODE"];
     if (recBhadaMode !== undefined) builty.receivedBhadaPaymentMode = recBhadaMode;
+
+    if (driverBhatta !== undefined && driverBhatta !== "") {
+      builty.driverBhatta = driverBhatta === null ? null : Number(driverBhatta);
+    }
 
     builty.status = "Dispatched";
 
