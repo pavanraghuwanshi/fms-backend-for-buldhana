@@ -21,7 +21,17 @@ const attendanceSchema = new mongoose.Schema(
     },
     endLat:{ type: Number },
     endLong:{ type: Number },
-    checkoutTime:{ type: String }
+    checkoutTime:{ type: String },
+    tripId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Trip",
+      default: null,
+    },
+    builtyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Builty",
+      default: null,
+    },
   },
   {
     timestamps: {

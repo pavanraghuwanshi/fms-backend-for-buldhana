@@ -1,5 +1,5 @@
 const express = require('express');
-const { markAttendanceByDriver, markAttendanceBySupervisor, getAttendanceHistoryByDriverId, getAttendanceMonthWiseByDriverId, getRemainingAttendenceOfDriversForSupervisor, getAttendanceLocations, getAttendanceImageById, checkoutAttendanceByDriver, getTodayAttendanceById } = require('../controller/attendenceController');
+const { markAttendanceByDriver, markAttendanceBySupervisor, getAttendanceHistoryByDriverId, getAttendanceMonthWiseByDriverId, getRemainingAttendenceOfDriversForSupervisor, getAttendanceLocations, getAttendanceImageById, checkoutAttendanceByDriver, getTodayAttendanceById, getAttendanceByTripId } = require('../controller/attendenceController');
 const { driverMiddleware } = require('../middleware/driverMiddleware');
 const upload = require('../middleware/upload');
 const { authenticateToken } = require('../middleware/authMiddleware');
@@ -17,6 +17,7 @@ router.get('/get-attendance-img/:id', authenticateToken, getAttendanceImageById)
 
 router.patch('/mark-checkout-by-driver/:id',authenticateToken,checkoutAttendanceByDriver);
 router.get('/get-attendance-by-driverid',authenticateToken,getTodayAttendanceById);
+router.get('/get-attendance-by-tripid/:tripId', authenticateToken, getAttendanceByTripId);
 
 
 module.exports = router;

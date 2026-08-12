@@ -1,8 +1,9 @@
 const { default: mongoose } = require("mongoose");
 const Attendance = require("../model/attendanceModel");
 const Driver = require("../model/driverModel.js");
+const Trip = require("../model/tripModel.js");
 const Image_attendance = require("../model/image_attendanceModel.js");
-const { compressImage } = require("../utils/helperFunctions");
+const { compressImage, resolveTripAndActiveBuilty } = require("../utils/helperFunctions");
 const { notifySupervisorAttendance } = require("../services/notificationService");
 
 exports.markAttendanceByDriver = async (req, res) => {
@@ -36,23 +37,32 @@ exports.markAttendanceByDriver = async (req, res) => {
       return res.status(400).json({ message: "Please provide a selfie image" });
     }
 
+    const driver = await Driver.findById(driverId).select("name supervisor currentTripId");
+    const { trip, activeBuiltyId } = await resolveTripAndActiveBuilty(req.body?.builtyId, driver || driverId);
+
     const presentAttendance = new Attendance({
       driverId,
       status: "Present",
       lat,
       long,
       ...(attendanceImageId && { attendanceImageId }),
+      tripId: trip?._id || null,
+      builtyId: activeBuiltyId || null,
     });
     await presentAttendance.save();
 
-    const driver = await Driver.findById(driverId).select("name supervisor");
     if (driver?.supervisor) {
       notifySupervisorAttendance(driver.supervisor, driver, presentAttendance).catch((error) => {
         console.error("Async attendance notification error:", error);
       });
     }
 
-    return res.status(200).json({ message: `Attendance marked successfully for date ${today} `,  attendanceId: presentAttendance._id, });
+    return res.status(200).json({
+      message: `Attendance marked successfully for date ${today} `,
+      attendanceId: presentAttendance._id,
+      tripId: presentAttendance.tripId,
+      builtyId: presentAttendance.builtyId,
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Server error" + error.message });
@@ -77,13 +87,23 @@ exports.markAttendanceBySupervisor = async (req, res) => {
 
     if (existingAttendance) return res.status(400).json({ message: "Attendance already marked for today" });
 
+    const driver = await Driver.findById(driverId).select("name supervisor currentTripId");
+    const { trip, activeBuiltyId } = await resolveTripAndActiveBuilty(req.body?.builtyId, driver || driverId);
+
     const presentAttendance = new Attendance({
       driverId,
       status: "Present",
+      tripId: trip?._id || null,
+      builtyId: activeBuiltyId || null,
     });
     await presentAttendance.save();
 
-    return res.status(200).json({ message: `Attendance marked successfully for date ${new Intl.DateTimeFormat("en-GB").format(new Date(today))} ` });
+    return res.status(200).json({
+      message: `Attendance marked successfully for date ${new Intl.DateTimeFormat("en-GB").format(new Date(today))} `,
+      attendanceId: presentAttendance._id,
+      tripId: presentAttendance.tripId,
+      builtyId: presentAttendance.builtyId,
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Server error" + error.message });
@@ -106,6 +126,8 @@ exports.getAttendanceHistoryByDriverId = async (req, res) => {
         driverName: item.driverId.name,
         status: item.status,
         createdAt: formattedDate,
+        tripId: item.tripId || null,
+        builtyId: item.builtyId || null,
       };
     }));
 
@@ -185,14 +207,16 @@ exports.getAttendanceMonthWiseByDriverId = async (req, res) => {
 
         return {
           status: item.status,
-          createdAt:item.createdAt,
+          createdAt: item.createdAt,
           imageId: item.attendanceImageId,
           lat: item.lat,
           long: item.long,
-          endLat:item.endLat,
-          endLong:item.endLong,
-          checkoutTime:item.checkoutTime,
+          endLat: item.endLat,
+          endLong: item.endLong,
+          checkoutTime: item.checkoutTime,
           driverName: item.driverId.name,
+          tripId: item.tripId || null,
+          builtyId: item.builtyId || null,
         }
       }),
     });
@@ -230,34 +254,6 @@ exports.getRemainingAttendenceOfDriversForSupervisor = async (req, res) => {
     return res.status(500).json({ message: "Server error" + error.message });
   }
 };
-
-// exports.getAttendanceLocations = async (req, res) => {
-//   try {
-//     if (req.user.role !== "superadmin" && req.user.role !== "user") return res.status(403).json({ success: false, message: "Unauthorized access" });
-//     const startDate = new Date(new Date().setHours(0, 0, 0, 0) + 5.5 * 60 * 60 * 1000);
-//     const endDate = new Date(new Date().setHours(23, 59, 59, 999) + 5.5 * 60 * 60 * 1000);
-
-//     let query = {
-//       createdAt: { $gte: startDate, $lte: endDate },
-//       status: "Present",
-//       // lat: { $exists: true, $ne: null },
-//       // long: { $exists: true, $ne: null },
-//     };
-
-//     if (req.user.role === "user") {
-//       const drivers = await Driver.find({ supervisor: req.user.id }).select('_id').lean();
-//       if (!drivers.length) return res.status(404).json({ success: false, message: "No drivers found for the supervisor", });
-//       const driverIds = drivers.map(driver => driver._id);
-//       query.driverId = { $in: driverIds };
-//     }
-
-//     const attendanceLocations = await Attendance.find(query).select('-__v ').populate("driverId", "supervisor name").lean();
-//     return res.status(200).json({ success: true, attendanceLocations, });
-//   } catch (error) {
-//     console.error("Error in getAttendanceLocations:", error);
-//     return res.status(500).json({ success: false, message: "Server error" + error.message });
-//   }
-// };
 
 exports.getAttendanceLocations = async (req, res) => {
   try {
@@ -323,7 +319,7 @@ exports.getAttendanceImageById = async (req, res) => {
 exports.checkoutAttendanceByDriver = async (req, res) => {
   try {
     const driverId = req.user.id;
-    const { id } = req.params; 
+    const { id } = req.params;
     const { endLat, endLong } = req.body;
 
     const attendance = await Attendance.findOne({ _id: id, driverId });
@@ -357,6 +353,8 @@ exports.checkoutAttendanceByDriver = async (req, res) => {
           lat: attendance.endLat,
           long: attendance.endLong,
         },
+        tripId: attendance.tripId || null,
+        builtyId: attendance.builtyId || null,
       },
     });
   } catch (error) {
@@ -378,7 +376,7 @@ exports.getTodayAttendanceById = async (req, res) => {
       createdAt: { $gte: startTime, $lte: endTime },
     })
       .populate("driverId", "name mobileNumber")
-      .select("_id status lat long createdAt checkoutTime endLat endLong attendanceImageId");
+      .select("_id status lat long createdAt checkoutTime endLat endLong attendanceImageId tripId builtyId");
 
     if (!attendance) {
       return res.status(404).json({
@@ -398,6 +396,77 @@ exports.getTodayAttendanceById = async (req, res) => {
       success: false,
       message: "Server error",
       error: error.message,
+    });
+  }
+};
+
+exports.getAttendanceByTripId = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    if (!tripId) {
+      return res.status(400).json({ success: false, message: "Trip ID parameter is required" });
+    }
+
+    let searchTripId = tripId;
+    const isObjectId = mongoose.Types.ObjectId.isValid(tripId);
+    let trip = null;
+    if (isObjectId) {
+      trip = await Trip.findById(tripId);
+    }
+    if (!trip) {
+      trip = await Trip.findOne({ tripId: tripId });
+    }
+
+    if (trip) {
+      searchTripId = trip._id;
+    }
+
+    const attendanceRecords = await Attendance.find({ tripId: searchTripId })
+      .populate("driverId", "name contactNumber email")
+      .populate("builtyId")
+      .populate("attendanceImageId")
+      .sort({ createdAt: -1 });
+
+    // Group attendance records by Builty
+    const builtyMap = {};
+    attendanceRecords.forEach((rec) => {
+      if (rec.builtyId) {
+        const builtyKey = rec.builtyId._id ? rec.builtyId._id.toString() : rec.builtyId.toString();
+        if (!builtyMap[builtyKey]) {
+          builtyMap[builtyKey] = {
+            builtyId: builtyKey,
+            builtyDetails: rec.builtyId,
+            attendanceCount: 0,
+            attendance: [],
+          };
+        }
+        builtyMap[builtyKey].attendanceCount++;
+        builtyMap[builtyKey].attendance.push(rec);
+      }
+    });
+
+    const builtyWise = Object.values(builtyMap);
+
+    return res.status(200).json({
+      success: true,
+      message: "Attendance records fetched successfully for trip",
+      tripCount: trip ? 1 : (attendanceRecords.length > 0 ? 1 : 0),
+      totalAttendanceCount: attendanceRecords.length,
+      builtyCount: builtyWise.length,
+      tripWise: {
+        tripId: searchTripId,
+        tripDetails: trip,
+        attendanceCount: attendanceRecords.length,
+        attendance: attendanceRecords,
+      },
+      builtyWise: builtyWise,
+      attendance: attendanceRecords,
+    });
+  } catch (error) {
+    console.error("Error in getAttendanceByTripId:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error: " + error.message,
     });
   }
 };
