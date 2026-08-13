@@ -2,6 +2,7 @@ const { default: mongoose } = require("mongoose");
 const Attendance = require("../model/attendanceModel");
 const Driver = require("../model/driverModel.js");
 const Trip = require("../model/tripModel.js");
+const Builty = require("../model/builtyModel.js");
 const Image_attendance = require("../model/image_attendanceModel.js");
 const { compressImage, resolveTripAndActiveBuilty } = require("../utils/helperFunctions");
 const { notifySupervisorAttendance } = require("../services/notificationService");
@@ -376,6 +377,8 @@ exports.getTodayAttendanceById = async (req, res) => {
       createdAt: { $gte: startTime, $lte: endTime },
     })
       .populate("driverId", "name mobileNumber")
+      .populate("tripId", "tripId status date")
+      .populate("builtyId", "tpNo docNo status")
       .select("_id status lat long createdAt checkoutTime endLat endLong attendanceImageId tripId builtyId");
 
     if (!attendance) {
@@ -423,6 +426,8 @@ exports.getAttendanceByTripId = async (req, res) => {
 
     const attendanceRecords = await Attendance.find({ tripId: searchTripId })
       .populate("driverId", "name contactNumber email")
+      .populate("tripId", "tripId  status date")
+      .populate("builtyId", "tpNo docNo status")
       .select("-attendanceImageId -__v")
       .sort({ createdAt: -1 });
 
