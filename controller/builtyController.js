@@ -5,6 +5,7 @@ const VehicleMaster = require("../model/maintenanceDevice.model");
 const Driver = require("../model/driverModel");
 const { notifyVendor, notifyDriverBuiltyAssignment, notifySupervisorBuiltyCreatedByWorker, notifySupervisorBuiltyDispatched, notifySupervisorBuiltyCompleted, notifySupervisorBuiltyCancelled, checkSupervisorNotificationPermission } = require('../services/notificationService');
 const { logAction } = require('../utils/logger');
+const { recordAssignment } = require('../utils/helperFunctions');
 const Trip = require("../model/tripModel");
 const Location = require("../model/location");
 const Vehicleexpense = require("../model/vehicleExpensesModel");
@@ -400,6 +401,19 @@ exports.createBuilty = async (req, res) => {
           console.error("Async driver Builty notification error:", err);
         });
       }
+    }
+
+    if (payload.vehicleId && payload.driverId) {
+      await recordAssignment({
+        vehicleId: payload.vehicleId,
+        vehicleNumber: payload.vehicleNumber,
+        driverId: payload.driverId,
+        tripId: createdTrip?._id || null,
+        builtyId: builty._id,
+        actionBy: req.user.id,
+        actionByRole: req.user.role,
+        reason: "Assigned via Builty creation",
+      });
     }
 
     if (req.user.role === "worker") {

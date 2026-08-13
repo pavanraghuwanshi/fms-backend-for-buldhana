@@ -2,7 +2,7 @@ const { default: mongoose } = require("mongoose");
 const Attendance = require("../model/attendanceModel");
 const LeaveRequest = require("../model/leaveModel");
 const Driver = require("../model/driverModel");
-const { compressImage } = require("../utils/helperFunctions");
+const { compressImage, recordAssignment, recordUnassignment } = require("../utils/helperFunctions");
 const Device = require("../model/deviceModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Trip = require("../model/tripModel");
@@ -102,6 +102,16 @@ exports.createDriver = async (req, res) => {
           message: "Vehicle assign update failed",
         });
       }
+
+      await recordAssignment({
+        vehicleId: deviceId,
+        vehicleNumber: updatedVehicle.vehicleNumber,
+        driverId: driver._id,
+        driverName: driver.name,
+        actionBy: req.user.id,
+        actionByRole: req.user.role,
+        reason: "Assigned during Driver creation",
+      });
     }
 
     const safeDriver = driver && typeof driver.toObject === 'function' ? driver.toObject() : { ...driver };
@@ -350,18 +360,38 @@ exports.updateDriver = async (req, res) => {
             driverId: null,
           },
         });
+        await recordUnassignment({
+          vehicleId: oldDeviceId,
+          driverId: driver._id,
+          driverName: driver.name,
+          actionBy: req.user.id,
+          actionByRole: req.user.role,
+          reason: "Unassigned via Driver update",
+        });
       }
 
       if (deviceId) {
-        await VehicleMaster.findByIdAndUpdate(deviceId, {
+        const assignedVeh = await VehicleMaster.findByIdAndUpdate(deviceId, {
           $set: {
             isAssigned: true,
             driverId: driver._id,
           },
-        });
+        }, { new: true });
 
         driver.deviceId = deviceId;
         driver.isAssigned = true;
+
+        if (!oldDeviceId || oldDeviceId !== deviceId.toString()) {
+          await recordAssignment({
+            vehicleId: deviceId,
+            vehicleNumber: assignedVeh?.vehicleNumber || "",
+            driverId: driver._id,
+            driverName: driver.name,
+            actionBy: req.user.id,
+            actionByRole: req.user.role,
+            reason: "Assigned via Driver update",
+          });
+        }
       } else {
         driver.deviceId = null;
         driver.isAssigned = false;
@@ -439,6 +469,23 @@ exports.deleteDriver = async (req, res) => {
     if (req.user.role === "user") {
       const driver = await Driver.findByIdAndDelete(req.params.id);
       if (!driver) return res.status(404).json({ message: "Driver not found" });
+
+      if (driver.deviceId) {
+        await VehicleMaster.findByIdAndUpdate(driver.deviceId, {
+          $set: {
+            isAssigned: false,
+            driverId: null,
+          },
+        });
+        await recordUnassignment({
+          vehicleId: driver.deviceId,
+          driverId: driver._id,
+          driverName: driver.name,
+          actionBy: req.user.id,
+          actionByRole: req.user.role,
+          reason: "Unassigned via Driver deletion",
+        });
+      }
 
       const oldDriverSnapshot = driver && typeof driver.toObject === 'function' ? driver.toObject() : { ...driver };
       delete oldDriverSnapshot.password;

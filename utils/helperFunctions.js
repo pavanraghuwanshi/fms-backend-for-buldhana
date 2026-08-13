@@ -3,6 +3,7 @@ const Trip = require("../model/tripModel.js");
 const Builty = require("../model/builtyModel.js");
 const VehicleMaster = require("../model/maintenanceDevice.model.js");
 const Driver = require("../model/driverModel.js");
+const AssignmentHistory = require("../model/assignmentHistoryModel.js");
 
 // Function to compress and convert image to Base64
 exports.compressImage = async (image) => {
@@ -117,11 +118,110 @@ exports.resolveTripAndActiveBuilty = async (providedBuiltyId, driver) => {
 };
 
 /**
+ * Records an ASSIGNED entry in AssignmentHistory
+ */
+exports.recordAssignment = async ({
+  vehicleId,
+  vehicleNumber,
+  driverId,
+  driverName,
+  tripId = null,
+  builtyId = null,
+  actionBy = null,
+  actionByRole = null,
+  reason = "Vehicle & Driver assigned",
+}) => {
+  try {
+    if (!vehicleId || !driverId) return null;
+
+    let vNum = vehicleNumber;
+    if (!vNum && vehicleId) {
+      const v = await VehicleMaster.findById(vehicleId).select("vehicleNumber").lean();
+      vNum = v?.vehicleNumber || "";
+    }
+
+    let dName = driverName;
+    if (!dName && driverId) {
+      const d = await Driver.findById(driverId).select("name").lean();
+      dName = d?.name || "";
+    }
+
+    const record = new AssignmentHistory({
+      vehicleId,
+      vehicleNumber: vNum,
+      driverId,
+      driverName: dName,
+      tripId: tripId || null,
+      builtyId: builtyId || null,
+      action: "ASSIGNED",
+      actionBy: actionBy || null,
+      actionByRole: actionByRole || null,
+      reason,
+    });
+    await record.save();
+    return record;
+  } catch (error) {
+    console.error("Error recording assignment history:", error);
+    return null;
+  }
+};
+
+/**
+ * Records an UNASSIGNED entry in AssignmentHistory
+ */
+exports.recordUnassignment = async ({
+  vehicleId,
+  vehicleNumber,
+  driverId,
+  driverName,
+  tripId = null,
+  builtyId = null,
+  actionBy = null,
+  actionByRole = null,
+  reason = "Vehicle & Driver unassigned",
+}) => {
+  try {
+    if (!vehicleId && !driverId) return null;
+
+    let vNum = vehicleNumber;
+    if (!vNum && vehicleId) {
+      const v = await VehicleMaster.findById(vehicleId).select("vehicleNumber").lean();
+      vNum = v?.vehicleNumber || "";
+    }
+
+    let dName = driverName;
+    if (!dName && driverId) {
+      const d = await Driver.findById(driverId).select("name").lean();
+      dName = d?.name || "";
+    }
+
+    const record = new AssignmentHistory({
+      vehicleId: vehicleId || null,
+      vehicleNumber: vNum,
+      driverId: driverId || null,
+      driverName: dName,
+      tripId: tripId || null,
+      builtyId: builtyId || null,
+      action: "UNASSIGNED",
+      actionBy: actionBy || null,
+      actionByRole: actionByRole || null,
+      reason,
+    });
+    await record.save();
+    return record;
+  } catch (error) {
+    console.error("Error recording unassignment history:", error);
+    return null;
+  }
+};
+
+/**
  * Unassigns a vehicle and driver when a trip is completed.
  * - Sets VehicleMaster isAssigned to false
  * - Sets Driver isAssigned to false, deviceId, currentVehicle, currentVehicleName, currentTripId to null
+ * - Records unassignment history entry
  */
-exports.unassignVehicleAndDriver = async (vehicleId, driverId) => {
+exports.unassignVehicleAndDriver = async (vehicleId, driverId, extra = {}) => {
   if (vehicleId) {
     await VehicleMaster.findByIdAndUpdate(vehicleId, {
       isAssigned: false,
@@ -137,4 +237,18 @@ exports.unassignVehicleAndDriver = async (vehicleId, driverId) => {
         currentTripId: null,
       },
     });
-  }};
+  }
+
+  const { tripId = null, builtyId = null, actionBy = null, actionByRole = null, reason = "Trip completed / unassigned" } = extra;
+  if (vehicleId || driverId) {
+    await exports.recordUnassignment({
+      vehicleId,
+      driverId,
+      tripId,
+      builtyId,
+      actionBy,
+      actionByRole,
+      reason,
+    });
+  }
+};

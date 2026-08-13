@@ -5,6 +5,7 @@ const DailyTripByDriver = require("../model/DailyTripByDriverModel.js");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const { notifySupervisorDailyTripStart, notifySupervisorDailyTripEnd } = require("../services/notificationService");
 const { logAction } = require("../utils/logger.js");
+const { recordAssignment, recordUnassignment } = require("../utils/helperFunctions.js");
 
 exports.startDailyTrip = async (req, res) => {
   try {
@@ -67,6 +68,16 @@ exports.startDailyTrip = async (req, res) => {
       vehicleId: device._id, // Use device._id here
       odometerStart,
       startTime: startTimeIST
+    });
+
+    await recordAssignment({
+      vehicleId: device._id,
+      vehicleNumber: device.vehicleNumber,
+      driverId: driver._id,
+      driverName: driver.name,
+      actionBy: req.user.id,
+      actionByRole: req.user.role,
+      reason: "Assigned via Daily Trip start",
     });
 
     if (supervisorId) {
@@ -203,6 +214,16 @@ exports.endDailyTrip = async (req, res) => {
     trip.status = "completed"
 
     await trip.save();
+
+    await recordUnassignment({
+      vehicleId: device._id,
+      vehicleNumber: device.vehicleNumber,
+      driverId: driver._id,
+      driverName: driver.name,
+      actionBy: req.user.id,
+      actionByRole: req.user.role,
+      reason: "Unassigned via Daily Trip end",
+    });
 
     const targetSupervisorId = trip.supervisorId || driver.supervisor;
     if (targetSupervisorId) {

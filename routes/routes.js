@@ -108,5 +108,7 @@ router.use("/builty-templates", builtyTemplatesRoutes)
 
 router.use("/notification-permissions", notificationPermissionsRoutes);
 router.use("/send-whatsapp-invoice", sendWhatsappInvoiceRoute);
+const assignmentHistoryRoute = require("./assignmentHistoryRoute");
+router.use("/assignment-history", assignmentHistoryRoute);
 
 module.exports = router;

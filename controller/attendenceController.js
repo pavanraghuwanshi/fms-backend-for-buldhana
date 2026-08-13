@@ -423,43 +423,24 @@ exports.getAttendanceByTripId = async (req, res) => {
 
     const attendanceRecords = await Attendance.find({ tripId: searchTripId })
       .populate("driverId", "name contactNumber email")
-      .populate("builtyId")
-      .populate("attendanceImageId")
+      .select("-attendanceImageId -__v")
       .sort({ createdAt: -1 });
 
-    // Group attendance records by Builty
-    const builtyMap = {};
+    // Calculate unique builty count
+    const builtySet = new Set();
     attendanceRecords.forEach((rec) => {
       if (rec.builtyId) {
         const builtyKey = rec.builtyId._id ? rec.builtyId._id.toString() : rec.builtyId.toString();
-        if (!builtyMap[builtyKey]) {
-          builtyMap[builtyKey] = {
-            builtyId: builtyKey,
-            builtyDetails: rec.builtyId,
-            attendanceCount: 0,
-            attendance: [],
-          };
-        }
-        builtyMap[builtyKey].attendanceCount++;
-        builtyMap[builtyKey].attendance.push(rec);
+        builtySet.add(builtyKey);
       }
     });
-
-    const builtyWise = Object.values(builtyMap);
 
     return res.status(200).json({
       success: true,
       message: "Attendance records fetched successfully for trip",
       tripCount: trip ? 1 : (attendanceRecords.length > 0 ? 1 : 0),
+      builtyCount: builtySet.size,
       totalAttendanceCount: attendanceRecords.length,
-      builtyCount: builtyWise.length,
-      tripWise: {
-        tripId: searchTripId,
-        tripDetails: trip,
-        attendanceCount: attendanceRecords.length,
-        attendance: attendanceRecords,
-      },
-      builtyWise: builtyWise,
       attendance: attendanceRecords,
     });
   } catch (error) {

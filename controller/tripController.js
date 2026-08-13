@@ -5,7 +5,7 @@ const VehicleMaster = require("../model/maintenanceDevice.model");
 const Builty = require("../model/builtyModel");
 const WalletLedger = require("../model/WalletLedger");
 const Device = require("../model/deviceModel");
-const { unassignVehicleAndDriver } = require("../utils/helperFunctions");
+const { unassignVehicleAndDriver, recordAssignment } = require("../utils/helperFunctions");
 const { logAction } = require("../utils/logger");
 
 exports.createTrip = async (req, res) => {
@@ -41,8 +41,25 @@ exports.createTrip = async (req, res) => {
       currentVehicle: payload.vehicleId,
       currentVehicleName: payload.vehicleName,
       currentTripId: trip._id,
-      deviceId: payload.vehicleId
+      deviceId: payload.vehicleId,
+      isAssigned: true,
     });
+    if (payload.vehicleId) {
+      await VehicleMaster.findByIdAndUpdate(payload.vehicleId, { isAssigned: true });
+    }
+
+    if (payload.vehicleId && payload.driverId) {
+      await recordAssignment({
+        vehicleId: payload.vehicleId,
+        vehicleNumber: payload.vehicleName,
+        driverId: payload.driverId,
+        tripId: trip._id,
+        builtyId: payload.builtyId || null,
+        actionBy: req.user.id,
+        actionByRole: req.user.role,
+        reason: "Assigned via Trip creation",
+      });
+    }
     const initialDeposit = new WalletLedger({
       driverId: trip.driverId,
       supervisorId: trip.supervisorId,
@@ -411,12 +428,26 @@ exports.updateTrip = async (req, res) => {
         });
       }
 
-      if (trip.status === "completed") {
-        await Driver.findByIdAndUpdate(trip.driverId, {
-          currentVehicle: null,
-          currentVehicleName: null,
-          currentTripId: null,
+      if (trip.status === "completed" || trip.status === "cancelled") {
+        await unassignVehicleAndDriver(trip.vehicleId, trip.driverId, {
+          tripId: trip._id,
+          actionBy: req.user.id,
+          actionByRole: req.user.role,
+          reason: `Trip updated to ${trip.status}`,
         });
+      } else if (req.body.vehicleId || req.body.driverId) {
+        const effectiveVehicleId = req.body.vehicleId || trip.vehicleId;
+        const effectiveDriverId = req.body.driverId || trip.driverId;
+        if (effectiveVehicleId && effectiveDriverId) {
+          await recordAssignment({
+            vehicleId: effectiveVehicleId,
+            driverId: effectiveDriverId,
+            tripId: trip._id,
+            actionBy: req.user.id,
+            actionByRole: req.user.role,
+            reason: "Assigned via Trip update",
+          });
+        }
       }
 
       try {
@@ -510,11 +541,12 @@ exports.updateTrip = async (req, res) => {
         });
       }
 
-      if (updatedTrip.status === "completed") {
-        await Driver.findByIdAndUpdate(trip.driverId, {
-          currentVehicle: null,
-          currentVehicleName: null,
-          currentTripId: null,
+      if (updatedTrip.status === "completed" || updatedTrip.status === "cancelled") {
+        await unassignVehicleAndDriver(updatedTrip.vehicleId || trip.vehicleId, updatedTrip.driverId || trip.driverId, {
+          tripId: updatedTrip._id,
+          actionBy: req.user.id,
+          actionByRole: req.user.role,
+          reason: `Trip driver updated status to ${updatedTrip.status}`,
         });
       }
 
@@ -675,7 +707,12 @@ exports.completeTrip = async (req, res) => {
         });
       }
 
-      await unassignVehicleAndDriver(trip.vehicleId, trip.driverId);
+      await unassignVehicleAndDriver(trip.vehicleId, trip.driverId, {
+        tripId: trip._id,
+        actionBy: req.user.id,
+        actionByRole: req.user.role,
+        reason: "Trip completed by supervisor",
+      });
 
       try {
         await logAction({
@@ -741,7 +778,12 @@ exports.completeTrip = async (req, res) => {
         });
       }
 
-      await unassignVehicleAndDriver(updatedTrip.vehicleId || tripCheck.vehicleId, updatedTrip.driverId || tripCheck.driverId);
+      await unassignVehicleAndDriver(updatedTrip.vehicleId || tripCheck.vehicleId, updatedTrip.driverId || tripCheck.driverId, {
+        tripId: updatedTrip._id || tripCheck._id,
+        actionBy: req.user.id,
+        actionByRole: req.user.role,
+        reason: "Trip completed by driver",
+      });
 
       try {
         await logAction({
@@ -818,10 +860,11 @@ exports.deleteTrip = async (req, res) => {
     // Delete all ledger entries related to this trip
     await WalletLedger.deleteMany({ tripId: trip._id });
 
-    await Driver.findByIdAndUpdate(trip.driverId, {
-      currentVehicle: null,
-      currentVehicleName: null,
-      currentTripId: null,
+    await unassignVehicleAndDriver(trip.vehicleId, trip.driverId, {
+      tripId: trip._id,
+      actionBy: req.user.id,
+      actionByRole: req.user.role,
+      reason: "Trip deleted",
     });
 
     try {
