@@ -4,7 +4,7 @@ const { maintenanceDB } = require('../database/database');
 const workerSchema = new mongoose.Schema(
     {
         name: { type: String, required: [true, "name is required"] },
-        email: { type: String },
+        email: { type: String, unique: true, sparse: true, trim: true, lowercase: true, default: null },
         phone: { type: Number, required: [true, "phone is required"], unique: true },
         password: { type: String, required: [true, "password is required"] },
         profileImage: {

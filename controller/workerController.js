@@ -104,7 +104,27 @@ exports.createWorker = async (req, res) => {
         if (!supervisor || !supervisorName) return res.status(400).json({ message: "Please select Supervisor or SupervisorName" });
 
         const { name, email, phone, password } = req.body;
-        if (!name || !phone || !password) return res.status(400).json({ message: "Name, phone and password are required" });
+        if (!name || !phone || !password) return res.status(400).json({ success: false, message: "Name, phone and password are required" });
+
+        const cleanEmail = email && typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : null;
+        const parsedPhone = Number(phone);
+
+        if (isNaN(parsedPhone)) {
+            return res.status(400).json({ success: false, message: "Invalid phone number provided" });
+        }
+
+        const checkQuery = [{ phone: parsedPhone }];
+        if (cleanEmail) checkQuery.push({ email: cleanEmail });
+
+        const existingWorker = await Worker.findOne({ $or: checkQuery });
+        if (existingWorker) {
+            if (existingWorker.phone === parsedPhone) {
+                return res.status(400).json({ success: false, message: "Phone number already registered" });
+            }
+            if (cleanEmail && existingWorker.email === cleanEmail) {
+                return res.status(400).json({ success: false, message: "Email address already registered" });
+            }
+        }
 
         let profileImageId = null;
         if (req.file) {
@@ -114,15 +134,16 @@ exports.createWorker = async (req, res) => {
                 profileImageId = savedImage._id;
             } catch (err) {
                 console.error("Image save error:", err);
-                return res.status(500).json({ message: "Failed to process profile image" });
+                return res.status(500).json({ success: false, message: "Failed to process profile image" });
             }
         }
 
         const worker = await Worker.create(
             {
                 name: name.trim(),
-                email: email.trim().toLowerCase(),
-                phone, password: encrypt(password),
+                email: cleanEmail,
+                phone: parsedPhone,
+                password: encrypt(password),
                 profileImage: profileImageId,
                 supervisor,
                 supervisorName
@@ -167,8 +188,18 @@ exports.createWorker = async (req, res) => {
             });
         } catch (logErr) {}
 
-        if (error.code === 11000 && error.keyPattern && error.keyPattern.username) return res.status(400).json({ message: "Branch name already exists" });
-        return res.status(500).json({ message: error.message });
+        if (error.code === 11000) {
+            const keyPattern = error.keyPattern || {};
+            const keyValue = error.keyValue || {};
+            if (keyPattern.phone || keyValue.phone || error.message.includes("phone")) {
+                return res.status(400).json({ success: false, message: "Phone number already registered" });
+            }
+            if (keyPattern.email || keyValue.email || error.message.includes("email")) {
+                return res.status(400).json({ success: false, message: "Email address already registered" });
+            }
+            return res.status(400).json({ success: false, message: "Worker with this phone or email already exists" });
+        }
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -209,9 +240,38 @@ exports.updateWorker = async (req, res) => {
 
         const updateData = {};
         if (name) updateData.name = name.trim();
-        if (email) updateData.email = email.trim().toLowerCase();
-        if (phone) updateData.phone = phone;
+        if (email !== undefined) {
+            updateData.email = email && typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : null;
+        }
+        if (phone !== undefined) {
+            const parsedPhone = Number(phone);
+            if (isNaN(parsedPhone)) {
+                return res.status(400).json({ success: false, message: "Invalid phone number provided" });
+            }
+            updateData.phone = parsedPhone;
+        }
         if (password) updateData.password = encrypt(password);
+
+        // Pre-check for duplicate phone/email on update
+        if (updateData.phone !== undefined || updateData.email) {
+            const checkQuery = [];
+            if (updateData.phone !== undefined) checkQuery.push({ phone: updateData.phone });
+            if (updateData.email) checkQuery.push({ email: updateData.email });
+
+            const duplicateWorker = await Worker.findOne({
+                _id: { $ne: id },
+                $or: checkQuery
+            });
+
+            if (duplicateWorker) {
+                if (updateData.phone !== undefined && duplicateWorker.phone === updateData.phone) {
+                    return res.status(400).json({ success: false, message: "Phone number already registered" });
+                }
+                if (updateData.email && duplicateWorker.email === updateData.email) {
+                    return res.status(400).json({ success: false, message: "Email address already registered" });
+                }
+            }
+        }
 
         if (req.file) {
             try {
@@ -261,6 +321,7 @@ exports.updateWorker = async (req, res) => {
         }
 
         return res.status(200).json({
+            success: true,
             message: "Worker updated successfully",
             worker,
         });
@@ -281,7 +342,19 @@ exports.updateWorker = async (req, res) => {
             });
         } catch (logErr) {}
 
-        return res.status(500).json({ message: "Error updating worker", error: error.message });
+        if (error.code === 11000) {
+            const keyPattern = error.keyPattern || {};
+            const keyValue = error.keyValue || {};
+            if (keyPattern.phone || keyValue.phone || error.message.includes("phone")) {
+                return res.status(400).json({ success: false, message: "Phone number already registered" });
+            }
+            if (keyPattern.email || keyValue.email || error.message.includes("email")) {
+                return res.status(400).json({ success: false, message: "Email address already registered" });
+            }
+            return res.status(400).json({ success: false, message: "Worker with this phone or email already exists" });
+        }
+
+        return res.status(500).json({ success: false, message: "Error updating worker", error: error.message });
     }
 };
 
