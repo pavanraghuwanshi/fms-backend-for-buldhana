@@ -141,6 +141,12 @@ exports.createLog = async (req, res) => {
     const logData = { ...req.body, supervisorId: finalSupervisorId };
     processFilePaths(req.files, logData);
 
+    if (req.user?.role === "vendor" || logData.createdBy === "vendor") {
+      logData.vendorAction = "Completed";
+    } else if (!logData.vendorAction) {
+      logData.vendorAction = "Pending";
+    }
+
     const vendorLatVal = req.body.vendorLat !== undefined ? req.body.vendorLat : req.body.lat;
     const vendorLongVal = req.body.vendorLong !== undefined ? req.body.vendorLong : (req.body.vendorLng !== undefined ? req.body.vendorLng : (req.body.long !== undefined ? req.body.long : req.body.lng));
     const vendorAddressVal = req.body.vendorAddress !== undefined ? req.body.vendorAddress : req.body.address;
@@ -1098,6 +1104,9 @@ exports.patchDriverOdometer = async (req, res) => {
     if (driverAddressVal !== undefined && driverAddressVal !== null) {
       log.driverAddress = String(driverAddressVal).trim();
     }
+
+    log.driverAction = "Completed";
+    log.vendorAction = "Completed";
 
     const updatedLog = await log.save();
     deleteFilesSilently(oldFilesToDelete);

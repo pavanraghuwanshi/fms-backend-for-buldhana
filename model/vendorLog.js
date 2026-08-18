@@ -132,6 +132,12 @@ const vendorLogSchema = new mongoose.Schema(
         vendorAction: {
             type: String,
             enum: ["Completed", "Pending"],
+            default: "Completed",
+        },
+        driverAction: {
+            type: String,
+            enum: ["Completed", "Pending"],
+            default: "Pending",
         },
         date: {
             type: Date,
