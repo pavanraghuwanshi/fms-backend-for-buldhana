@@ -90,6 +90,34 @@ const vendorLogSchema = new mongoose.Schema(
             index: true,
         },
 
+        // Location Details
+        vendorLat: {
+            type: Number,
+            default: null,
+        },
+        vendorLong: {
+            type: Number,
+            default: null,
+        },
+        vendorAddress: {
+            type: String,
+            trim: true,
+            default: null,
+        },
+        driverLat: {
+            type: Number,
+            default: null,
+        },
+        driverLong: {
+            type: Number,
+            default: null,
+        },
+        driverAddress: {
+            type: String,
+            trim: true,
+            default: null,
+        },
+
         // Scoping (Required for security)
         supervisorId: {
             type: mongoose.Schema.Types.ObjectId,
