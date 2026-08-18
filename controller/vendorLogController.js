@@ -141,6 +141,24 @@ exports.createLog = async (req, res) => {
     const logData = { ...req.body, supervisorId: finalSupervisorId };
     processFilePaths(req.files, logData);
 
+    const vendorLatVal = req.body.vendorLat !== undefined ? req.body.vendorLat : req.body.lat;
+    const vendorLongVal = req.body.vendorLong !== undefined ? req.body.vendorLong : (req.body.vendorLng !== undefined ? req.body.vendorLng : (req.body.long !== undefined ? req.body.long : req.body.lng));
+    const vendorAddressVal = req.body.vendorAddress !== undefined ? req.body.vendorAddress : req.body.address;
+
+    if (vendorLatVal !== undefined && vendorLatVal !== null && vendorLatVal !== "") {
+      const parsedLat = Number(vendorLatVal);
+      if (!isNaN(parsedLat)) logData.vendorLat = parsedLat;
+    }
+
+    if (vendorLongVal !== undefined && vendorLongVal !== null && vendorLongVal !== "") {
+      const parsedLong = Number(vendorLongVal);
+      if (!isNaN(parsedLong)) logData.vendorLong = parsedLong;
+    }
+
+    if (vendorAddressVal !== undefined && vendorAddressVal !== null) {
+      logData.vendorAddress = String(vendorAddressVal).trim();
+    }
+
     const log = await VendorLog.create(logData);
     try {
       await logAction({
@@ -1061,6 +1079,24 @@ exports.patchDriverOdometer = async (req, res) => {
         oldFilesToDelete.push(path.join(__dirname, "..", log.odometerImgPath));
       }
       log.odometerImgPath = odometerImgPath;
+    }
+
+    const driverLatVal = req.body.driverLat !== undefined ? req.body.driverLat : req.body.lat;
+    const driverLongVal = req.body.driverLong !== undefined ? req.body.driverLong : (req.body.driverLng !== undefined ? req.body.driverLng : (req.body.long !== undefined ? req.body.long : req.body.lng));
+    const driverAddressVal = req.body.driverAddress !== undefined ? req.body.driverAddress : req.body.address;
+
+    if (driverLatVal !== undefined && driverLatVal !== null && driverLatVal !== "") {
+      const parsedLat = Number(driverLatVal);
+      if (!isNaN(parsedLat)) log.driverLat = parsedLat;
+    }
+
+    if (driverLongVal !== undefined && driverLongVal !== null && driverLongVal !== "") {
+      const parsedLong = Number(driverLongVal);
+      if (!isNaN(parsedLong)) log.driverLong = parsedLong;
+    }
+
+    if (driverAddressVal !== undefined && driverAddressVal !== null) {
+      log.driverAddress = String(driverAddressVal).trim();
     }
 
     const updatedLog = await log.save();
