@@ -117,6 +117,10 @@ const vendorLogSchema = new mongoose.Schema(
             trim: true,
             default: null,
         },
+        driverTime: {
+            type: Date,
+            default: null,
+        },
 
         // Scoping (Required for security)
         supervisorId: {

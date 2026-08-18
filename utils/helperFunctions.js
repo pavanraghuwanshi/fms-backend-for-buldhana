@@ -146,6 +146,16 @@ exports.recordAssignment = async ({
       dName = d?.name || "";
     }
 
+    const roleModelMap = {
+      school: "School",
+      branch: "Branch",
+      branchGroup: "BranchGroup",
+      School: "School",
+      Branch: "Branch",
+      BranchGroup: "BranchGroup",
+    };
+    const normalizedRole = actionByRole ? (roleModelMap[actionByRole] || actionByRole) : null;
+
     const record = new AssignmentHistory({
       vehicleId,
       vehicleNumber: vNum,
@@ -155,7 +165,7 @@ exports.recordAssignment = async ({
       builtyId: builtyId || null,
       action: "ASSIGNED",
       actionBy: actionBy || null,
-      actionByRole: actionByRole || null,
+      actionByRole: normalizedRole,
       reason,
     });
     await record.save();
@@ -181,7 +191,7 @@ exports.recordUnassignment = async ({
   reason = "Vehicle & Driver unassigned",
 }) => {
   try {
-    if (!vehicleId && !driverId) return null;
+    if (!vehicleId || !driverId) return null;
 
     let vNum = vehicleNumber;
     if (!vNum && vehicleId) {
@@ -195,6 +205,16 @@ exports.recordUnassignment = async ({
       dName = d?.name || "";
     }
 
+    const roleModelMap = {
+      school: "School",
+      branch: "Branch",
+      branchGroup: "BranchGroup",
+      School: "School",
+      Branch: "Branch",
+      BranchGroup: "BranchGroup",
+    };
+    const normalizedRole = actionByRole ? (roleModelMap[actionByRole] || actionByRole) : null;
+
     const record = new AssignmentHistory({
       vehicleId: vehicleId || null,
       vehicleNumber: vNum,
@@ -204,7 +224,7 @@ exports.recordUnassignment = async ({
       builtyId: builtyId || null,
       action: "UNASSIGNED",
       actionBy: actionBy || null,
-      actionByRole: actionByRole || null,
+      actionByRole: normalizedRole,
       reason,
     });
     await record.save();

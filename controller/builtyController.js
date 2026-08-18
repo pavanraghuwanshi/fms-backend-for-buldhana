@@ -1740,6 +1740,199 @@ exports.getBuiltys = async (req, res) => {
   }
 };
 
+const fetchDriverRunningTrip = async (driverId) => {
+  const driverDoc = await Driver.findById(driverId).select("currentTripId").lean();
+  if (driverDoc?.currentTripId) {
+    const trip = await Trip.findById(driverDoc.currentTripId)
+      .select("_id tripId builtyId builtyIds status loadingStartDate loadingEndDate")
+      .lean();
+    if (trip) return trip;
+  }
+  return await Trip.findOne({ driverId, status: "in-progress" })
+    .sort({ createdAt: -1 })
+    .select("_id tripId builtyId builtyIds status loadingStartDate loadingEndDate")
+    .lean();
+};
+
+const buildDriverBuiltyQuery = async (queryParams, targetDriverId) => {
+  const {
+    search, status, startDate, endDate,
+    consignerId, consigneeId, vehicleId, transporterId,
+    commissionAgentId, workerId, createdBy,
+    bookingMode, vehicleOwnership, advanceMode
+  } = queryParams;
+
+  const query = { driverId: targetDriverId };
+  if (consignerId) query.consignerId = consignerId;
+  if (consigneeId) query.consigneeId = consigneeId;
+  if (vehicleId) query.vehicleId = vehicleId;
+  if (transporterId) query.transporterId = transporterId;
+  if (commissionAgentId) query.commissionAgentId = commissionAgentId;
+  if (workerId) query.workerId = workerId;
+  if (createdBy) query.createdBy = createdBy;
+  if (bookingMode) query.bookingMode = bookingMode;
+  if (vehicleOwnership) query.vehicleOwnership = vehicleOwnership;
+  if (advanceMode) query.advanceMode = advanceMode;
+
+  if (startDate && endDate) {
+    query.date = {
+      $gte: new Date(startDate),
+      $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
+    };
+  }
+
+  if (search) {
+    const searchRegex = { $regex: search, $options: "i" };
+    query.$or = [
+      { tpNo: searchRegex },
+      { consignerName: searchRegex },
+      { consigneeName: searchRegex },
+      { vehicleNumber: searchRegex },
+      { destinationLocation: searchRegex },
+    ];
+  }
+
+  let activeTrip = null;
+  if (status && status.toLowerCase() !== "all") {
+    query.status = { $regex: `^${status}$`, $options: "i" };
+  } else if (!status) {
+    activeTrip = await fetchDriverRunningTrip(targetDriverId);
+    let runningTripBuiltyIds = [];
+    if (activeTrip) {
+      if (activeTrip.builtyId) runningTripBuiltyIds.push(activeTrip.builtyId.toString());
+      if (Array.isArray(activeTrip.builtyIds)) {
+        activeTrip.builtyIds.forEach((id) => id && runningTripBuiltyIds.push(id.toString()));
+      }
+    }
+
+    if (runningTripBuiltyIds.length > 0) {
+      query._id = { $in: runningTripBuiltyIds };
+    }
+
+    const dispatchedCount = await Builty.countDocuments({
+      ...query,
+      status: { $regex: "^Dispatched$", $options: "i" }
+    });
+
+    query.status = dispatchedCount > 0 ? { $regex: "^Dispatched$", $options: "i" } : { $regex: "^Created$", $options: "i" };
+  }
+
+  return { query, activeTrip };
+};
+
+const fetchPopulatedBuiltys = (query, page, limit) => {
+  return Builty.find(query)
+    .populate("consignerId", "name contactNumber contactPerson")
+    .populate("consigneeId", "name contactNumber contactPerson")
+    .populate("vehicleId", "vehicleNumber categoryId make grossVehicleWeight")
+    .populate("transporterId", "transporterName contactPerson contactNumber")
+    .populate("commissionAgentId", "name contactNumber contactPerson")
+    .populate("driverId", "name contactNumber")
+    .populate("pickupLocationId", "locationName latitude longitude")
+    .populate("destinationLocationId", "locationName latitude longitude")
+    .populate("vendorId", "vendorName contactPerson contactNumber")
+    .populate("invoice")
+    .sort({ createdAt: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .lean();
+};
+
+const enrichBuiltysWithTripAndLedger = async (builtys, activeTrip) => {
+  if (!builtys || builtys.length === 0) return [];
+  const builtyIds = builtys.map((b) => b._id);
+  const tripMap = new Map();
+
+  if (activeTrip) {
+    const activeTripInfo = {
+      tripId: activeTrip._id,
+      uniqueTripId: activeTrip.tripId || "N/A",
+      loadingStartDate: activeTrip.loadingStartDate || null,
+      loadingEndDate: activeTrip.loadingEndDate || null,
+    };
+    if (activeTrip.builtyId) tripMap.set(activeTrip.builtyId.toString(), activeTripInfo);
+    if (Array.isArray(activeTrip.builtyIds)) {
+      activeTrip.builtyIds.forEach((id) => id && tripMap.set(id.toString(), activeTripInfo));
+    }
+  }
+
+  const missingBuiltyIds = builtyIds.filter((id) => !tripMap.has(id.toString()));
+  if (missingBuiltyIds.length > 0) {
+    const extraTrips = await Trip.find({
+      $or: [
+        { builtyId: { $in: missingBuiltyIds } },
+        { builtyIds: { $in: missingBuiltyIds } }
+      ]
+    }).select("_id tripId loadingStartDate loadingEndDate builtyId builtyIds").lean();
+
+    extraTrips.forEach((t) => {
+      const tripInfo = {
+        tripId: t._id,
+        uniqueTripId: t.tripId || "N/A",
+        loadingStartDate: t.loadingStartDate || null,
+        loadingEndDate: t.loadingEndDate || null,
+      };
+      if (t.builtyId) tripMap.set(t.builtyId.toString(), tripInfo);
+      if (Array.isArray(t.builtyIds)) {
+        t.builtyIds.forEach((bId) => bId && tripMap.set(bId.toString(), tripInfo));
+      }
+    });
+  }
+
+  const ledgerSummaries = await Promise.all(builtys.map((b) => getLedgerSummaryByBuilty(b._id)));
+
+  return builtys.map((builty, idx) => ({
+    ...builty,
+    ...(ledgerSummaries[idx] || {}),
+    ...(tripMap.get(builty._id.toString()) || {
+      tripId: null,
+      uniqueTripId: null,
+      loadingStartDate: null,
+      loadingEndDate: null,
+    }),
+  }));
+};
+
+exports.getDriverBuiltys = async (req, res) => {
+  try {
+    if (!["superadmin", "user", "worker", "driver"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const targetDriverId = req.user.role === "driver" ? req.user.id : (req.query.driverId || null);
+    if (!targetDriverId) {
+      return res.status(400).json({ success: false, message: "driverId is required" });
+    }
+
+    const { query, activeTrip } = await buildDriverBuiltyQuery(req.query, targetDriverId);
+    const pageNum = Math.max(1, Number(req.query.page || 1));
+    const limitNum = Math.max(1, Number(req.query.limit || 10));
+
+    const [builtys, total] = await Promise.all([
+      fetchPopulatedBuiltys(query, pageNum, limitNum),
+      Builty.countDocuments(query),
+    ]);
+
+    const builtysWithLedger = await enrichBuiltysWithTripAndLedger(builtys, activeTrip);
+
+    return res.status(200).json({
+      success: true,
+      message: "Driver builtys fetched successfully",
+      total,
+      page: pageNum,
+      limit: limitNum,
+      builtys: builtysWithLedger,
+    });
+  } catch (error) {
+    console.error("Error fetching driver builtys:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching driver builtys",
+      error: error.message,
+    });
+  }
+};
+
 exports.getBuiltyById = async (req, res) => {
   try {
     const builty = await Builty.findById(req.params.id)

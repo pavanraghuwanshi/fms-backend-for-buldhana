@@ -1105,6 +1105,14 @@ exports.patchDriverOdometer = async (req, res) => {
       log.driverAddress = String(driverAddressVal).trim();
     }
 
+    const driverTimeVal = req.body.driverTime || req.body.time;
+    if (driverTimeVal) {
+      const parsedTime = new Date(driverTimeVal);
+      log.driverTime = !isNaN(parsedTime.getTime()) ? parsedTime : new Date();
+    } else {
+      log.driverTime = new Date();
+    }
+
     log.driverAction = "Completed";
     log.vendorAction = "Completed";
 

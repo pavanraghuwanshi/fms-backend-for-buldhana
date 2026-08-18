@@ -2,6 +2,7 @@ const VehicleMaster = require("../model/maintenanceDevice.model");
 const mongoose = require('mongoose');
 const Driver = require("../model/driverModel");
 const { logAction } = require("../utils/logger");
+const { recordUnassignment } = require("../utils/helperFunctions");
 
 exports.createVehicleMaster = async (req, res) => {
   try {
@@ -579,6 +580,13 @@ exports.updateVehicleStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: "isAssigned must be a boolean (true/false)" });
     }
 
+    if (isAssigned === true) {
+      return res.status(400).json({
+        success: false,
+        message: "Assigning vehicle is not allowed through this API. Only unassigning is permitted."
+      });
+    }
+
     const query = { _id: vehicleId };
 
     if (req.user.role !== "superadmin") {
@@ -596,14 +604,14 @@ exports.updateVehicleStatus = async (req, res) => {
 
     const oldVehicleSnapshot = vehicle && typeof vehicle.toObject === 'function' ? vehicle.toObject() : vehicle;
 
-    if (isAssigned === false && vehicle.isAssigned === false) {
+    if (vehicle.isAssigned === false) {
       return res.status(400).json({
         success: false,
         message: "This vehicle is already unassigned. It is not assigned to anyone."
       });
     }
 
-    if (isAssigned === false && forceUpdate === false) {
+    if (forceUpdate === false) {
       return res.status(400).json({
         success: false,
         message: "Are you sure? then send yes..."
@@ -611,13 +619,11 @@ exports.updateVehicleStatus = async (req, res) => {
     }
 
     // Update the vehicle
-    vehicle.isAssigned = isAssigned;
+    vehicle.isAssigned = false;
     await vehicle.save();
 
-    if (isAssigned === false) {
-      console.log("entered in helper function");
-      await unassignDriverFromVehicle(vehicle._id);
-    }
+    console.log("entered in helper function");
+    await unassignDriverFromVehicle(vehicle._id, req.user, vehicle.vehicleNumber);
 
     try {
       await logAction({
@@ -640,7 +646,7 @@ exports.updateVehicleStatus = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Vehicle status successfully updated to ${isAssigned ? 'Assigned' : 'Available'}`,
+      message: "Vehicle status successfully updated to Available",
       data: vehicle
     });
 
@@ -666,10 +672,9 @@ exports.updateVehicleStatus = async (req, res) => {
   }
 };
 
-const unassignDriverFromVehicle = async (vehicleId) => {
+const unassignDriverFromVehicle = async (vehicleId, actionByUser = null, vehicleNumber = null) => {
   try {
-
-    await Driver.findOneAndUpdate(
+    const unassignedDriver = await Driver.findOneAndUpdate(
       { deviceId: vehicleId },
       {
         $set: {
@@ -678,9 +683,20 @@ const unassignDriverFromVehicle = async (vehicleId) => {
           currentVehicle: null,
           currentVehicleName: null
         }
-      },
-      { new: true } // Returns the updated document
+      }
     );
+
+    if (unassignedDriver) {
+      await recordUnassignment({
+        vehicleId: vehicleId,
+        vehicleNumber: vehicleNumber || null,
+        driverId: unassignedDriver._id,
+        driverName: unassignedDriver.name || null,
+        actionBy: actionByUser?.id || actionByUser?._id || null,
+        actionByRole: actionByUser?.role || null,
+        reason: "Unassigned via vehicle status update",
+      });
+    }
   } catch (error) {
     console.error("Helper Error - unassignDriverFromVehicle:", error);
     throw new Error("Failed to unassign driver from vehicle");

@@ -10,6 +10,7 @@ router.get("/tp-dropdown", authenticateToken, builtyController.getMiniBuiltysRol
 router.get("/ledger/:id", authenticateToken, builtyController.getLedgerBuiltyById);
 
 
+router.get("/driver/list", authenticateToken, builtyController.getDriverBuiltys);
 router.get("/:id", authenticateToken, builtyController.getBuiltyById);
 router.get("/get-by-trip/:tripId", authenticateToken, builtyController.getBuiltysByTripId);
 router.put("/update/:id", authenticateToken, builtyController.updateBuilty);

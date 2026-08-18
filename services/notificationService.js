@@ -1172,6 +1172,56 @@ const notifyChatMessage = async ({ senderId, senderRole, senderName, receiverId,
   }
 };
 
+const notifyDriverFuelPumpLog = async (driverId, vendorLog) => {
+  try {
+    if (!driverId) return;
+
+    const driver = await Driver.findById(driverId).select('+fcmTokens');
+    if (!driver) {
+      console.warn(`[Notification] NOT SENT to Driver ${driverId}. Reason: Driver not found.`);
+      return;
+    }
+
+    const tokens = extractUniqueTokens(driver?.fcmTokens);
+    if (!tokens.length) {
+      console.warn(`[Notification] NOT SENT to Driver ${driverId}. Reason: No registered FCM tokens found.`);
+      return;
+    }
+
+    const amountStr = vendorLog?.amount != null ? `₹${vendorLog.amount}` : '';
+    const fuelStr = vendorLog?.fuel != null ? `${vendorLog.fuel}L` : '';
+    const details = [amountStr, fuelStr].filter(Boolean).join(' / ');
+
+    const title = 'New Fuel Pump Log Created';
+    const body = `A Fuel Pump log${details ? ` (${details})` : ''} has been created for your vehicle.`;
+
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title,
+        body
+      },
+      data: {
+        type: 'FUEL_PUMP_LOG_CREATED',
+        vendorLogId: vendorLog?._id ? vendorLog._id.toString() : '',
+        amount: vendorLog?.amount != null ? String(vendorLog.amount) : '',
+        fuel: vendorLog?.fuel != null ? String(vendorLog.fuel) : ''
+      }
+    });
+
+    console.log(`[Notification] SENT to Driver ${driverId}. Dispatch complete. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+
+    const failedTokens = filterUnregisteredTokens(response, tokens);
+    if (failedTokens.length) {
+      await Driver.findByIdAndUpdate(driverId, {
+        $pull: { fcmTokens: { token: { $in: failedTokens } } }
+      });
+    }
+  } catch (error) {
+    console.error(`[Notification] NOT SENT to Driver ${driverId}. Critical error:`, error);
+  }
+};
+
 module.exports = {
   notifyVendor,
   notifyDriverBuiltyAssignment,
@@ -1187,5 +1237,6 @@ module.exports = {
   notifySupervisorVendorExpense,
   notifySupervisorVendorTaskUpdate,
   notifyChatMessage,
+  notifyDriverFuelPumpLog,
   checkSupervisorNotificationPermission
 };
