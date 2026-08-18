@@ -1,6 +1,19 @@
 const express = require("express");
 const router = express.Router();
-const {createLog, deleteLog,updateLog,  getAllLogs, updateLogStatus, patchVendorLog, getLogsByVendorId, getSupervisorCreatedLogs, getLogsByVendorIdCreatedBySup} = require("../controller/vendorLogController");
+const {
+  createLog,
+  deleteLog,
+  updateLog,
+  getAllLogs,
+  updateLogStatus,
+  patchVendorLog,
+  patchDriverOdometer,
+  getLogsByVendorId,
+  getLogsByDriverId,
+  getSupervisorCreatedLogs,
+  getLogsByVendorIdCreatedBySup,
+  getFuelPumpLogsByTripId
+} = require("../controller/vendorLogController");
 
 const { authenticateToken } = require("../middleware/authMiddleware");
 const createUploader = require("../middleware/uploadDiskImg");
@@ -14,6 +27,14 @@ router.post("/", uploadVendorLogs.fields([
   { name: "profileImgPaths", maxCount: 5 }
 ]), createLog);
 router.get("/", getAllLogs);
+router.get("/fuel-pump/trip/:tripId", getFuelPumpLogsByTripId);
+router.get("/fuel-pump/trip", getFuelPumpLogsByTripId);
+router.get("/trip/:tripId/fuel-pump", getFuelPumpLogsByTripId);
+router.get("/driver/:driverId", getLogsByDriverId);
+router.get("/driver", getLogsByDriverId);
+router.patch("/driver/odometer/:id", uploadVendorLogs.fields([
+  { name: "odometerImgPath", maxCount: 1 }
+]), patchDriverOdometer);
 router.patch("/update/log/:id", uploadVendorLogs.fields([
   { name: "billImgPath", maxCount: 1 },
   { name: "vehicleImgPath", maxCount: 1 },

@@ -61,6 +61,28 @@ const vendorLogSchema = new mongoose.Schema(
             type: Number, default: 0
         },
 
+        odometer: {
+            type: Number,
+            default: null,
+        },
+
+        odometerImgPath: {
+            type: String,
+            default: null,
+        },
+
+        fuel: {
+            type: Number,
+            default: null,
+        },
+
+        vendorType: {
+            type: String,
+            enum: ["Fuel Pump", "Garage/Workshop", "Tyre Dealer"],
+            default: null,
+            index: true,
+        },
+
         status: {
             type: String,
             enum: ["Pending", "Rejected", "Approved"],
