@@ -38,6 +38,7 @@ router.patch("/driver/odometer/:id", uploadVendorLogs.fields([
 router.patch("/update/log/:id", uploadVendorLogs.fields([
   { name: "billImgPath", maxCount: 1 },
   { name: "vehicleImgPath", maxCount: 1 },
+  { name: "odometerImgPath", maxCount: 1 },
   { name: "profileImgPaths", maxCount: 5 }
 ]), patchVendorLog);
 router.get("/vendor/:vendorId", getLogsByVendorId);
