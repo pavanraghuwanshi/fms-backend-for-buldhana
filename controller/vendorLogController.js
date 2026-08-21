@@ -229,7 +229,7 @@ exports.createLog = async (req, res) => {
 exports.patchVendorLog = async (req, res) => {
   try {
     const logId = req.params.id;
-    const { builtyId, description, amount, vendorAction, fuel, vendorType } = req.body;
+    const { builtyId, description, amount, odometer, vendorAction, fuel, vendorType } = req.body;
 
     if (!builtyId) {
       rollbackUploadedFiles(req.files);
@@ -263,6 +263,7 @@ exports.patchVendorLog = async (req, res) => {
     const updateData = {};
     if (description !== undefined) updateData.description = description;
     if (amount !== undefined && amount !== "") updateData.amount = Number(amount);
+    if (odometer !== undefined) updateData.odometer = (odometer !== "" && odometer !== null) ? Number(odometer) : null;
     if (fuel !== undefined) updateData.fuel = (fuel !== "" && fuel !== null) ? Number(fuel) : null;
     if (vendorType !== undefined) {
       if (vendorType !== null && !["Fuel Pump", "Garage/Workshop", "Tyre Dealer"].includes(vendorType)) {
@@ -271,6 +272,37 @@ exports.patchVendorLog = async (req, res) => {
       }
       updateData.vendorType = vendorType;
     }
+
+    const vendorLatVal = req.body.vendorLat !== undefined ? req.body.vendorLat : req.body.lat;
+    const vendorLongVal = req.body.vendorLong !== undefined ? req.body.vendorLong : (req.body.vendorLng !== undefined ? req.body.vendorLng : (req.body.long !== undefined ? req.body.long : req.body.lng));
+    const vendorAddressVal = req.body.vendorAddress !== undefined ? req.body.vendorAddress : req.body.address;
+
+    if (vendorLatVal !== undefined) {
+      if (vendorLatVal !== null && vendorLatVal !== "") {
+        const parsedLat = Number(vendorLatVal);
+        if (!isNaN(parsedLat)) updateData.vendorLat = parsedLat;
+      } else {
+        updateData.vendorLat = null;
+      }
+    }
+
+    if (vendorLongVal !== undefined) {
+      if (vendorLongVal !== null && vendorLongVal !== "") {
+        const parsedLong = Number(vendorLongVal);
+        if (!isNaN(parsedLong)) updateData.vendorLong = parsedLong;
+      } else {
+        updateData.vendorLong = null;
+      }
+    }
+
+    if (vendorAddressVal !== undefined) {
+      if (vendorAddressVal !== null) {
+        updateData.vendorAddress = String(vendorAddressVal).trim();
+      } else {
+        updateData.vendorAddress = null;
+      }
+    }
+
     if (vendorAction !== undefined) {
       if (!["Completed", "Pending"].includes(vendorAction)) {
         rollbackUploadedFiles(req.files);
