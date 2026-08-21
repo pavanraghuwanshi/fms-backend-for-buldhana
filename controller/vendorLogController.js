@@ -1317,3 +1317,205 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
     });
   }
 };
+
+exports.getLogsForLoggedInUser = async (req, res) => {
+  try {
+    const userId = req.user?._id || req.user?.id;
+    const userRole = req.user?.role;
+
+    if (!userRole) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized. User authentication details missing."
+      });
+    }
+
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      vendorType,
+      status,
+      vendorAction,
+      driverAction,
+      createdBy,
+      driverId,
+      vehicleId,
+      tripId,
+      builtyId,
+      vendorId,
+      supervisorId,
+      fromDate,
+      toDate
+    } = req.query;
+
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const limitNumber = Math.max(1, Number(limit) || 20);
+    const skipIndex = (pageNumber - 1) * limitNumber;
+
+    const query = {};
+
+    // Role-based access control scoping for logged-in user
+    if (userRole === "user") {
+      query.supervisorId = userId;
+      if (vendorId) query.vendorId = vendorId;
+    } else if (userRole === "vendor") {
+      query.vendorId = userId;
+      if (supervisorId) query.supervisorId = supervisorId;
+    } else if (userRole === "driver") {
+      query.driverId = userId;
+    } else if (["superadmin", "admin"].includes(userRole)) {
+      if (supervisorId) query.supervisorId = supervisorId;
+      if (vendorId) query.vendorId = vendorId;
+      if (driverId) query.driverId = driverId;
+    } else {
+      query.supervisorId = userId;
+    }
+
+    // Direct reference filters
+    if (driverId && userRole !== "driver") query.driverId = driverId;
+    if (vehicleId) query.vehicleId = vehicleId;
+    if (tripId) query.tripId = tripId;
+    if (builtyId) query.builtyId = builtyId;
+
+    // VendorType filter
+    if (vendorType) {
+      if (Array.isArray(vendorType)) {
+        query.vendorType = { $in: vendorType };
+      } else if (typeof vendorType === 'string' && vendorType.includes(',')) {
+        query.vendorType = { $in: vendorType.split(',').map(s => s.trim()) };
+      } else {
+        query.vendorType = vendorType;
+      }
+    }
+
+    // Status and actions filters
+    if (status && ["Pending", "Rejected", "Approved"].includes(status)) {
+      query.status = status;
+    }
+    if (vendorAction && ["Completed", "Pending"].includes(vendorAction)) {
+      query.vendorAction = vendorAction;
+    }
+    if (driverAction && ["Completed", "Pending"].includes(driverAction)) {
+      query.driverAction = driverAction;
+    }
+    if (createdBy && ["supervisor", "vendor"].includes(createdBy)) {
+      query.createdBy = createdBy;
+    }
+
+    // Date range filter
+    if (fromDate || toDate) {
+      query.createdAt = {};
+      if (fromDate) {
+        const parsedFrom = new Date(fromDate);
+        if (!isNaN(parsedFrom.getTime())) {
+          query.createdAt.$gte = parsedFrom;
+        }
+      }
+      if (toDate) {
+        const endDate = new Date(toDate);
+        if (!isNaN(endDate.getTime())) {
+          endDate.setUTCHours(23, 59, 59, 999);
+          query.createdAt.$lte = endDate;
+        }
+      }
+      if (Object.keys(query.createdAt).length === 0) {
+        delete query.createdAt;
+      }
+    }
+
+    // Search filter across related collections and fields
+    const cleanSearch = search?.trim();
+    if (cleanSearch) {
+      const searchRegex = { $regex: cleanSearch, $options: "i" };
+
+      const [drivers, vehicles, vendors, builtys, trips] = await Promise.all([
+        Driver.find({ $or: [{ name: searchRegex }, { contactNumber: searchRegex }] }, '_id').lean(),
+        VehicleMaster.find({ $or: [{ vehicleNumber: searchRegex }, { make: searchRegex }] }, '_id').lean(),
+        Vendor.find({ $or: [{ vendorName: searchRegex }, { email: searchRegex }, { contactNumber: searchRegex }] }, '_id').lean(),
+        Builty.find({ $or: [{ tpNo: searchRegex }, { docNo: searchRegex }] }, '_id').lean(),
+        Trip.find({ $or: [{ tripId: searchRegex }, { vehicleName: searchRegex }] }, '_id').lean()
+      ]);
+
+      const orConditions = [
+        { description: searchRegex },
+        { status: searchRegex },
+        { vendorType: searchRegex },
+        { vendorAddress: searchRegex }
+      ];
+
+      if (drivers.length) orConditions.push({ driverId: { $in: drivers.map(d => d._id) } });
+      if (vehicles.length) orConditions.push({ vehicleId: { $in: vehicles.map(v => v._id) } });
+      if (vendors.length) orConditions.push({ vendorId: { $in: vendors.map(v => v._id) } });
+      if (builtys.length) orConditions.push({ builtyId: { $in: builtys.map(b => b._id) } });
+      if (trips.length) orConditions.push({ tripId: { $in: trips.map(t => t._id) } });
+
+      query.$or = orConditions;
+    }
+
+    const [logs, stats] = await Promise.all([
+      VendorLog.find(query)
+        .populate("driverId", "name contactNumber profileImage")
+        .populate("vehicleId", "vehicleNumber make categoryId grossVehicleWeight")
+        .populate("vendorId", "vendorName contactNumber email")
+        .populate({
+          path: "builtyId",
+          select: "tpNo docNo description pickupLocation destinationLocation status vendorType fuel pickupLocationId destinationLocationId",
+          populate: [
+            {
+              path: "pickupLocationId",
+              select: "locationName"
+            },
+            {
+              path: "destinationLocationId",
+              select: "locationName"
+            }
+          ]
+        })
+        .populate({
+          path: "tripId",
+          select: "tripId vehicleName startLocation endLocation status"
+        })
+        .sort({ createdAt: -1 })
+        .skip(skipIndex)
+        .limit(limitNumber)
+        .lean(),
+      VendorLog.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            totalFuel: { $sum: "$fuel" },
+            totalAmount: { $sum: "$amount" }
+          }
+        }
+      ])
+    ]);
+
+    const total = stats.length > 0 ? stats[0].total || 0 : 0;
+    const totalFuel = stats.length > 0 ? stats[0].totalFuel || 0 : 0;
+    const totalAmount = stats.length > 0 ? stats[0].totalAmount || 0 : 0;
+
+    return res.status(200).json({
+      success: true,
+      message: "User vendor logs fetched successfully",
+      total,
+      page: pageNumber,
+      limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+      count: logs.length,
+      totalFuel,
+      totalAmount,
+      data: logs,
+    });
+  } catch (error) {
+    console.error("Error fetching logged in user vendor logs:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching vendor logs.",
+      error: error.message,
+    });
+  }
+};
+

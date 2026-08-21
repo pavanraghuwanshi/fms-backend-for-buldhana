@@ -12,7 +12,8 @@ const {
   getLogsByDriverId,
   getSupervisorCreatedLogs,
   getLogsByVendorIdCreatedBySup,
-  getFuelPumpLogsByTripId
+  getFuelPumpLogsByTripId,
+  getLogsForLoggedInUser
 } = require("../controller/vendorLogController");
 
 const { authenticateToken } = require("../middleware/authMiddleware");
@@ -20,6 +21,9 @@ const createUploader = require("../middleware/uploadDiskImg");
 const uploadVendorLogs = createUploader("vendorlogs");
 
 router.use(authenticateToken);
+
+router.get("/user-logs", getLogsForLoggedInUser);
+
 
 router.post("/", uploadVendorLogs.fields([
   { name: "billImgPath", maxCount: 1 },
