@@ -1334,7 +1334,6 @@ exports.getLogsForLoggedInUser = async (req, res) => {
       page = 1,
       limit = 20,
       search,
-      vendor,
       vendorType,
       status,
       vendorAction,
