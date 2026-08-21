@@ -851,7 +851,7 @@ exports.getSupervisorCreatedLogs = async (req, res) => {
         .populate("vendorId", "vendorName")
         .populate({
           path: "builtyId",
-          select: "tpNo description pickupLocationId destinationLocationId vendorType",
+          select: "tpNo description pickupLocationId destinationLocationId vendorType fuel",
           populate: [
             {
               path: "pickupLocationId",
