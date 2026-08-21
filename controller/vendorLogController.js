@@ -229,7 +229,7 @@ exports.createLog = async (req, res) => {
 exports.patchVendorLog = async (req, res) => {
   try {
     const logId = req.params.id;
-    const { builtyId, description, amount, vendorAction } = req.body;
+    const { builtyId, description, amount, vendorAction, fuel, vendorType } = req.body;
 
     if (!builtyId) {
       rollbackUploadedFiles(req.files);
@@ -263,6 +263,14 @@ exports.patchVendorLog = async (req, res) => {
     const updateData = {};
     if (description !== undefined) updateData.description = description;
     if (amount !== undefined && amount !== "") updateData.amount = Number(amount);
+    if (fuel !== undefined) updateData.fuel = (fuel !== "" && fuel !== null) ? Number(fuel) : null;
+    if (vendorType !== undefined) {
+      if (vendorType !== null && !["Fuel Pump", "Garage/Workshop", "Tyre Dealer"].includes(vendorType)) {
+        rollbackUploadedFiles(req.files);
+        return res.status(400).json({ success: false, message: "Invalid vendorType value." });
+      }
+      updateData.vendorType = vendorType;
+    }
     if (vendorAction !== undefined) {
       if (!["Completed", "Pending"].includes(vendorAction)) {
         rollbackUploadedFiles(req.files);
