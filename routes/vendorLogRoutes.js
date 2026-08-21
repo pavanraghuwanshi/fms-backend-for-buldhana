@@ -22,7 +22,7 @@ const uploadVendorLogs = createUploader("vendorlogs");
 
 router.use(authenticateToken);
 
-router.get("/user-logs", getLogsForLoggedInUser);
+router.get("/user-logs-all", getLogsForLoggedInUser);
 
 
 router.post("/", uploadVendorLogs.fields([
