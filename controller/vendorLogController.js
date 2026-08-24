@@ -1194,6 +1194,14 @@ exports.patchDriverOdometer = async (req, res) => {
   }
 };
 
+const POPULATE_FUEL_PUMP_LOGS = [
+  { path: "driverId", select: "name contactNumber profileImage" },
+  { path: "vehicleId", select: "vehicleNumber make categoryId grossVehicleWeight" },
+  { path: "vendorId", select: "vendorName contactNumber email" },
+  { path: "builtyId", select: "tpNo docNo description pickupLocation destinationLocation status" },
+  { path: "tripId", select: "tripId vehicleName startLocation endLocation status" }
+];
+
 exports.getFuelPumpLogsByTripId = async (req, res) => {
   try {
     const tripId = req.params.tripId || req.query.tripId;
@@ -1210,7 +1218,7 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
       ? { $or: [{ _id: tripId }, { tripId }] }
       : { tripId };
 
-    const tripDoc = await Trip.findOne(tripQuery).select("_id").lean();
+    const tripDoc = await Trip.findOne(tripQuery).select("_id vehicleId").lean();
     const searchTripId = tripDoc ? tripDoc._id : (isObjectId ? tripId : null);
 
     const { page = 1, limit = 20, search } = req.query;
@@ -1227,9 +1235,8 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
         limit: limitNumber,
         totalPages: 0,
         count: 0,
-        totalFuel: 0,
-        totalAmount: 0,
-        data: []
+        data: [],
+        previousLog: null
       });
     }
 
@@ -1262,39 +1269,38 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
       query.$or = orConditions;
     }
 
-    const [logs, stats] = await Promise.all([
+    const vehicleId = tripDoc?.vehicleId;
+
+    const fetchPreviousLog = (targetVehicleId) => {
+      if (!targetVehicleId) return Promise.resolve(null);
+      return VendorLog.findOne({
+        vehicleId: targetVehicleId,
+        vendorType: "Fuel Pump",
+        tripId: { $ne: searchTripId }
+      })
+        .populate(POPULATE_FUEL_PUMP_LOGS)
+        .sort({ createdAt: -1 })
+        .lean();
+    };
+
+    const [logs, total, initialPreviousLog] = await Promise.all([
       VendorLog.find(query)
-        .populate("driverId", "name contactNumber profileImage")
-        .populate("vehicleId", "vehicleNumber make categoryId grossVehicleWeight")
-        .populate("vendorId", "vendorName contactNumber email")
-        .populate({
-          path: "builtyId",
-          select: "tpNo docNo description pickupLocation destinationLocation status"
-        })
-        .populate({
-          path: "tripId",
-          select: "tripId vehicleName startLocation endLocation status"
-        })
+        .populate(POPULATE_FUEL_PUMP_LOGS)
         .sort({ createdAt: -1 })
         .skip(skipIndex)
         .limit(limitNumber)
         .lean(),
-      VendorLog.aggregate([
-        { $match: query },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: 1 },
-            totalFuel: { $sum: "$fuel" },
-            totalAmount: { $sum: "$amount" }
-          }
-        }
-      ])
+      VendorLog.countDocuments(query),
+      fetchPreviousLog(vehicleId)
     ]);
 
-    const total = stats.length > 0 ? stats[0].total || 0 : 0;
-    const totalFuel = stats.length > 0 ? stats[0].totalFuel || 0 : 0;
-    const totalAmount = stats.length > 0 ? stats[0].totalAmount || 0 : 0;
+    let previousLog = initialPreviousLog;
+    if (!previousLog && logs.length > 0) {
+      const fallbackVehicleId = logs[0].vehicleId?._id || logs[0].vehicleId;
+      if (fallbackVehicleId && String(fallbackVehicleId) !== String(vehicleId)) {
+        previousLog = await fetchPreviousLog(fallbackVehicleId);
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -1304,9 +1310,8 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
       limit: limitNumber,
       totalPages: Math.ceil(total / limitNumber),
       count: logs.length,
-      totalFuel,
-      totalAmount,
       data: logs,
+      previousLog: previousLog || null,
     });
   } catch (error) {
     console.error("Error fetching fuel pump vendor logs by trip ID:", error);
@@ -1453,7 +1458,7 @@ exports.getLogsForLoggedInUser = async (req, res) => {
       query.$or = orConditions;
     }
 
-    const [logs, stats] = await Promise.all([
+    const [logs, total] = await Promise.all([
       VendorLog.find(query)
         .populate("driverId", "name contactNumber profileImage")
         .populate("vehicleId", "vehicleNumber make categoryId grossVehicleWeight")
@@ -1480,22 +1485,8 @@ exports.getLogsForLoggedInUser = async (req, res) => {
         .skip(skipIndex)
         .limit(limitNumber)
         .lean(),
-      VendorLog.aggregate([
-        { $match: query },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: 1 },
-            totalFuel: { $sum: "$fuel" },
-            totalAmount: { $sum: "$amount" }
-          }
-        }
-      ])
+      VendorLog.countDocuments(query)
     ]);
-
-    const total = stats.length > 0 ? stats[0].total || 0 : 0;
-    const totalFuel = stats.length > 0 ? stats[0].totalFuel || 0 : 0;
-    const totalAmount = stats.length > 0 ? stats[0].totalAmount || 0 : 0;
 
     return res.status(200).json({
       success: true,
@@ -1505,8 +1496,6 @@ exports.getLogsForLoggedInUser = async (req, res) => {
       limit: limitNumber,
       totalPages: Math.ceil(total / limitNumber),
       count: logs.length,
-      totalFuel,
-      totalAmount,
       data: logs,
     });
   } catch (error) {
