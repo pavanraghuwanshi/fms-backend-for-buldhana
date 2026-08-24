@@ -1271,47 +1271,49 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
 
     const vehicleId = tripDoc?.vehicleId;
 
-    const fetchPreviousLog = (targetVehicleId) => {
-      if (!targetVehicleId) return Promise.resolve(null);
-      return VendorLog.findOne({
-        vehicleId: targetVehicleId,
-        vendorType: "Fuel Pump",
-        tripId: { $ne: searchTripId }
-      })
-        .populate(POPULATE_FUEL_PUMP_LOGS)
-        .sort({ createdAt: -1 })
-        .lean();
-    };
+    // Fetch fuel pump logs for current trip
+    const currentTripLogs = await VendorLog.find(query)
+      .populate(POPULATE_FUEL_PUMP_LOGS)
+      .sort({ createdAt: -1 })
+      .skip(skipIndex)
+      .limit(limitNumber)
+      .lean();
 
-    const [logs, total, initialPreviousLog] = await Promise.all([
-      VendorLog.find(query)
-        .populate(POPULATE_FUEL_PUMP_LOGS)
-        .sort({ createdAt: -1 })
-        .skip(skipIndex)
-        .limit(limitNumber)
-        .lean(),
-      VendorLog.countDocuments(query),
-      fetchPreviousLog(vehicleId)
-    ]);
+    let finalLogs = [];
 
-    let previousLog = initialPreviousLog;
-    if (!previousLog && logs.length > 0) {
-      const fallbackVehicleId = logs[0].vehicleId?._id || logs[0].vehicleId;
-      if (fallbackVehicleId && String(fallbackVehicleId) !== String(vehicleId)) {
-        previousLog = await fetchPreviousLog(fallbackVehicleId);
+    if (currentTripLogs.length >= 2) {
+      // If 2 or more entries exist in current trip, send top 2 from current trip (no previous trip entries)
+      finalLogs = currentTripLogs.slice(0, 2);
+    } else {
+      // If less than 2 entries in current trip, top up with previous trip entries for that vehicle
+      const targetVehicleId = vehicleId || (currentTripLogs.length > 0 ? (currentTripLogs[0].vehicleId?._id || currentTripLogs[0].vehicleId) : null);
+      const neededCount = 2 - currentTripLogs.length;
+
+      let previousTripLogs = [];
+      if (targetVehicleId) {
+        previousTripLogs = await VendorLog.find({
+          vehicleId: targetVehicleId,
+          vendorType: "Fuel Pump",
+          tripId: { $ne: searchTripId }
+        })
+          .populate(POPULATE_FUEL_PUMP_LOGS)
+          .sort({ createdAt: -1 })
+          .limit(neededCount)
+          .lean();
       }
+
+      finalLogs = [...currentTripLogs, ...previousTripLogs];
     }
 
     return res.status(200).json({
       success: true,
       message: "Fuel pump vendor logs fetched successfully",
-      total,
+      total: finalLogs.length,
       page: pageNumber,
       limit: limitNumber,
-      totalPages: Math.ceil(total / limitNumber),
-      count: logs.length,
-      data: logs,
-      previousLog: previousLog || null,
+      totalPages: Math.ceil(finalLogs.length / limitNumber) || 1,
+      count: finalLogs.length,
+      data: finalLogs,
     });
   } catch (error) {
     console.error("Error fetching fuel pump vendor logs by trip ID:", error);
