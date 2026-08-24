@@ -1197,7 +1197,7 @@ exports.patchDriverOdometer = async (req, res) => {
 const POPULATE_FUEL_PUMP_LOGS = [
   { path: "driverId", select: "name" },
   { path: "vehicleId", select: "vehicleNumber" },
-  { path: "vendorId", select: "vendorName contactNumber email" },
+  { path: "vendorId", select: "vendorName" },
   // { path: "builtyId", select: "tpNo docNo description pickupLocation destinationLocation status" },
   // { path: "tripId", select: "tripId vehicleName startLocation endLocation status" }
 ];
