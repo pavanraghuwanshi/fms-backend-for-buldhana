@@ -1195,11 +1195,11 @@ exports.patchDriverOdometer = async (req, res) => {
 };
 
 const POPULATE_FUEL_PUMP_LOGS = [
-  { path: "driverId", select: "name contactNumber profileImage" },
-  { path: "vehicleId", select: "vehicleNumber make categoryId grossVehicleWeight" },
+  { path: "driverId", select: "name" },
+  { path: "vehicleId", select: "vehicleNumber" },
   { path: "vendorId", select: "vendorName contactNumber email" },
-  { path: "builtyId", select: "tpNo docNo description pickupLocation destinationLocation status" },
-  { path: "tripId", select: "tripId vehicleName startLocation endLocation status" }
+  // { path: "builtyId", select: "tpNo docNo description pickupLocation destinationLocation status" },
+  // { path: "tripId", select: "tripId vehicleName startLocation endLocation status" }
 ];
 
 exports.getFuelPumpLogsByTripId = async (req, res) => {
@@ -1267,6 +1267,7 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
 
     // Fetch fuel pump logs for current trip
     const currentTripLogs = await VendorLog.find(query)
+      .select("driverId vehicleId vendorId amount odometer fuel vendorType vendorAction driverAction")
       .populate(POPULATE_FUEL_PUMP_LOGS)
       .sort({ createdAt: -1 })
       .lean();
@@ -1288,6 +1289,7 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
           vendorType: "Fuel Pump",
           tripId: { $ne: searchTripId }
         })
+          .select("driverId vehicleId vendorId amount odometer fuel vendorType vendorAction driverAction")
           .populate(POPULATE_FUEL_PUMP_LOGS)
           .sort({ createdAt: -1 })
           .limit(neededCount)
