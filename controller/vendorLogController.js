@@ -1221,19 +1221,13 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
     const tripDoc = await Trip.findOne(tripQuery).select("_id vehicleId").lean();
     const searchTripId = tripDoc ? tripDoc._id : (isObjectId ? tripId : null);
 
-    const { page = 1, limit = 20, search } = req.query;
-    const pageNumber = Math.max(1, Number(page) || 1);
-    const limitNumber = Math.max(1, Number(limit) || 20);
-    const skipIndex = (pageNumber - 1) * limitNumber;
+    const { search } = req.query;
 
     if (!searchTripId) {
       return res.status(200).json({
         success: true,
         message: "Fuel pump vendor logs fetched successfully",
         total: 0,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: 0,
         count: 0,
         data: [],
         previousLog: null
@@ -1275,8 +1269,6 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
     const currentTripLogs = await VendorLog.find(query)
       .populate(POPULATE_FUEL_PUMP_LOGS)
       .sort({ createdAt: -1 })
-      .skip(skipIndex)
-      .limit(limitNumber)
       .lean();
 
     let finalLogs = [];
@@ -1309,9 +1301,6 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
       success: true,
       message: "Fuel pump vendor logs fetched successfully",
       total: finalLogs.length,
-      page: pageNumber,
-      limit: limitNumber,
-      totalPages: Math.ceil(finalLogs.length / limitNumber) || 1,
       count: finalLogs.length,
       data: finalLogs,
     });
