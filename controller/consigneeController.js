@@ -23,7 +23,7 @@ exports.createConsignee = async (req, res) => {
 
     // ROLE BASED PAYLOAD
     if (req.user.role === "user" || req.user.role === "worker") {
-      payload.supervisorId = req.user.id;
+      payload.supervisorId = req.supervisorId || req.user.id;
       payload.supervisorName = req.user.username;
     }
 
@@ -97,7 +97,7 @@ exports.getAllConsignees = async (req, res) => {
 
     // ✅ ROLE FILTER
     if (req.user.role === "user" || req.user.role === "worker") {
-      filter.supervisorId = req.user.id;
+      filter.supervisorId = req.supervisorId || req.user.id;
     }
 
     if (req.user.role === "worker") {
@@ -153,7 +153,7 @@ exports.getConsigneeById = async (req, res) => {
     };
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      filter.supervisorId = req.user.id;
+      filter.supervisorId = req.supervisorId || req.user.id;
     }
 
     if (req.user.role === "worker") {

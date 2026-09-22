@@ -147,7 +147,7 @@ exports.getAllExpenses = async (req, res) => {
 
       return res.status(200).json(expenses);
     } else if (req.user.role === "user" || req.user.role === "worker") {
-      const supervisorId = req.user.id;
+      const supervisorId = req.supervisorId || req.user.id;
 
       const drivers = await Driver.find({ supervisor: supervisorId });
       if (drivers.length === 0) {

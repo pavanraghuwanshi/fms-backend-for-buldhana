@@ -178,7 +178,7 @@ const applyHierarchy = (req, payload) => {
   const roleType = req.user.roleType;
 
   if (role === "user") {
-    payload.supervisorId = req.user.id;
+    payload.supervisorId = req.supervisorId || req.user.id;
     payload.supervisorModel = roleModelMap[roleType];
   }
 
@@ -1648,7 +1648,7 @@ exports.getBuiltys = async (req, res) => {
     const query = {};
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisorId = req.user.id;
+      query.supervisorId = req.supervisorId || req.user.id;
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     } else if (req.user.role === "driver") {
@@ -2013,7 +2013,7 @@ exports.getMiniBuiltysRollWise = async (req, res) => {
     const query = {};
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisorId = req.user.id;
+      query.supervisorId = req.supervisorId || req.user.id;
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     } else if (req.user.role === "driver") {
@@ -2160,7 +2160,7 @@ exports.getBuiltysByTripId = async (req, res) => {
     const query = { _id: { $in: uniqueBuiltyIds } };
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisorId = req.user.id;
+      query.supervisorId = req.supervisorId || req.user.id;
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     } else if (req.user.role === "driver") {

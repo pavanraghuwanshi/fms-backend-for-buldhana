@@ -351,7 +351,7 @@ exports.getAllBuiltyInvoices = async (req, res) => {
 
     // hierarchy wise filter
     if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisorId = req.user.id;
+      query.supervisorId = req.supervisorId || req.user.id;
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     } else if (req.user.role === "superadmin" && supervisorId) {

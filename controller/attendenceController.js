@@ -234,7 +234,7 @@ exports.getRemainingAttendenceOfDriversForSupervisor = async (req, res) => {
     const allowedRoles = ["user", "superadmin"];
     if (!req.user || !allowedRoles.includes(req.user.role)) return res.status(403).json({ message: "Unauthorized access" });
 
-    const supervisorId = req.user.id;
+    const supervisorId = req.supervisorId || req.user.id;
     const drivers = await Driver.find({ supervisor: supervisorId }).select('name contactNumber email');
 
     // Set start and end date for today in IST (UTC+5:30)

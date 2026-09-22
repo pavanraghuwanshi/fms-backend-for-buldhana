@@ -243,7 +243,7 @@ exports.patchVendorLog = async (req, res) => {
     }
 
     const isBuiltyMatch = existingLog.builtyId?.toString() === builtyId;
-    const isVendorMatch = existingLog.vendorId?.toString() === req.user.id.toString();
+    const isVendorMatch = existingLog.vendorId?.toString() === (req.supervisorId || req.user.id).toString();
 
     if (!isBuiltyMatch) {
       rollbackUploadedFiles(req.files);
@@ -687,7 +687,7 @@ exports.updateLogStatus = async (req, res) => {
       });
     }
 
-    if (log.supervisorId.toString() !== req.user.id.toString()) {
+    if (log.supervisorId.toString() !== (req.supervisorId || req.user.id).toString()) {
       return res.status(403).json({
         success: false,
         message: "Unauthorized: Your user ID does not match the supervisor ID of this log.",

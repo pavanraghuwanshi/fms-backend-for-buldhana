@@ -569,7 +569,7 @@ exports.getDriverStatus = async (req, res) => {
     if (req.user.role === "superadmin" && req.query.userId) {
       query.supervisor = req.query.userId;
     } else if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisor = req.user.id;
+      query.supervisor = req.supervisorId || req.user.id;
     }
 
     const drivers = await Driver.find(query)
@@ -715,7 +715,7 @@ exports.getDriverDropdown = async (req, res) => {
     } else if (role === "worker") {
       query.supervisor = req.user.supervisor;
     } else {
-      query.supervisor = req.user.id;
+      query.supervisor = req.supervisorId || req.user.id;
     }
 
   if (search.trim()) {

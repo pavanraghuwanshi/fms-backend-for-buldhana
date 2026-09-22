@@ -21,7 +21,7 @@ exports.createVehicleMaster = async (req, res) => {
       roleType === "branch" ||
       roleType === "branchGroup"
     ) {
-      req.body.supervisorId = req.user.id;
+      req.body.supervisorId = req.supervisorId || req.user.id;
       req.body.supervisorModel = roleModelMap[roleType];
     }
 
@@ -402,7 +402,7 @@ exports.getVehicleMasterDropdown = async (req, res) => {
     };
 
     if (role === "user") {
-      query.supervisorId = req.user.id;
+      query.supervisorId = req.supervisorId || req.user.id;
     } else if (role === "worker") {
       query.supervisorId = req.user.supervisor;
     } else if (role === "vendor") {

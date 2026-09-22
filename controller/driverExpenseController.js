@@ -317,11 +317,11 @@ exports.deleteExpense = async (req, res) => {
 
     const oldExpenseSnapshot = expense && typeof expense.toObject === 'function' ? expense.toObject() : expense;
 
-    if (req.user.role === "driver" && expense.driverId._id.toString() !== req.user.id.toString()) {
+    if (req.user.role === "driver" && expense.driverId._id.toString() !== (req.supervisorId || req.user.id).toString()) {
       return res.status(403).json({ message: "Unauthorized: Expense does not belong to you" });
     }
 
-    if (req.user.role === "user" && expense.driverId.supervisor?.toString() !== req.user.id.toString()) {
+    if (req.user.role === "user" && expense.driverId.supervisor?.toString() !== (req.supervisorId || req.user.id).toString()) {
       return res.status(403).json({ message: "Unauthorized: Expense does not belong to your driver" });
     }
 
@@ -390,7 +390,7 @@ exports.getExpenseByDriverId = async (req, res) => {
   try {
     const driverId = req.params.id;
 
-    if (req.user.role === "driver" && driverId.toString() !== req.user.id.toString()) {
+    if (req.user.role === "driver" && driverId.toString() !== (req.supervisorId || req.user.id).toString()) {
       return res.status(403).json({ message: "Unauthorized access" });
     }
 
@@ -433,7 +433,7 @@ exports.getAllExpense = async (req, res) => {
       const expenses = await DriverExpense.find().populate("driverId", "name currentVehicleName supervisor").select("-__v").sort({ createdAt: -1 });
       return res.status(200).json(expenses);
     } else if (req.user.role === "user" || req.user.role === "worker") {
-      const supervisorId = req.user.id;
+      const supervisorId = req.supervisorId || req.user.id;
       const drivers = await Driver.find({ supervisor: supervisorId }).select("_id");
       if (drivers.length === 0) return res.status(404).json({ message: "No driver found." });
 
@@ -472,11 +472,11 @@ exports.getExpenseByExpenseId = async (req, res) => {
 
     if (!expense) return res.status(404).json({ message: "Expense not found" });
 
-    if (req.user.role === "driver" && expense.driverId._id.toString() !== req.user.id.toString()) {
+    if (req.user.role === "driver" && expense.driverId._id.toString() !== (req.supervisorId || req.user.id).toString()) {
       return res.status(403).json({ message: "Unauthorized access" });
     }
 
-    if (req.user.role === "user" && expense.driverId.supervisor?.toString() !== req.user.id.toString()) {
+    if (req.user.role === "user" && expense.driverId.supervisor?.toString() !== (req.supervisorId || req.user.id).toString()) {
       return res.status(403).json({ message: "Unauthorized access" });
     }
 

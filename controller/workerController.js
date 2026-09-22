@@ -95,7 +95,7 @@ exports.createWorker = async (req, res) => {
             supervisor = req.body.supervisor;
             supervisorName = req.body.supervisorName.trim();
         } else if (req.user.role === "user" || req.user.role === "worker") {
-            supervisor = req.user.id;
+            supervisor = req.supervisorId || req.user.id;
             supervisorName = req.user.username;
         } else {
             return res.status(403).json({ message: 'Access denied' });
@@ -207,7 +207,7 @@ exports.getWorkers = async (req, res) => {
     try {
         if (!["superadmin", "user"].includes(req.user.role)) return res.status(403).json({ message: "Access denied" });
         let filter = {};
-        if (req.user.role === "user" || req.user.role === "worker") filter.supervisor = req.user.id;
+        if (req.user.role === "user" || req.user.role === "worker") filter.supervisor = req.supervisorId || req.user.id;
 
         const workers = await Worker.find(filter).lean();
         if (workers.length === 0) return res.status(404).json({ message: "No workers found" });

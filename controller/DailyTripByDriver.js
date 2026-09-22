@@ -22,7 +22,7 @@ exports.startDailyTrip = async (req, res) => {
       supervisorId = req.user.supervisor
     } else if (req.user.role === "user" || req.user.role === "worker") {
       driverId = req.query.driverId;
-      supervisorId = req.user.id
+      supervisorId = req.supervisorId || req.user.id
     }
 
     if (!driverId) {
@@ -299,7 +299,7 @@ exports.getDailyTrips = async (req, res) => {
       driverId = req.user.id;
     } else if (req.user.role === "user" || req.user.role === "worker") {
       driverId = req.query.driverId;
-      supervisorId = req.user.id
+      supervisorId = req.supervisorId || req.user.id
       if (supervisorId) query.supervisorId = supervisorId;
     } else {
       if (supervisorId) query.supervisorId = supervisorId;

@@ -21,7 +21,7 @@ exports.createVehicleCategory = async (req, res) => {
       roleType === "branch" ||
       roleType === "branchGroup"
     ) {
-      req.body.supervisorId = req.user.id;
+      req.body.supervisorId = req.supervisorId || req.user.id;
       req.body.supervisorModel = roleModelMap[roleType];
     }
 
@@ -134,7 +134,7 @@ exports.getVehicleCategories = async (req, res) => {
       roleType === "branch" ||
       roleType === "branchGroup"
     ) {
-      query.supervisorId = req.user.id;
+      query.supervisorId = req.supervisorId || req.user.id;
     } else if (supervisorId) {
       query.supervisorId = supervisorId;
     }
@@ -185,7 +185,7 @@ exports.getVehicleCategoryById = async (req, res) => {
       roleType === "branch" ||
       roleType === "branchGroup"
     ) {
-      query.supervisorId = req.user.id;
+      query.supervisorId = req.supervisorId || req.user.id;
     }
 
     const category = await VehicleCategory.findOne(query);
@@ -222,7 +222,7 @@ exports.updateVehicleCategory = async (req, res) => {
       roleType === "branch" ||
       roleType === "branchGroup"
     ) {
-      query.supervisorId = req.user.id;
+      query.supervisorId = req.supervisorId || req.user.id;
     }
 
     const category = await VehicleCategory.findOne(query);
@@ -308,7 +308,7 @@ exports.deleteVehicleCategory = async (req, res) => {
       roleType === "branch" ||
       roleType === "branchGroup"
     ) {
-      query.supervisorId = req.user.id;
+      query.supervisorId = req.supervisorId || req.user.id;
     }
 
     const oldCategory = await VehicleCategory.findOne(query);
