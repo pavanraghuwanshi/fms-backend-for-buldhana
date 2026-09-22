@@ -18,7 +18,7 @@ exports.createTrip = async (req, res) => {
     const trip = new Trip({
       ...payload,
       tripId: generatedTripId,
-      supervisorId: req.supervisorId || req.user.id,
+      supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
     });
 
     if (loadingDate) {
@@ -334,7 +334,7 @@ exports.updateTrip = async (req, res) => {
 
     if (req.user.role === "user" || req.user.role === "worker") {
       const trip = await Trip.findOneAndUpdate(
-        { _id: tripId, supervisorId: req.supervisorId || req.user.id },
+        { _id: tripId, supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id) },
         req.body,
         {
           new: true,
@@ -366,7 +366,7 @@ exports.updateTrip = async (req, res) => {
         } else {
           const initialDeposit = new WalletLedger({
             driverId: trip.driverId,
-            supervisorId: req.supervisorId || req.user.id,
+            supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
             vehicleId: trip.vehicleId,
             type: "DEPOSIT",
             amount: trip.budgetAllocated || 0,
@@ -678,7 +678,7 @@ exports.completeTrip = async (req, res) => {
 
     if (req.user.role === "user" || req.user.role === "worker") {
       trip = await Trip.findOneAndUpdate(
-        { _id: tripId, supervisorId: req.supervisorId || req.user.id },
+        { _id: tripId, supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id) },
         {
           $set: {
             status: "completed",
@@ -831,7 +831,7 @@ exports.deleteTrip = async (req, res) => {
   try {
     const trip = await Trip.findOneAndDelete({
       _id: req.params.tripId,
-      supervisorId: req.supervisorId || req.user.id,
+      supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
     });
 
     if (!trip) {

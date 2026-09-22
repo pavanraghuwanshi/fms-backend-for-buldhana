@@ -28,7 +28,7 @@ exports.createGodownLorryReceipt = async (req, res) => {
 
     //ROLE-BASED PAYLOAD SETUP
     if (req.user.role === "user" || req.user.role === "worker") {
-      payload.supervisorId = req.supervisorId || req.user.id;
+      payload.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       payload.supervisorName = req.user.username;
     }
 
@@ -446,15 +446,15 @@ exports.getGodownLorryReceipts = async (req, res) => {
     if (req.user.role === "user" || req.user.role === "worker") {
 
       if (req.user.roleType === "school") {
-        filter.supervisorId = req.supervisorId || req.user.id;
+        filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       }
 
       if (req.user.roleType === "branch") {
-        filter.supervisorId = req.supervisorId || req.user.id;
+        filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       }
 
       if (req.user.roleType === "branchGroup") {
-        filter.supervisorId = req.supervisorId || req.user.id;
+        filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       }
 
     }
@@ -656,7 +656,7 @@ exports.updateLorryReceiptStatus = async (req, res) => {
 
     if (
       req.user.role === "user" &&
-      receipt.supervisorId.toString() !== (req.supervisorId || req.user.id).toString()
+      receipt.supervisorId.toString() !== (req.user.role === 'worker' ? req.user.supervisor : req.user.id).toString()
     ) {
       return res.status(403).json({ message: "Not your receipt" });
     }
@@ -1191,7 +1191,7 @@ exports.updateAcknowledgementImage = async (req, res) => {
 
     if (
       req.user.role === "user" &&
-      receipt.supervisorId.toString() !== (req.supervisorId || req.user.id).toString()
+      receipt.supervisorId.toString() !== (req.user.role === 'worker' ? req.user.supervisor : req.user.id).toString()
     ) {
       return res.status(403).json({ message: "Not your receipt" });
     }

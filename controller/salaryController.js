@@ -23,7 +23,7 @@ exports.createSalary = async (req, res) => {
 
       const salary = new Salary({
         driverId,
-        supervisorId: req.supervisorId || req.user.id,
+        supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
         basicPay: Number(basicPay),
         overtime: Number(overtime),
         incentives: Number(incentives),
@@ -245,7 +245,7 @@ exports.getSalariesByMonth = async (req, res) => {
     if (isNaN(startDate.getTime())) return res.status(400).json({ error: "Invalid month format. Use YYYY-MM." });
 
     const salaries = await Salary.find({
-      supervisorId: req.supervisorId || req.user.id,
+      supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
       date: { $gte: startDate, $lt: endDate },
     }).populate("driverId", "name contactNumber supervisor").select('-supervisorId -__v');
 

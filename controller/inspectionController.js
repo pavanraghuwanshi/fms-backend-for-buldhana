@@ -135,7 +135,7 @@ exports.getAllInspections = async (req, res) => {
       }
 
     } else if (req.user.role === "user" || req.user.role === "worker") {
-      const drivers = await Driver.find({ supervisor: req.supervisorId || req.user.id }).select('_id').lean();
+      const drivers = await Driver.find({ supervisor: (req.user.role === 'worker' ? req.user.supervisor : req.user.id) }).select('_id').lean();
       const driverIds = drivers.map(driver => driver._id);
       if (driverIds.length === 0) return res.status(404).json({ message: "No drivers assigned to this user" });
       filter.DriverId = { $in: driverIds };
@@ -205,7 +205,7 @@ exports.getInspectionByVehicleId = async (req, res) => {
         filter.DriverId = { $in: driverIds };
       }
     } else if (req.user.role === "user" || req.user.role === "worker") {
-      const drivers = await Driver.find({ supervisor: req.supervisorId || req.user.id }).select('_id').lean();
+      const drivers = await Driver.find({ supervisor: (req.user.role === 'worker' ? req.user.supervisor : req.user.id) }).select('_id').lean();
       const driverIds = drivers.map(driver => driver._id);
       if (driverIds.length === 0) return res.status(404).json({ message: "No drivers assigned to this user" });
 
@@ -241,7 +241,7 @@ exports.editInspection = async (req, res) => {
     const oldInspectionSnapshot = inspection && typeof inspection.toObject === 'function' ? inspection.toObject() : inspection;
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      const drivers = await Driver.find({ supervisor: req.supervisorId || req.user.id }).select("_id").lean();
+      const drivers = await Driver.find({ supervisor: (req.user.role === 'worker' ? req.user.supervisor : req.user.id) }).select("_id").lean();
       const driverIds = drivers.map(d => d._id.toString());
       if (!driverIds.includes(inspection.DriverId.toString())) return res.status(403).json({ message: "You cannot edit this inspection" });
     } else if (req.user.role === "driver") {
@@ -335,7 +335,7 @@ exports.deleteInspection = async (req, res) => {
 
     // Role-based permission check
     if (req.user.role === "user" || req.user.role === "worker") {
-      const drivers = await Driver.find({ supervisor: req.supervisorId || req.user.id }).select("_id").lean();
+      const drivers = await Driver.find({ supervisor: (req.user.role === 'worker' ? req.user.supervisor : req.user.id) }).select("_id").lean();
       const driverIds = drivers.map(d => d._id.toString());
       if (!driverIds.includes(inspection.DriverId.toString())) return res.status(403).json({ message: "You cannot delete this inspection" });
     } else if (req.user.role === "driver") {

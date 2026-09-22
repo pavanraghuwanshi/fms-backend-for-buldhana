@@ -21,7 +21,7 @@ exports.createVehicleMaster = async (req, res) => {
       roleType === "branch" ||
       roleType === "branchGroup"
     ) {
-      req.body.supervisorId = req.supervisorId || req.user.id;
+      req.body.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       req.body.supervisorModel = roleModelMap[roleType];
     }
 
@@ -141,7 +141,7 @@ exports.getVehicleMasters = async (req, res) => {
     const query = {};
 
     if (role === "user" || role === "worker") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.query.supervisorId) {
       query.supervisorId = req.query.supervisorId;
     }
@@ -203,7 +203,7 @@ exports.getVehicleMasterById = async (req, res) => {
     const query = { _id: req.params.id };
 
     if (role === "user" || role === "worker") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     const vehicle = await VehicleMaster.findOne(query)
@@ -234,8 +234,8 @@ exports.updateVehicleMaster = async (req, res) => {
     const query = { _id: req.params.id };
 
     if (role === "user" || role === "worker") {
-      query.supervisorId = req.supervisorId || req.user.id;
-      req.body.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
+      req.body.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     const oldVehicle = await VehicleMaster.findOne(query);
@@ -246,7 +246,7 @@ exports.updateVehicleMaster = async (req, res) => {
         vehicleNumber: req.body.vehicleNumber.toUpperCase(),
         _id: { $ne: req.params.id },
         supervisorId:
-          (role === "user" || role === "worker") ? (req.supervisorId || req.user.id) : (req.body.supervisorId || req.query.supervisorId),
+          (role === "user" || role === "worker") ? (req.user.role === 'worker' ? req.user.supervisor : req.user.id) : (req.body.supervisorId || req.query.supervisorId),
       });
 
       if (existingVehicle) {
@@ -318,7 +318,7 @@ exports.deleteVehicleMaster = async (req, res) => {
     const query = { _id: req.params.id };
 
     if (role === "user" || role === "worker") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     const oldVehicle = await VehicleMaster.findOne(query);
@@ -402,7 +402,7 @@ exports.getVehicleMasterDropdown = async (req, res) => {
     };
 
     if (role === "user") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (role === "worker") {
       query.supervisorId = req.user.supervisor;
     } else if (role === "vendor") {
@@ -566,7 +566,7 @@ exports.updateVehicleStatus = async (req, res) => {
     const query = { _id: vehicleId };
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     const vehicle = await VehicleMaster.findOne(query);

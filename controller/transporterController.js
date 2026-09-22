@@ -25,7 +25,7 @@ exports.createTransporter = async (req, res) => {
       roleType === "branch" ||
       roleType === "branchGroup"
     ) {
-      req.body.supervisorId = req.supervisorId || req.user.id;
+      req.body.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       req.body.supervisorModel = roleModelMap[roleType];
     }
 
@@ -149,7 +149,7 @@ exports.getTransporters = async (req, res) => {
     const query = {};
 
     if (role === "user") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.query.supervisorId) {
       query.supervisorId = req.query.supervisorId;
     }
@@ -199,7 +199,7 @@ exports.getTransporterById = async (req, res) => {
     const query = { _id: req.params.id };
 
     if (role === "user") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     const transporter = await Transporter.findOne(query).populate(
@@ -234,8 +234,8 @@ exports.updateTransporter = async (req, res) => {
     const query = { _id: req.params.id };
 
     if (role === "user") {
-      query.supervisorId = req.supervisorId || req.user.id;
-      req.body.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
+      req.body.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     const oldTransporter = await Transporter.findOne(query);
@@ -324,7 +324,7 @@ exports.deleteTransporter = async (req, res) => {
     const query = { _id: req.params.id };
 
     if (role === "user") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     const oldTransporter = await Transporter.findOne(query);
@@ -402,7 +402,7 @@ exports.getTransporterDropdown = async (req, res) => {
       roleType === "branch" ||
       roleType === "branchGroup"
     ) {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.query.supervisorId) {
       query.supervisorId = req.query.supervisorId;
     }

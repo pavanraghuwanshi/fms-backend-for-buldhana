@@ -13,7 +13,7 @@ exports.createTemplate = async (req, res) => {
 
     const templateData = {
       ...req.body,
-      supervisorId: req.supervisorId || req.user.id
+      supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id)
     };
 
     const newTemplate = await BuiltyTemplate.create(templateData);
@@ -74,7 +74,7 @@ exports.getBuiltyTemplates = async (req, res) => {
     const query = {};
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (supervisorId) {
       query.supervisorId = supervisorId;
     }

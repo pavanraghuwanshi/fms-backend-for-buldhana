@@ -116,7 +116,7 @@ const applyHierarchy = (req, payload) => {
   const roleType = req.user?.roleType;
 
   if (role === "user") {
-    payload.supervisorId = req.supervisorId || req.user.id;
+    payload.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     payload.supervisorModel = roleModelMap[roleType];
   }
 
@@ -288,7 +288,7 @@ exports.getAllNotificationPermissions = async (req, res) => {
     const filter = {};
 
     if (userRole === "user") {
-      filter.supervisorId = req.supervisorId || req.user.id;
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       if (roleModelMap[req.user.roleType]) {
         filter.supervisorModel = roleModelMap[req.user.roleType];
       }

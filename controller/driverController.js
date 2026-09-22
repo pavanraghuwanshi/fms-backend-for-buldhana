@@ -23,7 +23,7 @@ exports.createDriver = async (req, res) => {
       deviceId,
     } = req.body;
 
-    let supervisorId = req.supervisorId || req.user.id;
+    let supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
     const existingDriver = await Driver.findOne({ contactNumber });
 
@@ -171,7 +171,7 @@ exports.getAllDrivers = async (req, res) => {
         })
       );
     } else if (["user", "worker"].includes(req.user.role)) {
-      const supervisor = req.supervisorId || req.user.id;
+      const supervisor = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       const drivers = await Driver.find({ supervisor }).select("name contactNumber email password supervisor licenseNumber licenseExpiryDate deviceId")
         .populate("deviceId", "vehicleNumber");
       return res.status(200).json(
@@ -569,7 +569,7 @@ exports.getDriverStatus = async (req, res) => {
     if (req.user.role === "superadmin" && req.query.userId) {
       query.supervisor = req.query.userId;
     } else if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisor = req.supervisorId || req.user.id;
+      query.supervisor = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     const drivers = await Driver.find(query)
@@ -715,7 +715,7 @@ exports.getDriverDropdown = async (req, res) => {
     } else if (role === "worker") {
       query.supervisor = req.user.supervisor;
     } else {
-      query.supervisor = req.supervisorId || req.user.id;
+      query.supervisor = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
   if (search.trim()) {

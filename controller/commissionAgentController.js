@@ -21,7 +21,7 @@ exports.createCommissionAgent = async (req, res) => {
       roleType === "branch" ||
       roleType === "branchGroup"
     ) {
-      req.body.supervisorId = req.supervisorId || req.user.id;
+      req.body.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       req.body.supervisorModel = roleModelMap[roleType];
     }
 
@@ -156,7 +156,7 @@ exports.getCommissionAgents = async (req, res) => {
     const query = {};
 
     if (role === "user") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.query.supervisorId) {
       query.supervisorId = req.query.supervisorId;
     }
@@ -212,7 +212,7 @@ exports.getCommissionAgentById = async (req, res) => {
     const query = { _id: req.params.id };
 
     if (role === "user") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     const agent = await CommissionAgent.findOne(query)
@@ -246,8 +246,8 @@ exports.updateCommissionAgent = async (req, res) => {
     const query = { _id: req.params.id };
 
     if (role === "user") {
-      query.supervisorId = req.supervisorId || req.user.id;
-      req.body.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
+      req.body.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     if (req.body.transporterId === "") {
@@ -347,7 +347,7 @@ exports.deleteCommissionAgent = async (req, res) => {
     const query = { _id: req.params.id };
 
     if (role === "user") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     const agent = await CommissionAgent.findOneAndDelete(query);

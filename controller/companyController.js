@@ -11,7 +11,7 @@ exports.createCompany = async (req, res) => {
         if (!["superadmin", "user"].includes(role))
             return res.status(403).json({ message: "Access denied" });
 
-        if (role === "user") req.body.supervisorId = req.supervisorId || req.user.id;
+        if (role === "user") req.body.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
         if (!req.body.supervisorId)
             return res.status(400).json({ message: "supervisorId is required" });
 
@@ -125,7 +125,7 @@ exports.getCompanies = async (req, res) => {
         const role = req.user.role;
         if (!["superadmin", "user","worker"].includes(role)) return res.status(403).json({ message: "Access denied" });
         let filter = {};
-        if (role === "user") filter.supervisorId = req.supervisorId || req.user.id;
+        if (role === "user") filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
         if (role === "superadmin" && req.query.supervisorId) filter.supervisorId = req.query.supervisorId;
         if (role === "worker") filter.supervisorId = req.user.supervisor;
 

@@ -147,7 +147,7 @@ exports.getAllExpenses = async (req, res) => {
 
       return res.status(200).json(expenses);
     } else if (req.user.role === "user" || req.user.role === "worker") {
-      const supervisorId = req.supervisorId || req.user.id;
+      const supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
       const drivers = await Driver.find({ supervisor: supervisorId });
       if (drivers.length === 0) {
@@ -605,7 +605,7 @@ exports.getTodayExpensesOfVehicleAndDriver = async (req, res) => {
       if (driverExpenses.length === 0 && vehicleExpenses.length === 0) return res.status(404).json({ message: "No expenses found for today." });
       return res.status(200).json(vehicleExpenses.concat(driverExpenses));
     } else if (req.user.role === "user" || req.user.role === "worker") {
-      const drivers = await Driver.find({ supervisor: req.supervisorId || req.user.id }).select('_id').lean();
+      const drivers = await Driver.find({ supervisor: (req.user.role === 'worker' ? req.user.supervisor : req.user.id) }).select('_id').lean();
       if (drivers.length === 0) return res.status(404).json({ message: "No driver found." });
 
       const [driverExpenses, vehicleExpenses] = await Promise.all([

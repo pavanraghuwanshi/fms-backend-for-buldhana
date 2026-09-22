@@ -131,7 +131,7 @@ exports.getMaterialOwners = async (req, res) => {
 
     // ✅ ROLE BASED FILTER
     if (req.user.role === "user" || req.user.role === "worker") {
-      filter.supervisorId = req.supervisorId || req.user.id;
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
     } else if (req.user.role === "worker") {
       filter.supervisorId = req.user.supervisor;
@@ -187,7 +187,7 @@ exports.getMaterialOwnerDropdown = async (req, res) => {
 
     // ✅ ROLE FILTER
     if (req.user.role === "user" || req.user.role === "worker") {
-      filter.supervisorId = req.supervisorId || req.user.id;
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
     } else if (req.user.role === "worker") {
       filter.supervisorId = req.user.supervisor;
@@ -234,7 +234,7 @@ exports.updateMaterialOwner = async (req, res) => {
 
     // ✅ ROLE CHECK
     if (req.user.role === "user" || req.user.role === "worker") {
-      filter.supervisorId = req.supervisorId || req.user.id;
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
     } else if (req.user.role === "worker") {
       filter.supervisorId = req.user.supervisor;
@@ -312,7 +312,7 @@ exports.deleteMaterialOwner = async (req, res) => {
 
     // ✅ ROLE BASED ACCESS CONTROL
     if (req.user.role === "user" || req.user.role === "worker") {
-      filter.supervisorId = req.supervisorId || req.user.id;
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
     } else if (req.user.role === "worker") {
       filter.supervisorId = req.user.supervisor;

@@ -14,7 +14,7 @@ const applyHierarchy = (req, payload) => {
   const roleType = req.user.roleType;
 
   if (role === "user") {
-    payload.supervisorId = req.supervisorId || req.user.id;
+    payload.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     payload.supervisorModel = roleModelMap[roleType];
   }
 
@@ -125,7 +125,7 @@ exports.getLocations = async (req, res) => {
     const query = {};
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     } else if (supervisorId) {
@@ -176,7 +176,7 @@ exports.getLocationById = async (req, res) => {
     const query = { _id: req.params.id };
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     }
@@ -209,7 +209,7 @@ exports.updateLocation = async (req, res) => {
     const query = { _id: req.params.id };
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     }
@@ -288,7 +288,7 @@ exports.deleteLocation = async (req, res) => {
     const query = { _id: req.params.id };
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     }
@@ -360,7 +360,7 @@ exports.getLocationDropdown = async (req, res) => {
     const query = { status: "Active" };
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      query.supervisorId = req.supervisorId || req.user.id;
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (
       req.user.role === "worker" ||
       req.user.role === "driver"

@@ -82,7 +82,7 @@ exports.getLeaves = async (req, res) => {
       return res.status(200).json(leaves);
     } else if (req.user.role === "user" || req.user.role === "worker") {
       const drivers = await Driver.find({
-        supervisor: req.supervisorId || req.user.id,
+        supervisor: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
       }).select("_id");
       if (drivers.length === 0) {
         return res.status(404).json({ message: "No driver found." });
@@ -223,7 +223,7 @@ exports.getLeavesForApproval = async (req, res) => {
       return res.status(200).json(leaves);
     } else if (req.user.role === "user" || req.user.role === "worker") {
       const drivers = await Driver.find({
-        supervisor: req.supervisorId || req.user.id,
+        supervisor: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
       }).select("_id");
       if (drivers.length === 0) {
         return res.status(404).json({ message: "No driver found." });

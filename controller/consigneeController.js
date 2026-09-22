@@ -23,7 +23,7 @@ exports.createConsignee = async (req, res) => {
 
     // ROLE BASED PAYLOAD
     if (req.user.role === "user" || req.user.role === "worker") {
-      payload.supervisorId = req.supervisorId || req.user.id;
+      payload.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       payload.supervisorName = req.user.username;
     }
 
@@ -97,7 +97,7 @@ exports.getAllConsignees = async (req, res) => {
 
     // ✅ ROLE FILTER
     if (req.user.role === "user" || req.user.role === "worker") {
-      filter.supervisorId = req.supervisorId || req.user.id;
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     if (req.user.role === "worker") {
@@ -153,7 +153,7 @@ exports.getConsigneeById = async (req, res) => {
     };
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      filter.supervisorId = req.supervisorId || req.user.id;
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     if (req.user.role === "worker") {
@@ -195,7 +195,7 @@ exports.updateConsignee = async (req, res) => {
 
     const existingConsignee = await Consignee.findOne({
       _id: req.params.id,
-      supervisorId: req.supervisorId || req.user.id,
+      supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
       isDeleted: false,
     });
     const oldConsigneeSnapshot = existingConsignee && typeof existingConsignee.toObject === 'function' ? existingConsignee.toObject() : existingConsignee;
@@ -203,7 +203,7 @@ exports.updateConsignee = async (req, res) => {
     const consignee = await Consignee.findOneAndUpdate(
       {
         _id: req.params.id,
-        supervisorId: req.supervisorId || req.user.id,
+        supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
         isDeleted: false,
       },
       { $set: updateData },
@@ -267,7 +267,7 @@ exports.softdeleteConsignee = async (req, res) => {
 
     const existingConsignee = await Consignee.findOne({
       _id: req.params.id,
-      supervisorId: req.supervisorId || req.user.id,
+      supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
       isDeleted: false,
     });
     const oldConsigneeSnapshot = existingConsignee && typeof existingConsignee.toObject === 'function' ? existingConsignee.toObject() : existingConsignee;
@@ -275,7 +275,7 @@ exports.softdeleteConsignee = async (req, res) => {
     const consignee = await Consignee.findOneAndUpdate(
       {
         _id: req.params.id,
-        supervisorId: req.supervisorId || req.user.id,
+        supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
         isDeleted: false,
       },
       {

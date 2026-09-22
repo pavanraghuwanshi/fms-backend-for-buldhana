@@ -24,7 +24,7 @@ exports.createconsignor = async (req, res) => {
 
     // ROLE BASED PAYLOAD
     if (req.user.role === "user" || req.user.role === "worker") {
-      payload.supervisorId = req.supervisorId || req.user.id;
+      payload.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       payload.supervisorName = req.user.username;
     }
 
@@ -99,7 +99,7 @@ exports.getAllconsignors = async (req, res) => {
 
     // ✅ ROLE FILTER
     if (req.user.role === "user" || req.user.role === "worker") {
-      filter.supervisorId = req.supervisorId || req.user.id;
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     if (req.user.role === "worker") {
@@ -155,7 +155,7 @@ exports.getconsignorById = async (req, res) => {
     };
 
     if (req.user.role === "user" || req.user.role === "worker") {
-      filter.supervisorId = req.supervisorId || req.user.id;
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     if (req.user.role === "worker") {
@@ -197,7 +197,7 @@ exports.updateconsignor = async (req, res) => {
 
     const existingConsignor = await Consignor.findOne({
       _id: req.params.id,
-      supervisorId: req.supervisorId || req.user.id,
+      supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
       isDeleted: false,
     });
     const oldConsignorSnapshot = existingConsignor && typeof existingConsignor.toObject === 'function' ? existingConsignor.toObject() : existingConsignor;
@@ -205,7 +205,7 @@ exports.updateconsignor = async (req, res) => {
     const updatedConsignor = await Consignor.findOneAndUpdate(
       {
         _id: req.params.id,
-        supervisorId: req.supervisorId || req.user.id,
+        supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
         isDeleted: false,
       },
       { $set: updateData },
@@ -269,7 +269,7 @@ exports.softdeleteconsignor = async (req, res) => {
 
     const existingConsignor = await Consignor.findOne({
       _id: req.params.id,
-      supervisorId: req.supervisorId || req.user.id,
+      supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
       isDeleted: false,
     });
     const oldConsignorSnapshot = existingConsignor && typeof existingConsignor.toObject === 'function' ? existingConsignor.toObject() : existingConsignor;
@@ -277,7 +277,7 @@ exports.softdeleteconsignor = async (req, res) => {
     const consignor = await Consignor.findOneAndUpdate(
       {
         _id: req.params.id,
-        supervisorId: req.supervisorId || req.user.id,
+        supervisorId: (req.user.role === 'worker' ? req.user.supervisor : req.user.id),
         isDeleted: false,
       },
       {
