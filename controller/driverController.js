@@ -7,6 +7,7 @@ const Device = require("../model/deviceModel");
 const VehicleMaster = require("../model/maintenanceDevice.model");
 const Trip = require("../model/tripModel");
 const { logAction } = require("../utils/logger");
+const WorkerRole = require("../model/WorkerRole");
 
 exports.createDriver = async (req, res) => {
   try {
@@ -22,11 +23,7 @@ exports.createDriver = async (req, res) => {
       deviceId,
     } = req.body;
 
-    if (req.user.role !== "superadmin" && req.user.role !== "user") {
-      return res.status(403).json({
-        message: "you are not authorized to create driver",
-      });
-    }
+    let supervisorId = req.supervisorId || req.user.id;
 
     const existingDriver = await Driver.findOne({ contactNumber });
 
@@ -76,7 +73,7 @@ exports.createDriver = async (req, res) => {
       licenseImage: licenseImage ? await compressImage(licenseImage) : undefined,
       aadharImage: aadharImage ? await compressImage(aadharImage) : undefined,
       amount,
-      supervisor: req.user.id,
+      supervisor: supervisorId,
       licenseExpiryDate,
       deviceId: deviceId || null,
       isAssigned: !!deviceId,
@@ -174,9 +171,7 @@ exports.getAllDrivers = async (req, res) => {
         })
       );
     } else if (["user", "worker"].includes(req.user.role)) {
-      let supervisor;
-      if (req.user.role === "worker") supervisor = req.user.supervisor;
-      else supervisor = req.user.id;
+      const supervisor = req.supervisorId || req.user.id;
       const drivers = await Driver.find({ supervisor }).select("name contactNumber email password supervisor licenseNumber licenseExpiryDate deviceId")
         .populate("deviceId", "vehicleNumber");
       return res.status(200).json(
@@ -466,8 +461,7 @@ exports.updateDriver = async (req, res) => {
 
 exports.deleteDriver = async (req, res) => {
   try {
-    if (req.user.role === "user") {
-      const driver = await Driver.findByIdAndDelete(req.params.id);
+    const driver = await Driver.findByIdAndDelete(req.params.id);
       if (!driver) return res.status(404).json({ message: "Driver not found" });
 
       if (driver.deviceId) {
@@ -510,9 +504,6 @@ exports.deleteDriver = async (req, res) => {
       }
 
       return res.status(200).json({ message: "Driver deleted successfully" });
-    } else {
-      return res.status(403).json({ success: false, message: "Unauthorized access" });
-    }
   } catch (error) {
     try {
       await logAction({
@@ -577,7 +568,7 @@ exports.getDriverStatus = async (req, res) => {
     let query = {};
     if (req.user.role === "superadmin" && req.query.userId) {
       query.supervisor = req.query.userId;
-    } else if (req.user.role === "user") {
+    } else if (req.user.role === "user" || req.user.role === "worker") {
       query.supervisor = req.user.id;
     }
 

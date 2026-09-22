@@ -282,8 +282,8 @@ exports.getAttendanceLocations = async (req, res) => {
       status: "Present",
     };
 
-    if (req.user.role === "user") {
-      const drivers = await Driver.find({ supervisor: req.user.id }).select('_id').lean();
+    if (req.user.role === "user" || req.user.role === "worker") {
+      const drivers = await Driver.find({ supervisor: req.supervisorId || req.user.id }).select('_id').lean();
       if (!drivers.length) return res.status(404).json({ success: false, message: "No drivers found for the supervisor" });
       const driverIds = drivers.map(driver => driver._id);
       query.driverId = { $in: driverIds };

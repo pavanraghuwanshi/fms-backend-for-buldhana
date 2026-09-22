@@ -39,7 +39,7 @@ exports.getNumberData = async (req, res) => {
 
     // ---------------- ROLE BASED FILTER ----------------
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       if (req.user.roleType === "school") {
         vehicleQuery.supervisorId = req.user.id;
         vehicleQuery.supervisorModel = "School";

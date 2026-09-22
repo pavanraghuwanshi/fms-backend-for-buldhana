@@ -5,9 +5,7 @@ const { logAction } = require("../utils/logger");
 exports.createTemplate = async (req, res) => {
   try {
     const { templateName } = req.body;
-    if (req.user.role !== "user") {
-      return res.status(403).json({ message: "Access denied: Only users can update templates." });
-    }
+    /* Removed redundant manual role check (handled by route middleware) */
 
     if (!templateName) {
       return res.status(400).json({ message: "templateName is required." });
@@ -15,7 +13,7 @@ exports.createTemplate = async (req, res) => {
 
     const templateData = {
       ...req.body,
-      supervisorId: req.user.id
+      supervisorId: req.supervisorId || req.user.id
     };
 
     const newTemplate = await BuiltyTemplate.create(templateData);
@@ -69,15 +67,13 @@ exports.createTemplate = async (req, res) => {
 exports.getBuiltyTemplates = async (req, res) => {
   try {
 
-    if (!["superadmin", "user"].includes(req.user.role)) {
-      return res.status(403).json({ message: "Access denied" });
-    }
+    
 
     const { page = 1, limit = 10, search, supervisorId } = req.query;
 
     const query = {};
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       query.supervisorId = req.user.id;
     } else if (supervisorId) {
       query.supervisorId = supervisorId;
@@ -124,9 +120,7 @@ exports.updateBuiltyTemplate = async (req, res) => {
       return res.status(400).json({ message: "Invalid Template ID format" });
     }
 
-    if (req.user.role !== "user") {
-      return res.status(403).json({ message: "Access denied: Only users can update templates." });
-    }
+    /* Removed redundant manual role check (handled by route middleware) */
 
     const updateData = req.body;
     delete updateData.supervisorId;
@@ -203,11 +197,7 @@ exports.deleteBuiltyTemplate = async (req, res) => {
       });
     }
 
-    if (req.user.role !== "user") {
-      return res.status(403).json({
-        message: "Access denied: Only users can delete templates.",
-      });
-    }
+    /* Removed redundant manual role check (handled by route middleware) */
 
     const template = await BuiltyTemplate.findById(id);
 

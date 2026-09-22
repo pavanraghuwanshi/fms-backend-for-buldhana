@@ -16,7 +16,7 @@ const {
   getLogsForLoggedInUser
 } = require("../controller/vendorLogController");
 
-const { authenticateToken } = require("../middleware/authMiddleware");
+const { authenticateToken, authorizeWorkerAction } = require("../middleware/authMiddleware");
 const createUploader = require("../middleware/uploadDiskImg");
 const uploadVendorLogs = createUploader("vendorlogs");
 

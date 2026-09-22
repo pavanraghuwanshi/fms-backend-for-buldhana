@@ -140,8 +140,8 @@ exports.getAllTires = async (req, res) => {
           if (req.user.role === "superadmin") {
                tires = await Tire.find().select("-__v").sort({ createdAt: -1 });
 
-          } else if (req.user.role === "user") {
-               const drivers = await Driver.find({ supervisor: req.user.id }).select("deviceId");
+          } else if (req.user.role === "user" || req.user.role === "worker") {
+               const drivers = await Driver.find({ supervisor: req.supervisorId || req.user.id }).select("deviceId");
 
                if (drivers.length === 0) {
                     return res.status(404).json({ message: "No drivers found." });

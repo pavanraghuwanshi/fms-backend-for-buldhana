@@ -80,9 +80,9 @@ exports.getLeaves = async (req, res) => {
     if (req.user.role === "superadmin") {
       const leaves = await LeaveRequest.find().populate("driverId", "name").select("driverId startDate endDate description status ");
       return res.status(200).json(leaves);
-    } else if (req.user.role === "user") {
+    } else if (req.user.role === "user" || req.user.role === "worker") {
       const drivers = await Driver.find({
-        supervisor: req.user.id,
+        supervisor: req.supervisorId || req.user.id,
       }).select("_id");
       if (drivers.length === 0) {
         return res.status(404).json({ message: "No driver found." });
@@ -100,7 +100,7 @@ exports.getLeaves = async (req, res) => {
 
 exports.getPendingLeaveByDriverId = async (req, res) => {
   try {
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       const driverId = req.params.driverId;
       const leaves = await LeaveRequest.find({ driverId, status: "Pending" }).populate("driverId", "name").select("driverId startDate endDate description status ");
       if (leaves.length === 0) {
@@ -221,9 +221,9 @@ exports.getLeavesForApproval = async (req, res) => {
     if (req.user.role === "superadmin") {
       const leaves = await LeaveRequest.find({ status: "Pending" }).populate("driverId", "name").select("driverId startDate endDate description status ");
       return res.status(200).json(leaves);
-    } else if (req.user.role === "user") {
+    } else if (req.user.role === "user" || req.user.role === "worker") {
       const drivers = await Driver.find({
-        supervisor: req.user.id,
+        supervisor: req.supervisorId || req.user.id,
       }).select("_id");
       if (drivers.length === 0) {
         return res.status(404).json({ message: "No driver found." });

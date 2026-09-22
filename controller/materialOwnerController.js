@@ -38,7 +38,7 @@ exports.createMaterialOwner = async (req, res) => {
       }
       finalSupervisorId = bodySupervisorId;
 
-    } else if (req.user.role === "user") {
+    } else if (req.user.role === "user" || req.user.role === "worker") {
       finalSupervisorId = req.user.id;
 
     } else if (req.user.role === "worker") {
@@ -130,7 +130,7 @@ exports.getMaterialOwners = async (req, res) => {
     let filter = {};
 
     // ✅ ROLE BASED FILTER
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       filter.supervisorId = req.user.id;
 
     } else if (req.user.role === "worker") {
@@ -186,7 +186,7 @@ exports.getMaterialOwnerDropdown = async (req, res) => {
     let filter = {};
 
     // ✅ ROLE FILTER
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       filter.supervisorId = req.user.id;
 
     } else if (req.user.role === "worker") {
@@ -233,7 +233,7 @@ exports.updateMaterialOwner = async (req, res) => {
     let filter = { _id: id };
 
     // ✅ ROLE CHECK
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       filter.supervisorId = req.user.id;
 
     } else if (req.user.role === "worker") {
@@ -311,7 +311,7 @@ exports.deleteMaterialOwner = async (req, res) => {
     let filter = { _id: id };
 
     // ✅ ROLE BASED ACCESS CONTROL
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       filter.supervisorId = req.user.id;
 
     } else if (req.user.role === "worker") {

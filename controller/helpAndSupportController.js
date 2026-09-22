@@ -25,7 +25,7 @@ exports.createIssue = async (req, res) => {
         if (req.user.role === 'superadmin') {
             const newIssue = new HelpAndSupport({ vehicle, ticketType, description, createdBy: req.user.role });
             createdIssueDoc = await newIssue.save();
-        } else if (req.user.role === 'user') {
+        } else if (req.user.role === "user" || req.user.role === "worker") {
             const newIssue = new HelpAndSupport({ user, vehicle, ticketType, description, createdBy: req.user.role });
             createdIssueDoc = await newIssue.save();
         } else if (req.user.role === 'driver') {

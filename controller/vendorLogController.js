@@ -609,7 +609,7 @@ exports.updateLog = async (req, res) => {
 
 exports.deleteLog = async (req, res) => {
   try {
-    const log = await VendorLog.findOneAndDelete({ _id: req.params.id, supervisorId: req.user.id });
+    const log = await VendorLog.findOneAndDelete({ _id: req.params.id, supervisorId: req.supervisorId || req.user.id });
     if (!log) return res.status(404).json({ message: "Log not found" });
 
     try {

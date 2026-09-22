@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const upload = require('../middleware/upload');
 const { addInspection, getAllInspections, getInspectionByVehicleId, editInspection, deleteInspection, getInspectionImageById, getInspectionByDriverId } = require("../controller/inspectionController");
-const { authenticateToken } = require('../middleware/authMiddleware');
+const { authenticateToken, authorizeWorkerAction } = require('../middleware/authMiddleware');
 
 const inspectionUpload = upload.fields([
   { name: "engineOilImg", maxCount: 1 },
@@ -25,13 +25,13 @@ const inspectionUpload = upload.fields([
   { name: "indicatorImg", maxCount: 1 },
 ]);
 
-router.post("/add-inspection", authenticateToken, inspectionUpload, addInspection);
-router.get("/get-all-inspection", authenticateToken, getAllInspections);
-router.get("/get-inspection/:vehicleId", authenticateToken, getInspectionByVehicleId);
-router.get("/get-inspection-by-driver-id", authenticateToken, getInspectionByDriverId);
-router.patch("/edit-inspection/:id", authenticateToken, inspectionUpload, editInspection);
-router.delete("/delete-inspection/:id", authenticateToken, deleteInspection);
-router.get("/inspection-image/:id", authenticateToken, getInspectionImageById);
+router.post("/add-inspection", authenticateToken, authorizeWorkerAction('reports', 'inspection', 'create'), inspectionUpload, addInspection);
+router.get("/get-all-inspection", authenticateToken, authorizeWorkerAction('reports', 'inspection', 'read'), getAllInspections);
+router.get("/get-inspection/:vehicleId", authenticateToken, authorizeWorkerAction('reports', 'inspection', 'read'), getInspectionByVehicleId);
+router.get("/get-inspection-by-driver-id", authenticateToken, authorizeWorkerAction('reports', 'inspection', 'read'), getInspectionByDriverId);
+router.patch("/edit-inspection/:id", authenticateToken, authorizeWorkerAction('reports', 'inspection', 'update'), inspectionUpload, editInspection);
+router.delete("/delete-inspection/:id", authenticateToken, authorizeWorkerAction('reports', 'inspection', 'delete'), deleteInspection);
+router.get("/inspection-image/:id", authenticateToken, authorizeWorkerAction('reports', 'inspection', 'read'), getInspectionImageById);
 
 module.exports = router;
 

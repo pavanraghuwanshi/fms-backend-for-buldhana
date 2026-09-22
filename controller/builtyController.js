@@ -508,7 +508,7 @@ const linkBuiltyToTrip = async ({ payload, builty, req }) => {
         driverId: payload.driverId,
         vehicleId: payload.vehicleId,
         vehicleName: payload.vehicleNumber,
-        supervisorId: req.user.id,
+        supervisorId: req.supervisorId || req.user.id,
         builtyIds: [builty._id],
         startLocation: pickup?.name || pickup?.locationName || payload.pickupLocationId.toString(),
         endLocation: dest?.name || dest?.locationName || payload.destinationLocationId.toString(),
@@ -942,7 +942,7 @@ exports.updateBuilty = async (req, res) => {
         driverId: payload.driverId,
         vehicleId: payload.vehicleId,
         vehicleName: payload.vehicleNumber,
-        supervisorId: req.user.id,
+        supervisorId: req.supervisorId || req.user.id,
         startLocation:
           pickupLocation?.name ||
           pickupLocation?.locationName ||
@@ -1647,7 +1647,7 @@ exports.getBuiltys = async (req, res) => {
 
     const query = {};
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       query.supervisorId = req.user.id;
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
@@ -2012,7 +2012,7 @@ exports.getMiniBuiltysRollWise = async (req, res) => {
     } = req.query;
     const query = {};
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       query.supervisorId = req.user.id;
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
@@ -2159,7 +2159,7 @@ exports.getBuiltysByTripId = async (req, res) => {
 
     const query = { _id: { $in: uniqueBuiltyIds } };
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       query.supervisorId = req.user.id;
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;

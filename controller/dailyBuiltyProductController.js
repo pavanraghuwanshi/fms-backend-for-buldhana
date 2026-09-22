@@ -242,7 +242,7 @@ exports.updateDailyBuiltyProduct = async (req, res) => {
 
     const filter = { _id: req.params.id };
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       const supervisorData = await getSupervisorData(req);
 
       filter.supervisorId = supervisorData.supervisorId;
@@ -325,7 +325,7 @@ exports.deleteDailyBuiltyProduct = async (req, res) => {
 
     const filter = { _id: req.params.id };
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       const supervisorData = await getSupervisorData(req);
 
       filter.supervisorId = supervisorData.supervisorId;

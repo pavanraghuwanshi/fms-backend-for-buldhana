@@ -9,10 +9,6 @@ exports.createVehicleMaster = async (req, res) => {
     const role = req.user.role;
     const roleType = req.user.roleType;
 
-    if (!["superadmin", "user"].includes(role)) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
     const roleModelMap = {
       school: "School",
       branch: "Branch",
@@ -131,10 +127,6 @@ exports.getVehicleMasters = async (req, res) => {
   try {
     const role = req.user.role;
 
-    if (!["superadmin", "user"].includes(role)) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
     const {
       page = 1,
       limit = 10,
@@ -148,8 +140,8 @@ exports.getVehicleMasters = async (req, res) => {
 
     const query = {};
 
-    if (role === "user") {
-      query.supervisorId = req.user.id;
+    if (role === "user" || role === "worker") {
+      query.supervisorId = req.supervisorId || req.user.id;
     } else if (req.query.supervisorId) {
       query.supervisorId = req.query.supervisorId;
     }
@@ -208,14 +200,10 @@ exports.getVehicleMasterById = async (req, res) => {
   try {
     const role = req.user.role;
 
-    if (!["superadmin", "user"].includes(role)) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
     const query = { _id: req.params.id };
 
-    if (role === "user") {
-      query.supervisorId = req.user.id;
+    if (role === "user" || role === "worker") {
+      query.supervisorId = req.supervisorId || req.user.id;
     }
 
     const vehicle = await VehicleMaster.findOne(query)
@@ -243,15 +231,11 @@ exports.updateVehicleMaster = async (req, res) => {
   try {
     const role = req.user.role;
 
-    if (!["superadmin", "user"].includes(role)) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
     const query = { _id: req.params.id };
 
-    if (role === "user") {
-      query.supervisorId = req.user.id;
-      req.body.supervisorId = req.user.id;
+    if (role === "user" || role === "worker") {
+      query.supervisorId = req.supervisorId || req.user.id;
+      req.body.supervisorId = req.supervisorId || req.user.id;
     }
 
     const oldVehicle = await VehicleMaster.findOne(query);
@@ -262,7 +246,7 @@ exports.updateVehicleMaster = async (req, res) => {
         vehicleNumber: req.body.vehicleNumber.toUpperCase(),
         _id: { $ne: req.params.id },
         supervisorId:
-          role === "user" ? req.user.id : req.body.supervisorId || req.query.supervisorId,
+          (role === "user" || role === "worker") ? (req.supervisorId || req.user.id) : (req.body.supervisorId || req.query.supervisorId),
       });
 
       if (existingVehicle) {
@@ -331,14 +315,10 @@ exports.deleteVehicleMaster = async (req, res) => {
   try {
     const role = req.user.role;
 
-    if (!["superadmin", "user"].includes(role)) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
     const query = { _id: req.params.id };
 
-    if (role === "user") {
-      query.supervisorId = req.user.id;
+    if (role === "user" || role === "worker") {
+      query.supervisorId = req.supervisorId || req.user.id;
     }
 
     const oldVehicle = await VehicleMaster.findOne(query);
@@ -572,10 +552,6 @@ exports.updateVehicleStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid Vehicle ID format" });
     }
 
-    if (!["superadmin", "user", "worker"].includes(req.user.role)) {
-      return res.status(403).json({ success: false, message: "Unauthorized access" });
-    }
-
     if (typeof isAssigned !== 'boolean') {
       return res.status(400).json({ success: false, message: "isAssigned must be a boolean (true/false)" });
     }
@@ -589,8 +565,8 @@ exports.updateVehicleStatus = async (req, res) => {
 
     const query = { _id: vehicleId };
 
-    if (req.user.role !== "superadmin") {
-      query.supervisorId = req.user.role === "user" ? req.user.id : req.user.supervisor;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      query.supervisorId = req.supervisorId || req.user.id;
     }
 
     const vehicle = await VehicleMaster.findOne(query);

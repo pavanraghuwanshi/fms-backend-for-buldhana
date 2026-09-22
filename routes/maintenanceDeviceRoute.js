@@ -12,16 +12,15 @@ const {
   updateVehicleStatus
 } = require("../controller/maintenanceDeviceController");
 
-const { authenticateToken } = require("../middleware/authMiddleware");
+const { authenticateToken, authorizeWorkerAction } = require("../middleware/authMiddleware");
 
-
-router.post("/", authenticateToken, createVehicleMaster);
-router.get("/", authenticateToken, getVehicleMasters);
+router.post("/", authenticateToken, authorizeWorkerAction('masters', 'vehicle', 'create'), createVehicleMaster);
+router.get("/", authenticateToken, authorizeWorkerAction('masters', 'vehicle', 'read'), getVehicleMasters);
 router.get("/dropdown", authenticateToken, getVehicleMasterDropdown);
 router.get("/dropdownall", authenticateToken, getVehicleMasterDropdownall);
-router.patch("/status/:vehicleId", authenticateToken, updateVehicleStatus);
-router.get("/:id", authenticateToken, getVehicleMasterById);
-router.put("/:id", authenticateToken, updateVehicleMaster);
-router.delete("/:id", authenticateToken, deleteVehicleMaster);
+router.patch("/status/:vehicleId", authenticateToken, authorizeWorkerAction('masters', 'vehicle', 'update'), updateVehicleStatus);
+router.get("/:id", authenticateToken, authorizeWorkerAction('masters', 'vehicle', 'read'), getVehicleMasterById);
+router.put("/:id", authenticateToken, authorizeWorkerAction('masters', 'vehicle', 'update'), updateVehicleMaster);
+router.delete("/:id", authenticateToken, authorizeWorkerAction('masters', 'vehicle', 'delete'), deleteVehicleMaster);
 
 module.exports = router;

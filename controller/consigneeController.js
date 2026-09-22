@@ -22,7 +22,7 @@ exports.createConsignee = async (req, res) => {
     const payload = { name, address, pincode, contactNumber, contactPerson, gstNumber, panNumber };
 
     // ROLE BASED PAYLOAD
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       payload.supervisorId = req.user.id;
       payload.supervisorName = req.user.username;
     }
@@ -96,7 +96,7 @@ exports.getAllConsignees = async (req, res) => {
     const filter = { isDeleted: false };
 
     // ✅ ROLE FILTER
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       filter.supervisorId = req.user.id;
     }
 
@@ -152,7 +152,7 @@ exports.getConsigneeById = async (req, res) => {
       isDeleted: false,
     };
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       filter.supervisorId = req.user.id;
     }
 
@@ -176,11 +176,7 @@ exports.getConsigneeById = async (req, res) => {
 // UPDATE
 exports.updateConsignee = async (req, res) => {
   try {
-    if (req.user.role !== "user") {
-      return res.status(403).json({
-        message: "Only supervisor can update consignee",
-      });
-    }
+    /* Removed redundant manual role check (handled by route middleware) */
 
     const updateData = {};
     if (req.body.name !== undefined) updateData.name = req.body.name;
@@ -199,7 +195,7 @@ exports.updateConsignee = async (req, res) => {
 
     const existingConsignee = await Consignee.findOne({
       _id: req.params.id,
-      supervisorId: req.user.id,
+      supervisorId: req.supervisorId || req.user.id,
       isDeleted: false,
     });
     const oldConsigneeSnapshot = existingConsignee && typeof existingConsignee.toObject === 'function' ? existingConsignee.toObject() : existingConsignee;
@@ -207,7 +203,7 @@ exports.updateConsignee = async (req, res) => {
     const consignee = await Consignee.findOneAndUpdate(
       {
         _id: req.params.id,
-        supervisorId: req.user.id,
+        supervisorId: req.supervisorId || req.user.id,
         isDeleted: false,
       },
       { $set: updateData },
@@ -267,15 +263,11 @@ exports.updateConsignee = async (req, res) => {
 // SOFT DELETE
 exports.softdeleteConsignee = async (req, res) => {
   try {
-    if (req.user.role !== "user") {
-      return res.status(403).json({
-        message: "Only supervisor can delete consignee",
-      });
-    }
+    /* Removed redundant manual role check (handled by route middleware) */
 
     const existingConsignee = await Consignee.findOne({
       _id: req.params.id,
-      supervisorId: req.user.id,
+      supervisorId: req.supervisorId || req.user.id,
       isDeleted: false,
     });
     const oldConsigneeSnapshot = existingConsignee && typeof existingConsignee.toObject === 'function' ? existingConsignee.toObject() : existingConsignee;
@@ -283,7 +275,7 @@ exports.softdeleteConsignee = async (req, res) => {
     const consignee = await Consignee.findOneAndUpdate(
       {
         _id: req.params.id,
-        supervisorId: req.user.id,
+        supervisorId: req.supervisorId || req.user.id,
         isDeleted: false,
       },
       {

@@ -10,13 +10,6 @@ const { logAction } = require("../utils/logger");
 
 exports.createTrip = async (req, res) => {
   try {
-    if (req.user.role !== "user") {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized access",
-      });
-    }
-
     const { loadingDate, unloadingDate, ...payload } = req.body;
 
     const crypto = require("crypto");
@@ -25,7 +18,7 @@ exports.createTrip = async (req, res) => {
     const trip = new Trip({
       ...payload,
       tripId: generatedTripId,
-      supervisorId: req.user.id,
+      supervisorId: req.supervisorId || req.user.id,
     });
 
     if (loadingDate) {
@@ -138,8 +131,8 @@ const buildTripQuery = async (user, queryParams) => {
 
   if (role === "superadmin") {
     if (supervisorId) query.supervisorId = supervisorId;
-  } else if (role === "user") {
-    query.supervisorId = userId;
+  } else if (role === "user" || role === "worker") {
+    query.supervisorId = user.supervisor || userId;
   } else if (role === "driver") {
     query.driverId = userId;
   } else {
@@ -261,7 +254,7 @@ exports.getAllTrips = async (req, res) => {
           select: "tpNo docNo consigneeName consignerName",
         })
         .sort({ createdAt: -1 });
-    } else if (req.user.role === "user") {
+    } else if (req.user.role === "user" || req.user.role === "worker") {
       trips = await Trip.find(query)
         .populate({
           path: "driverId",
@@ -318,7 +311,7 @@ exports.getAllTrips = async (req, res) => {
 };
 exports.updateTrip = async (req, res) => {
   try {
-    if (!["user", "driver"].includes(req.user.role)) {
+    if (!["user", "worker", "driver", "superadmin"].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: "Unauthorized access",
@@ -339,9 +332,9 @@ exports.updateTrip = async (req, res) => {
       }
     }
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       const trip = await Trip.findOneAndUpdate(
-        { _id: tripId, supervisorId: req.user.id },
+        { _id: tripId, supervisorId: req.supervisorId || req.user.id },
         req.body,
         {
           new: true,
@@ -373,7 +366,7 @@ exports.updateTrip = async (req, res) => {
         } else {
           const initialDeposit = new WalletLedger({
             driverId: trip.driverId,
-            supervisorId: req.user.id,
+            supervisorId: req.supervisorId || req.user.id,
             vehicleId: trip.vehicleId,
             type: "DEPOSIT",
             amount: trip.budgetAllocated || 0,
@@ -601,7 +594,7 @@ exports.updateTrip = async (req, res) => {
 
 exports.completeTrip = async (req, res) => {
   try {
-    if (!["user", "driver"].includes(req.user.role)) {
+    if (!["user", "worker", "driver", "superadmin"].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: "Unauthorized access",
@@ -683,9 +676,9 @@ exports.completeTrip = async (req, res) => {
     const oldTripSnapshot = tripCheck && typeof tripCheck.toObject === 'function' ? tripCheck.toObject() : tripCheck;
     let trip;
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       trip = await Trip.findOneAndUpdate(
-        { _id: tripId, supervisorId: req.user.id },
+        { _id: tripId, supervisorId: req.supervisorId || req.user.id },
         {
           $set: {
             status: "completed",
@@ -836,16 +829,9 @@ exports.completeTrip = async (req, res) => {
 
 exports.deleteTrip = async (req, res) => {
   try {
-    if (req.user.role !== "user") {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized access",
-      });
-    }
-
     const trip = await Trip.findOneAndDelete({
       _id: req.params.tripId,
-      supervisorId: req.user.id,
+      supervisorId: req.supervisorId || req.user.id,
     });
 
     if (!trip) {
@@ -1256,7 +1242,7 @@ exports.getAllTripswithPegination = async (req, res) => {
         .sort({ createdAt: -1 })
         .skip(skip)   // Applied pagination
         .limit(limit); // Applied pagination
-    } else if (req.user.role === "user") {
+    } else if (req.user.role === "user" || req.user.role === "worker") {
       trips = await Trip.find(query)
         .populate({
           path: "driverId",

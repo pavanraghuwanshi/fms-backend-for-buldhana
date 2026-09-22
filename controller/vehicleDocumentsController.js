@@ -592,7 +592,7 @@ exports.getVehicleExpiryDocuments = async (req, res) => {
 
         // If superadmin and userId is provided in query, use it; otherwise, use logged-in user's ID for user role
         if (req.user.role === "superadmin" && req.query.userId) userId = req.query.userId;
-        else if (req.user.role === "user") userId = req.user.id;
+        else if (req.user.role === "user" || req.user.role === "worker") userId = req.user.id;
 
         let deviceQuery = {};
         if (userId) deviceQuery.users = userId;

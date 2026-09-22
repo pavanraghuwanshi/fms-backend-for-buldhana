@@ -13,15 +13,15 @@ const {
   saveOrUpdateToken
 } = require("../controller/vendorController");
 
-const { authenticateToken } = require('../middleware/authMiddleware');
-router.post("/update-fcm", authenticateToken, saveOrUpdateToken);
+const { authenticateToken, authorizeWorkerAction } = require('../middleware/authMiddleware');
+router.post("/update-fcm", authenticateToken, authorizeWorkerAction('masters', 'vendor', 'create'), saveOrUpdateToken);
 router.post("/login", vendorLogin);
-router.get("/my-builtys-history", authenticateToken, getVendorBuiltys);
-router.post("/", authenticateToken, createVendor);
-router.get("/", authenticateToken, getVendors);
-router.get("/dropdown", authenticateToken, getVendorDropdown);
-router.get("/:id", authenticateToken, getVendorById);
-router.put("/:id", authenticateToken, updateVendor);
-router.delete("/:id", authenticateToken, deleteVendor);
+router.get("/my-builtys-history", authenticateToken, authorizeWorkerAction('masters', 'vendor', 'create'), getVendorBuiltys);
+router.post("/", authenticateToken, authorizeWorkerAction('masters', 'vendor', 'create'), createVendor);
+router.get("/", authenticateToken, authorizeWorkerAction('masters', 'vendor', 'read'), getVendors);
+router.get("/dropdown", authenticateToken, authorizeWorkerAction('masters', 'vendor', 'read'), getVendorDropdown);
+router.get("/:id", authenticateToken, authorizeWorkerAction('masters', 'vendor', 'read'), getVendorById);
+router.put("/:id", authenticateToken, authorizeWorkerAction('masters', 'vendor', 'update'), updateVendor);
+router.delete("/:id", authenticateToken, authorizeWorkerAction('masters', 'vendor', 'delete'), deleteVendor);
 
 module.exports = router;

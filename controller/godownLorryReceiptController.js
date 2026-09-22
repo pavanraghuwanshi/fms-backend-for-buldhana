@@ -27,8 +27,8 @@ exports.createGodownLorryReceipt = async (req, res) => {
     const payload = req.body;
 
     //ROLE-BASED PAYLOAD SETUP
-    if (req.user.role === "user") {
-      payload.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      payload.supervisorId = req.supervisorId || req.user.id;
       payload.supervisorName = req.user.username;
     }
 
@@ -443,7 +443,7 @@ exports.getGodownLorryReceipts = async (req, res) => {
     let filter = {};
 
     // ROLE BASED FILTER
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
 
       if (req.user.roleType === "school") {
         filter.supervisorId = req.user.id;
@@ -516,11 +516,7 @@ if (status) filter.status = status;
 // soft delete godown lorry receipt
 exports.softDeleteGodownLorryReceipt = async (req, res) => {
   try {
-    if (req.user.role !== "user") {
-      return res.status(403).json({
-        message: "Only supervisor can delete consignee",
-      });
-    }
+    /* Removed redundant manual role check (handled by route middleware) */
 
     const { id } = req.params;
 
@@ -581,11 +577,7 @@ exports.softDeleteGodownLorryReceipt = async (req, res) => {
 // hard delete godown lorry receipt
 exports.deleteGodownLorryReceipt = async (req, res) => {
   try {
-    if (req.user.role !== "user") {
-      return res.status(403).json({
-        message: "Only supervisor can delete consignee",
-      });
-    }
+    /* Removed redundant manual role check (handled by route middleware) */
 
     const { id } = req.params;
 
@@ -643,18 +635,12 @@ exports.deleteGodownLorryReceipt = async (req, res) => {
 
 exports.updateLorryReceiptStatus = async (req, res) => {
   try {
-    if (req.user.role !== "user") {
-      return res.status(403).json({
-        message: "Only supervisor can delete consignee",
-      });
-    }
+    /* Removed redundant manual role check (handled by route middleware) */
 
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!["superadmin", "user"].includes(req.user.role)) {
-      return res.status(403).json({ message: "Not allowed" });
-    }
+    
 
     const receipt = await GodownLorryReceipt.findById(id);
     const oldStatus = receipt ? receipt.status : null;
@@ -1192,9 +1178,7 @@ exports.rejectedByParty = async (req, res) => {
 
 exports.updateAcknowledgementImage = async (req, res) => {
   try {
-    if (!["superadmin", "user"].includes(req.user.role)) {
-      return res.status(403).json({ message: "Not allowed" });
-    }
+    
 
     const { id } = req.params;
 

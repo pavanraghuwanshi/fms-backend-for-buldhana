@@ -9,12 +9,12 @@ const {
   deleteCommissionAgent,
 } = require("../controller/commissionAgentController");
 
-const { authenticateToken } = require("../middleware/authMiddleware");
+const { authenticateToken, authorizeWorkerAction } = require("../middleware/authMiddleware");
 
-router.post("/", authenticateToken, createCommissionAgent);
-router.get("/", authenticateToken, getCommissionAgents);
-router.get("/:id", authenticateToken, getCommissionAgentById);
-router.put("/:id", authenticateToken, updateCommissionAgent);
-router.delete("/:id", authenticateToken, deleteCommissionAgent);
+router.post("/", authenticateToken, authorizeWorkerAction('masters', 'commAgent', 'create'), createCommissionAgent);
+router.get("/", authenticateToken, authorizeWorkerAction('masters', 'commAgent', 'read'), getCommissionAgents);
+router.get("/:id", authenticateToken, authorizeWorkerAction('masters', 'commAgent', 'read'), getCommissionAgentById);
+router.put("/:id", authenticateToken, authorizeWorkerAction('masters', 'commAgent', 'update'), updateCommissionAgent);
+router.delete("/:id", authenticateToken, authorizeWorkerAction('masters', 'commAgent', 'delete'), deleteCommissionAgent);
 
 module.exports = router;

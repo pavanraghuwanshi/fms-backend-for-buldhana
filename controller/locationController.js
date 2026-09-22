@@ -124,7 +124,7 @@ exports.getLocations = async (req, res) => {
 
     const query = {};
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       query.supervisorId = req.user.id;
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
@@ -175,7 +175,7 @@ exports.getLocationById = async (req, res) => {
 
     const query = { _id: req.params.id };
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       query.supervisorId = req.user.id;
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
@@ -208,7 +208,7 @@ exports.updateLocation = async (req, res) => {
 
     const query = { _id: req.params.id };
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       query.supervisorId = req.user.id;
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
@@ -287,7 +287,7 @@ exports.deleteLocation = async (req, res) => {
 
     const query = { _id: req.params.id };
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       query.supervisorId = req.user.id;
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
@@ -359,7 +359,7 @@ exports.getLocationDropdown = async (req, res) => {
 
     const query = { status: "Active" };
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       query.supervisorId = req.user.id;
     } else if (
       req.user.role === "worker" ||
