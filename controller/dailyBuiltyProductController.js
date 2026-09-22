@@ -66,7 +66,7 @@ exports.createDailyBuiltyProduct = async (req, res) => {
   try {
     const { name, category, unit } = req.body;
 
-    if (!["superadmin", "user"].includes(req.user.role)) {
+    if (!["superadmin", "user", "worker"].includes(req.user.role)) {
       return res.status(403).json({ msg: "Unauthorized role" });
     }
 
@@ -234,7 +234,7 @@ exports.getDailyBuiltyProductById = async (req, res) => {
 // UPDATE
 exports.updateDailyBuiltyProduct = async (req, res) => {
   try {
-    if (!["superadmin", "user"].includes(req.user.role)) {
+    if (!["superadmin", "user", "worker"].includes(req.user.role)) {
       return res.status(403).json({
         message: "You are not authorized to update daily builty products",
       });
@@ -242,7 +242,7 @@ exports.updateDailyBuiltyProduct = async (req, res) => {
 
     const filter = { _id: req.params.id };
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       const supervisorData = await getSupervisorData(req);
 
       filter.supervisorId = supervisorData.supervisorId;
@@ -317,7 +317,7 @@ exports.updateDailyBuiltyProduct = async (req, res) => {
 // DELETE
 exports.deleteDailyBuiltyProduct = async (req, res) => {
   try {
-    if (!["superadmin", "user"].includes(req.user.role)) {
+    if (!["superadmin", "user", "worker"].includes(req.user.role)) {
       return res.status(403).json({
         message: "You are not authorized to delete daily builty products",
       });
@@ -325,7 +325,7 @@ exports.deleteDailyBuiltyProduct = async (req, res) => {
 
     const filter = { _id: req.params.id };
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       const supervisorData = await getSupervisorData(req);
 
       filter.supervisorId = supervisorData.supervisorId;

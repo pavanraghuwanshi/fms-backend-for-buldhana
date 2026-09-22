@@ -13,8 +13,8 @@ exports.createLorryReceipt = async (req, res) => {
       payload.vehicleId = undefined;
     }
 
-    if (req.user.role === "user") {
-      payload.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      payload.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       payload.supervisorName = req.user.username;
     }
     if (req.user.role === "worker") {
@@ -78,7 +78,7 @@ exports.getAllLorryReceipts = async (req, res) => {
       const { supervisorId } = req.query;
       if (supervisorId) filter.supervisorId = supervisorId
     }
-    else if (req.user.role === "user") filter.supervisorId = req.user.id;
+    else if (req.user.role === "user" || req.user.role === "worker") filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     else if (req.user.role === "worker") filter.workerId = req.user.id;
 
     const receipts = await LorryReceipt.find(filter).populate('workerId', 'name phone supervisor').populate('driverId', 'contactNumber').populate('companyId', 'companyName address mobileNumber officeNumber email gstNumber digitalSignatureId');

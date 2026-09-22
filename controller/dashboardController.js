@@ -39,46 +39,46 @@ exports.getNumberData = async (req, res) => {
 
     // ---------------- ROLE BASED FILTER ----------------
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       if (req.user.roleType === "school") {
-        vehicleQuery.supervisorId = req.user.id;
+        vehicleQuery.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
         vehicleQuery.supervisorModel = "School";
 
-        driverQuery.supervisor = req.user.id;
-        tripQuery.supervisorId = req.user.id;
+        driverQuery.supervisor = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
+        tripQuery.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
-        builtyQuery.supervisorId = req.user.id;
+        builtyQuery.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
         builtyQuery.supervisorModel = "School";
 
-        dailyBuiltyQuery.supervisorId = req.user.id;
+        dailyBuiltyQuery.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
         dailyBuiltyQuery.supervisorModel = "School";
       }
 
       if (req.user.roleType === "branch") {
-        vehicleQuery.supervisorId = req.user.id;
+        vehicleQuery.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
         vehicleQuery.supervisorModel = "Branch";
 
-        driverQuery.supervisor = req.user.id;
-        tripQuery.supervisorId = req.user.id;
+        driverQuery.supervisor = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
+        tripQuery.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
-        builtyQuery.supervisorId = req.user.id;
+        builtyQuery.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
         builtyQuery.supervisorModel = "Branch";
 
-        dailyBuiltyQuery.supervisorId = req.user.id;
+        dailyBuiltyQuery.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
         dailyBuiltyQuery.supervisorModel = "Branch";
       }
 
       if (req.user.roleType === "branchGroup") {
-        vehicleQuery.supervisorId = req.user.id;
+        vehicleQuery.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
         vehicleQuery.supervisorModel = "BranchGroup";
 
-        driverQuery.supervisor = req.user.id;
-        tripQuery.supervisorId = req.user.id;
+        driverQuery.supervisor = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
+        tripQuery.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
-        builtyQuery.supervisorId = req.user.id;
+        builtyQuery.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
         builtyQuery.supervisorModel = "BranchGroup";
 
-        dailyBuiltyQuery.supervisorId = req.user.id;
+        dailyBuiltyQuery.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
         dailyBuiltyQuery.supervisorModel = "BranchGroup";
       }
     }

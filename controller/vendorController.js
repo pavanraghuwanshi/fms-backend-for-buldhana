@@ -16,7 +16,7 @@ const applyHierarchy = (req, payload) => {
   const roleType = req.user.roleType;
 
   if (role === "user") {
-    payload.supervisorId = req.user.id;
+    payload.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     payload.supervisorModel = roleModelMap[roleType];
   }
 
@@ -103,8 +103,8 @@ exports.getVendors = async (req, res) => {
 
     const query = {};
 
-    if (req.user.role === "user") {
-      query.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     } else if (supervisorId) {
@@ -162,8 +162,8 @@ exports.getVendorById = async (req, res) => {
 
     const query = { _id: req.params.id };
 
-    if (req.user.role === "user") {
-      query.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     }
@@ -195,8 +195,8 @@ exports.updateVendor = async (req, res) => {
 
     const query = { _id: req.params.id };
 
-    if (req.user.role === "user") {
-      query.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     }
@@ -257,8 +257,8 @@ exports.deleteVendor = async (req, res) => {
 
     const query = { _id: req.params.id };
 
-    if (req.user.role === "user") {
-      query.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     }
@@ -291,8 +291,8 @@ exports.getVendorDropdown = async (req, res) => {
 
     const query = { status: "Active" };
 
-    if (req.user.role === "user") {
-      query.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     } else if (supervisorId) {

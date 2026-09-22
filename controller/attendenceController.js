@@ -234,7 +234,7 @@ exports.getRemainingAttendenceOfDriversForSupervisor = async (req, res) => {
     const allowedRoles = ["user", "superadmin"];
     if (!req.user || !allowedRoles.includes(req.user.role)) return res.status(403).json({ message: "Unauthorized access" });
 
-    const supervisorId = req.user.id;
+    const supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     const drivers = await Driver.find({ supervisor: supervisorId }).select('name contactNumber email');
 
     // Set start and end date for today in IST (UTC+5:30)
@@ -258,7 +258,7 @@ exports.getRemainingAttendenceOfDriversForSupervisor = async (req, res) => {
 
 exports.getAttendanceLocations = async (req, res) => {
   try {
-    if (req.user.role !== "superadmin" && req.user.role !== "user") {
+    if (req.user.role !== "superadmin" && req.user.role !== "user" && req.user.role !== "worker") {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
 
@@ -282,8 +282,8 @@ exports.getAttendanceLocations = async (req, res) => {
       status: "Present",
     };
 
-    if (req.user.role === "user") {
-      const drivers = await Driver.find({ supervisor: req.user.id }).select('_id').lean();
+    if (req.user.role === "user" || req.user.role === "worker") {
+      const drivers = await Driver.find({ supervisor: req.user.role === 'worker' ? req.user.supervisor : req.user.id }).select('_id').lean();
       if (!drivers.length) return res.status(404).json({ success: false, message: "No drivers found for the supervisor" });
       const driverIds = drivers.map(driver => driver._id);
       query.driverId = { $in: driverIds };

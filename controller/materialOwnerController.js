@@ -38,7 +38,7 @@ exports.createMaterialOwner = async (req, res) => {
       }
       finalSupervisorId = bodySupervisorId;
 
-    } else if (req.user.role === "user") {
+    } else if (req.user.role === "user" || req.user.role === "worker") {
       finalSupervisorId = req.user.id;
 
     } else if (req.user.role === "worker") {
@@ -130,8 +130,8 @@ exports.getMaterialOwners = async (req, res) => {
     let filter = {};
 
     // ✅ ROLE BASED FILTER
-    if (req.user.role === "user") {
-      filter.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
     } else if (req.user.role === "worker") {
       filter.supervisorId = req.user.supervisor;
@@ -186,8 +186,8 @@ exports.getMaterialOwnerDropdown = async (req, res) => {
     let filter = {};
 
     // ✅ ROLE FILTER
-    if (req.user.role === "user") {
-      filter.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
     } else if (req.user.role === "worker") {
       filter.supervisorId = req.user.supervisor;
@@ -233,8 +233,8 @@ exports.updateMaterialOwner = async (req, res) => {
     let filter = { _id: id };
 
     // ✅ ROLE CHECK
-    if (req.user.role === "user") {
-      filter.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
     } else if (req.user.role === "worker") {
       filter.supervisorId = req.user.supervisor;
@@ -311,8 +311,8 @@ exports.deleteMaterialOwner = async (req, res) => {
     let filter = { _id: id };
 
     // ✅ ROLE BASED ACCESS CONTROL
-    if (req.user.role === "user") {
-      filter.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
     } else if (req.user.role === "worker") {
       filter.supervisorId = req.user.supervisor;

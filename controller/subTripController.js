@@ -15,7 +15,7 @@ const { logAction } = require("../utils/logger");
 
 //         if (req.user.role === "driver") {
 //             driverId = req.user.id;
-//         } else if (req.user.role === "user") {
+//         } else if (req.user.role === "user" || req.user.role === "worker") {
 //             driverId = req.body.driverId;
 //         }
 
@@ -64,7 +64,7 @@ exports.createSubtrip = async (req, res) => {
                 return res.status(400).json({ message: "Driver not found or no trip assigned to the driver" });
             }
             tripId = driver.currentTripId;
-        } else if (req.user.role === "user") {
+        } else if (req.user.role === "user" || req.user.role === "worker") {
             tripId = req.query.tripId;
         }
 
@@ -79,7 +79,7 @@ exports.createSubtrip = async (req, res) => {
         }
 
         // For users, verify the trip belongs to the driver
-        if (req.user.role === "user") {
+        if (req.user.role === "user" || req.user.role === "worker") {
             const trip = await Trip.findById(tripId);
             if (!trip) {
                 return res.status(400).json({ message: "Trip not found or does not belong to the specified driver" });

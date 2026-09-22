@@ -25,7 +25,7 @@ exports.createOrReplaceBuiltyInvoice = async (req, res) => {
       finalSupervisorId = bodySupervisorId;
     } else if (req.user.role === "worker") {
       finalSupervisorId = req.user.supervisor;
-    } else if (req.user.role === "user") {
+    } else if (req.user.role === "user" || req.user.role === "worker") {
       finalSupervisorId = req.user.id;
     }
 
@@ -350,8 +350,8 @@ exports.getAllBuiltyInvoices = async (req, res) => {
     const query = {};
 
     // hierarchy wise filter
-    if (req.user.role === "user") {
-      query.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.user.role === "worker") {
       query.supervisorId = req.user.supervisor;
     } else if (req.user.role === "superadmin" && supervisorId) {

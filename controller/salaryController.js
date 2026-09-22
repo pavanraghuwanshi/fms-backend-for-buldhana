@@ -3,7 +3,7 @@ const { logAction } = require("../utils/logger");
 
 exports.createSalary = async (req, res) => {
   try {
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       const driverId = req.params.id;
       const { basicPay, overtime = 0, incentives = 0, deductions = 0, date } = req.body;
 
@@ -23,7 +23,7 @@ exports.createSalary = async (req, res) => {
 
       const salary = new Salary({
         driverId,
-        supervisorId: req.user.id,
+        supervisorId: req.user.role === 'worker' ? req.user.supervisor : req.user.id,
         basicPay: Number(basicPay),
         overtime: Number(overtime),
         incentives: Number(incentives),
@@ -82,7 +82,7 @@ exports.createSalary = async (req, res) => {
 
 exports.getDriverSalariesById = async (req, res) => {
   try {
-    if (req.user.role === "superadmin" || req.user.role === "user") {
+    if (req.user.role === "superadmin" || req.user.role === "user" || req.user.role === "worker") {
       const driverId = req.params.id;
       const salaries = await Salary.find({ driverId }).sort({ createdAt: 1 });
       if (!salaries.length) return res.status(404).json({ message: "No salary records found for this driver." });
@@ -105,7 +105,7 @@ exports.getDriverSalariesById = async (req, res) => {
 
 exports.updateSalary = async (req, res) => {
   try {
-    if (req.user.role === 'user') {
+    if (req.user.role === "user" || req.user.role === "worker") {
       const salaryId = req.params.id;
       const { basicPay, overtime, incentives, deductions, date } = req.body;
 
@@ -181,7 +181,7 @@ exports.updateSalary = async (req, res) => {
 
 exports.deleteSalary = async (req, res) => {
   try {
-    if (req.user.role === 'user') {
+    if (req.user.role === "user" || req.user.role === "worker") {
       const salaryId = req.params.id;
       const salary = await Salary.findByIdAndDelete(salaryId);
       if (!salary) return res.status(404).json({ message: "Salary record not found" });
@@ -245,7 +245,7 @@ exports.getSalariesByMonth = async (req, res) => {
     if (isNaN(startDate.getTime())) return res.status(400).json({ error: "Invalid month format. Use YYYY-MM." });
 
     const salaries = await Salary.find({
-      supervisorId: req.user.id,
+      supervisorId: req.user.role === 'worker' ? req.user.supervisor : req.user.id,
       date: { $gte: startDate, $lt: endDate },
     }).populate("driverId", "name contactNumber supervisor").select('-supervisorId -__v');
 

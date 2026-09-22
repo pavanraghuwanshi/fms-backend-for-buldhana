@@ -768,7 +768,7 @@ exports.getProductsForDropdown = async (req, res) => {
 
     const filter = {};
 
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       filter.userId = req.user.id;
     } else if (req.user.role === "driver") {
       filter.userId = req.user.supervisor;

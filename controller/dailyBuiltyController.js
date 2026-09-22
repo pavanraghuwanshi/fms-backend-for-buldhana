@@ -31,7 +31,7 @@ const applyDailyBuiltyHierarchy = (req, payload) => {
   }
 
   if (role === "user") {
-    payload.supervisorId = req.user.id;
+    payload.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     payload.supervisorModel = getSupervisorModel(req);
   }
 
@@ -57,7 +57,7 @@ const buildDailyBuiltyFilter = (req) => {
   }
 
   if (role === "user") {
-    filter.supervisorId = req.user.id;
+    filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     filter.supervisorModel = getSupervisorModel(req);
   }
 

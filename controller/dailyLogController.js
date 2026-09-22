@@ -17,7 +17,7 @@ exports.createDailyLog = async (req, res) => {
 
         if (req.user.role === "driver") {
             driverId = req.user.id;
-        } else if (req.user.role === "user") {
+        } else if (req.user.role === "user" || req.user.role === "worker") {
             driverId = req.query.driverId;
         }
 
@@ -390,9 +390,9 @@ exports.getAllDailyLogs = async (req, res) => {
             }
             // No supervisorId: fetch all logs (no additional filter)
 
-        } else if (req.user.role === 'user') {
+        } else if (req.user.role === "user" || req.user.role === "worker") {
             // Find drivers assigned to the logged-in user (as supervisor)
-            const drivers = await Driver.find({ supervisor: req.user.id }).select('_id').lean();
+            const drivers = await Driver.find({ supervisor: req.user.role === 'worker' ? req.user.supervisor : req.user.id }).select('_id').lean();
             const driverIds = drivers.map(driver => driver._id);
             if (driverIds.length === 0) {
                 return res.status(404).json({ success: false, message: 'No drivers assigned to this user' });

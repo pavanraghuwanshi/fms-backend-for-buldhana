@@ -13,7 +13,7 @@ const applyHierarchy = (req, payload) => {
   const roleType = req.user.roleType;
 
   if (role === "user") {
-    payload.supervisorId = req.user.id;
+    payload.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     payload.supervisorModel = roleModelMap[roleType];
   }
 
@@ -33,7 +33,7 @@ const buildFilter = (req) => {
   const filter = { isActive: true };
 
   if (role === "user") {
-    filter.supervisorId = req.user.id;
+    filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     filter.supervisorModel = roleModelMap[roleType];
   }
 

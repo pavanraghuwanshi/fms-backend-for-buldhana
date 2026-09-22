@@ -27,8 +27,8 @@ exports.createGodownLorryReceipt = async (req, res) => {
     const payload = req.body;
 
     //ROLE-BASED PAYLOAD SETUP
-    if (req.user.role === "user") {
-      payload.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      payload.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       payload.supervisorName = req.user.username;
     }
 
@@ -443,18 +443,18 @@ exports.getGodownLorryReceipts = async (req, res) => {
     let filter = {};
 
     // ROLE BASED FILTER
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
 
       if (req.user.roleType === "school") {
-        filter.supervisorId = req.user.id;
+        filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       }
 
       if (req.user.roleType === "branch") {
-        filter.supervisorId = req.user.id;
+        filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       }
 
       if (req.user.roleType === "branchGroup") {
-        filter.supervisorId = req.user.id;
+        filter.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       }
 
     }
@@ -516,7 +516,7 @@ if (status) filter.status = status;
 // soft delete godown lorry receipt
 exports.softDeleteGodownLorryReceipt = async (req, res) => {
   try {
-    if (req.user.role !== "user") {
+    if (req.user.role !== "user" && req.user.role !== "worker") {
       return res.status(403).json({
         message: "Only supervisor can delete consignee",
       });
@@ -581,7 +581,7 @@ exports.softDeleteGodownLorryReceipt = async (req, res) => {
 // hard delete godown lorry receipt
 exports.deleteGodownLorryReceipt = async (req, res) => {
   try {
-    if (req.user.role !== "user") {
+    if (req.user.role !== "user" && req.user.role !== "worker") {
       return res.status(403).json({
         message: "Only supervisor can delete consignee",
       });
@@ -643,7 +643,7 @@ exports.deleteGodownLorryReceipt = async (req, res) => {
 
 exports.updateLorryReceiptStatus = async (req, res) => {
   try {
-    if (req.user.role !== "user") {
+    if (req.user.role !== "user" && req.user.role !== "worker") {
       return res.status(403).json({
         message: "Only supervisor can delete consignee",
       });
@@ -652,7 +652,7 @@ exports.updateLorryReceiptStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!["superadmin", "user"].includes(req.user.role)) {
+    if (!["superadmin", "user", "worker"].includes(req.user.role)) {
       return res.status(403).json({ message: "Not allowed" });
     }
 
@@ -670,7 +670,7 @@ exports.updateLorryReceiptStatus = async (req, res) => {
 
     if (
       req.user.role === "user" &&
-      receipt.supervisorId.toString() !== req.user.id.toString()
+      receipt.supervisorId.toString() !== (req.user.role === 'worker' ? req.user.supervisor : req.user.id).toString()
     ) {
       return res.status(403).json({ message: "Not your receipt" });
     }
@@ -1192,7 +1192,7 @@ exports.rejectedByParty = async (req, res) => {
 
 exports.updateAcknowledgementImage = async (req, res) => {
   try {
-    if (!["superadmin", "user"].includes(req.user.role)) {
+    if (!["superadmin", "user", "worker"].includes(req.user.role)) {
       return res.status(403).json({ message: "Not allowed" });
     }
 
@@ -1207,7 +1207,7 @@ exports.updateAcknowledgementImage = async (req, res) => {
 
     if (
       req.user.role === "user" &&
-      receipt.supervisorId.toString() !== req.user.id.toString()
+      receipt.supervisorId.toString() !== (req.user.role === 'worker' ? req.user.supervisor : req.user.id).toString()
     ) {
       return res.status(403).json({ message: "Not your receipt" });
     }

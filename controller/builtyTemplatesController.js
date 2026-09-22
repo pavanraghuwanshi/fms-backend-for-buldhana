@@ -5,7 +5,7 @@ const { logAction } = require("../utils/logger");
 exports.createTemplate = async (req, res) => {
   try {
     const { templateName } = req.body;
-    if (req.user.role !== "user") {
+    if (req.user.role !== "user" && req.user.role !== "worker") {
       return res.status(403).json({ message: "Access denied: Only users can update templates." });
     }
 
@@ -15,7 +15,7 @@ exports.createTemplate = async (req, res) => {
 
     const templateData = {
       ...req.body,
-      supervisorId: req.user.id
+      supervisorId: req.user.role === 'worker' ? req.user.supervisor : req.user.id
     };
 
     const newTemplate = await BuiltyTemplate.create(templateData);
@@ -69,7 +69,7 @@ exports.createTemplate = async (req, res) => {
 exports.getBuiltyTemplates = async (req, res) => {
   try {
 
-    if (!["superadmin", "user"].includes(req.user.role)) {
+    if (!["superadmin", "user", "worker"].includes(req.user.role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -77,8 +77,8 @@ exports.getBuiltyTemplates = async (req, res) => {
 
     const query = {};
 
-    if (req.user.role === "user") {
-      query.supervisorId = req.user.id;
+    if (req.user.role === "user" || req.user.role === "worker") {
+      query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (supervisorId) {
       query.supervisorId = supervisorId;
     }
@@ -124,7 +124,7 @@ exports.updateBuiltyTemplate = async (req, res) => {
       return res.status(400).json({ message: "Invalid Template ID format" });
     }
 
-    if (req.user.role !== "user") {
+    if (req.user.role !== "user" && req.user.role !== "worker") {
       return res.status(403).json({ message: "Access denied: Only users can update templates." });
     }
 
@@ -203,7 +203,7 @@ exports.deleteBuiltyTemplate = async (req, res) => {
       });
     }
 
-    if (req.user.role !== "user") {
+    if (req.user.role !== "user" && req.user.role !== "worker") {
       return res.status(403).json({
         message: "Access denied: Only users can delete templates.",
       });

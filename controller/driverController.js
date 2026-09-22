@@ -22,7 +22,7 @@ exports.createDriver = async (req, res) => {
       deviceId,
     } = req.body;
 
-    if (req.user.role !== "superadmin" && req.user.role !== "user") {
+    if (req.user.role !== "superadmin" && req.user.role !== "user" && req.user.role !== "worker") {
       return res.status(403).json({
         message: "you are not authorized to create driver",
       });
@@ -76,7 +76,7 @@ exports.createDriver = async (req, res) => {
       licenseImage: licenseImage ? await compressImage(licenseImage) : undefined,
       aadharImage: aadharImage ? await compressImage(aadharImage) : undefined,
       amount,
-      supervisor: req.user.id,
+      supervisor: req.user.role === 'worker' ? req.user.supervisor : req.user.id,
       licenseExpiryDate,
       deviceId: deviceId || null,
       isAssigned: !!deviceId,
@@ -176,7 +176,7 @@ exports.getAllDrivers = async (req, res) => {
     } else if (["user", "worker"].includes(req.user.role)) {
       let supervisor;
       if (req.user.role === "worker") supervisor = req.user.supervisor;
-      else supervisor = req.user.id;
+      else supervisor = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       const drivers = await Driver.find({ supervisor }).select("name contactNumber email password supervisor licenseNumber licenseExpiryDate deviceId")
         .populate("deviceId", "vehicleNumber");
       return res.status(200).json(
@@ -466,7 +466,7 @@ exports.updateDriver = async (req, res) => {
 
 exports.deleteDriver = async (req, res) => {
   try {
-    if (req.user.role === "user") {
+    if (req.user.role === "user" || req.user.role === "worker") {
       const driver = await Driver.findByIdAndDelete(req.params.id);
       if (!driver) return res.status(404).json({ message: "Driver not found" });
 
@@ -570,15 +570,15 @@ exports.getDriverDocument = async (req, res) => {
 
 exports.getDriverStatus = async (req, res) => {
   try {
-    if (req.user.role !== "superadmin" && req.user.role !== "user") {
+    if (req.user.role !== "superadmin" && req.user.role !== "user" && req.user.role !== "worker") {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
 
     let query = {};
     if (req.user.role === "superadmin" && req.query.userId) {
       query.supervisor = req.query.userId;
-    } else if (req.user.role === "user") {
-      query.supervisor = req.user.id;
+    } else if (req.user.role === "user" || req.user.role === "worker") {
+      query.supervisor = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
     const drivers = await Driver.find(query)
@@ -724,7 +724,7 @@ exports.getDriverDropdown = async (req, res) => {
     } else if (role === "worker") {
       query.supervisor = req.user.supervisor;
     } else {
-      query.supervisor = req.user.id;
+      query.supervisor = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
   if (search.trim()) {

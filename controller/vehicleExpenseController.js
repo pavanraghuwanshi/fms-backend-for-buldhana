@@ -23,7 +23,7 @@ exports.addExpense = async (req, res) => {
     const { amount, expenseType, date, vendor, fuel, description, paymentMode, location, lat, long, bhattaDay } = req.body;
 
     if (req.user.role === "driver") driverId = req.user.id;
-    else if (req.user.role === "user") driverId = req.body.driverId;
+    else if (req.user.role === "user" || req.user.role === "worker") driverId = req.body.driverId;
 
     if (!driverId) return res.status(400).json({ message: "Driver ID is required" });
     const driver = await Driver.findById(driverId).populate("deviceId", "vehicleNumber");
@@ -146,8 +146,8 @@ exports.getAllExpenses = async (req, res) => {
         .sort({ createdAt: -1 });
 
       return res.status(200).json(expenses);
-    } else if (req.user.role === "user") {
-      const supervisorId = req.user.id;
+    } else if (req.user.role === "user" || req.user.role === "worker") {
+      const supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
       const drivers = await Driver.find({ supervisor: supervisorId });
       if (drivers.length === 0) {
@@ -194,7 +194,7 @@ exports.updateExpense = async (req, res) => {
     const { amount, expenseType, date, vendor, fuel, description, paymentMode, location, lat, long, bhattaDay } = req.body;
 
     if (req.user.role === "driver") driverId = req.user.id;
-    else if (req.user.role === "user") driverId = req.body.driverId;
+    else if (req.user.role === "user" || req.user.role === "worker") driverId = req.body.driverId;
 
     if (!driverId) {
       return res.status(400).json({ message: "Driver ID is required" });
@@ -604,8 +604,8 @@ exports.getTodayExpensesOfVehicleAndDriver = async (req, res) => {
 
       if (driverExpenses.length === 0 && vehicleExpenses.length === 0) return res.status(404).json({ message: "No expenses found for today." });
       return res.status(200).json(vehicleExpenses.concat(driverExpenses));
-    } else if (req.user.role === "user") {
-      const drivers = await Driver.find({ supervisor: req.user.id }).select('_id').lean();
+    } else if (req.user.role === "user" || req.user.role === "worker") {
+      const drivers = await Driver.find({ supervisor: req.user.role === 'worker' ? req.user.supervisor : req.user.id }).select('_id').lean();
       if (drivers.length === 0) return res.status(404).json({ message: "No driver found." });
 
       const [driverExpenses, vehicleExpenses] = await Promise.all([
