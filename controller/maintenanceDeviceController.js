@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Driver = require("../model/driverModel");
 const { logAction } = require("../utils/logger");
 const { recordUnassignment } = require("../utils/helperFunctions");
+const { findAuthEntityById } = require("../middleware/authHelper");
 
 exports.createVehicleMaster = async (req, res) => {
   try {
@@ -27,6 +28,12 @@ exports.createVehicleMaster = async (req, res) => {
     ) {
       req.body.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       req.body.supervisorModel = roleModelMap[roleType];
+    } else if (role === 'worker') {
+      req.body.supervisorId = req.user.supervisor;
+      const authData = await findAuthEntityById(req.user.supervisor);
+      if (authData) {
+        req.body.supervisorModel = roleModelMap[authData.type];
+      }
     }
 
     if (!req.body.supervisorId) {

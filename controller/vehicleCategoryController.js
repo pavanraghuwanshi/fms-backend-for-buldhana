@@ -1,5 +1,6 @@
 const VehicleCategory = require("../model/vehicleCategoryModel");
 const { logAction } = require("../utils/logger");
+const { findAuthEntityById } = require("../middleware/authHelper");
 
 exports.createVehicleCategory = async (req, res) => {
   try {
@@ -23,6 +24,12 @@ exports.createVehicleCategory = async (req, res) => {
     ) {
       req.body.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       req.body.supervisorModel = roleModelMap[roleType];
+    } else if (role === 'worker') {
+      req.body.supervisorId = req.user.supervisor;
+      const authData = await findAuthEntityById(req.user.supervisor);
+      if (authData) {
+        req.body.supervisorModel = roleModelMap[authData.type];
+      }
     }
 
     if (!req.body.supervisorId) {
