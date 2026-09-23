@@ -9,7 +9,7 @@ const { logAction } = require('../utils/logger');
 
 exports.createDailyLog = async (req, res) => {
     try {
-        if (req.user.role !== "driver" && req.user.role !== "user") {
+        if (req.user.role !== "driver" && req.user.role !== "user" && req.user.role !== "worker") {
             return res.status(403).json({ success: false, message: "Unauthorized access" });
         }
         let driverId;
@@ -151,11 +151,11 @@ exports.getSignatureImageById = async (req, res) => {
 exports.getDailyLogsMonthWiseByDriverId = async (req, res) => {
     try {
         let driverId, month;
-        if (req.user.role !== "user" && req.user.role !== "driver" && req.user.role !== "superadmin") {
+        if (req.user.role !== "user" && req.user.role !== "driver" && req.user.role !== "superadmin" && req.user.role !== "worker") {
             return res.status(403).json({ success: false, message: "Unauthorized access" });
         }
 
-        if (req.user.role === "user" || req.user.role === "superadmin") {
+        if (req.user.role === "user" || req.user.role === "superadmin" || req.user.role === "worker") {
             driverId = req.query.driverId;
             month = req.query.month; // Extracting month from URL (YYYY-MM)
         } else if (req.user.role === "driver") {
@@ -209,7 +209,7 @@ exports.updateDailyLog = async (req, res) => {
 
         const oldLogSnapshot = log && typeof log.toObject === 'function' ? log.toObject() : log;
 
-        if (req.user.role !== "driver" && req.user.role !== "user") {
+        if (req.user.role !== "driver" && req.user.role !== "user" && req.user.role !== "worker") {
             return res.status(403).json({ success: false, message: "Unauthorized access" });
         }
 
@@ -310,7 +310,7 @@ exports.deleteDailyLog = async (req, res) => {
 
         const oldLogSnapshot = log && typeof log.toObject === 'function' ? log.toObject() : log;
 
-        if (req.user.role !== "driver" && req.user.role !== "user") {
+        if (req.user.role !== "driver" && req.user.role !== "user" && req.user.role !== "worker") {
             return res.status(403).json({ success: false, message: "Unauthorized access" });
         }
 
@@ -371,7 +371,7 @@ exports.deleteDailyLog = async (req, res) => {
 exports.getAllDailyLogs = async (req, res) => {
     try {
         // Define allowed roles
-        const allowedRoles = ['driver', 'user', 'superadmin'];
+        const allowedRoles = ['driver', 'user', 'superadmin', 'worker'];
         if (!allowedRoles.includes(req.user.role)) {
             return res.status(403).json({ success: false, message: 'Unauthorized access' });
         }
