@@ -9,7 +9,7 @@ exports.createTransporter = async (req, res) => {
 
     console.log( req.user.role)
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "user", "worker"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -140,7 +140,7 @@ exports.getTransporters = async (req, res) => {
   try {
     const role = req.user.role;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "user", "worker"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -148,7 +148,7 @@ exports.getTransporters = async (req, res) => {
 
     const query = {};
 
-    if (role === "user") {
+    if (role === "user" || role === "worker") {
       query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     } else if (req.query.supervisorId) {
       query.supervisorId = req.query.supervisorId;
@@ -192,13 +192,13 @@ exports.getTransporterById = async (req, res) => {
   try {
     const role = req.user.role;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "user", "worker"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
     const query = { _id: req.params.id };
 
-    if (role === "user") {
+    if (role === "user" || role === "worker") {
       query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
@@ -227,13 +227,13 @@ exports.updateTransporter = async (req, res) => {
   try {
     const role = req.user.role;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "user", "worker"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
     const query = { _id: req.params.id };
 
-    if (role === "user") {
+    if (role === "user" || role === "worker") {
       query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       req.body.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
@@ -246,8 +246,8 @@ exports.updateTransporter = async (req, res) => {
         transporterName: req.body.transporterName,
         _id: { $ne: req.params.id },
         supervisorId:
-          role === "user"
-            ? req.user.id
+          ["user", "worker"].includes(role)
+            ? (role === "worker" ? req.user.supervisor : req.user.id)
             : req.body.supervisorId || req.query.supervisorId,
       });
 
@@ -317,13 +317,13 @@ exports.deleteTransporter = async (req, res) => {
   try {
     const role = req.user.role;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "user", "worker"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
     const query = { _id: req.params.id };
 
-    if (role === "user") {
+    if (role === "user" || role === "worker") {
       query.supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
     }
 
@@ -388,7 +388,7 @@ exports.getTransporterDropdown = async (req, res) => {
     const role = req.user.role;
     const roleType = req.user.roleType;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "user", "worker"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 

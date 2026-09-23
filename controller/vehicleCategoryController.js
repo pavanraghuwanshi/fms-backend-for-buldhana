@@ -6,7 +6,7 @@ exports.createVehicleCategory = async (req, res) => {
     const role = req.user.role;
     const roleType = req.user.roleType;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "user", "worker"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -121,7 +121,7 @@ exports.getVehicleCategories = async (req, res) => {
     const role = req.user.role;
     const roleType = req.user.roleType;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "user", "worker"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -174,7 +174,7 @@ exports.getVehicleCategoryById = async (req, res) => {
     const role = req.user.role;
     const roleType = req.user.roleType;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "user", "worker"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -211,7 +211,7 @@ exports.updateVehicleCategory = async (req, res) => {
     const role = req.user.role;
     const roleType = req.user.roleType;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "user", "worker"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -297,7 +297,7 @@ exports.deleteVehicleCategory = async (req, res) => {
     const role = req.user.role;
     const roleType = req.user.roleType;
 
-    if (!["superadmin", "user"].includes(role)) {
+    if (!["superadmin", "user", "worker"].includes(role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
