@@ -49,7 +49,7 @@ const { logAction } = require("../utils/logger");
 exports.createSubtrip = async (req, res) => {
     try {
         // Check if the user has a driver or user role
-        if (req.user.role !== "driver" && req.user.role !== "user") {
+        if (req.user.role !== "driver" && req.user.role !== "user" && req.user.role !== "worker") {
             return res.status(403).json({ success: false, message: "Unauthorized access" });
         }
 
@@ -153,7 +153,7 @@ exports.getSubtripByTripId = async (req, res) => {
 
 exports.updateSubtrip = async (req, res) => {
     try {
-        if (req.user.role !== "driver" && req.user.role !== "user") return res.status(403).json({ success: false, message: "Unauthorized access" });
+        if (req.user.role !== "driver" && req.user.role !== "user" && req.user.role !== "worker") return res.status(403).json({ success: false, message: "Unauthorized access" });
         const { startLocation, endLocation, date, budgetAllocated, companyName, materialType, status, endLatitude, endLongitude } = req.body;
 
         const subtrip = await Subtrip.findById(req.params.id).populate("tripId", "driverId");

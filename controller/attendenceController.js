@@ -231,11 +231,12 @@ exports.getAttendanceMonthWiseByDriverId = async (req, res) => {
 exports.getRemainingAttendenceOfDriversForSupervisor = async (req, res) => {
   try {
     // Check for allowed roles (assuming "user" is the correct role, not "supervisor")
-    const allowedRoles = ["user", "superadmin"];
+    const allowedRoles = ["user", "superadmin", "worker"];
     if (!req.user || !allowedRoles.includes(req.user.role)) return res.status(403).json({ message: "Unauthorized access" });
 
-    const supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
-    const drivers = await Driver.find({ supervisor: supervisorId }).select('name contactNumber email');
+    const supervisorId = req.user.role === 'superadmin' ? (req.query.supervisorId || req.body.supervisorId) : (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
+    const driverFilter = supervisorId ? { supervisor: supervisorId } : {};
+    const drivers = await Driver.find(driverFilter).select('name contactNumber email');
 
     // Set start and end date for today in IST (UTC+5:30)
     const startDate = new Date(new Date().setHours(0, 0, 0, 0) + 5.5 * 60 * 60 * 1000);

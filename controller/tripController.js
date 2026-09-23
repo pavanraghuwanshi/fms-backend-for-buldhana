@@ -138,8 +138,8 @@ const buildTripQuery = async (user, queryParams) => {
 
   if (role === "superadmin") {
     if (supervisorId) query.supervisorId = supervisorId;
-  } else if (role === "user") {
-    query.supervisorId = userId;
+  } else if (role === "user" || role === "worker") {
+    query.supervisorId = role === "worker" ? user.supervisor : userId;
   } else if (role === "driver") {
     query.driverId = userId;
   } else {
@@ -318,7 +318,7 @@ exports.getAllTrips = async (req, res) => {
 };
 exports.updateTrip = async (req, res) => {
   try {
-    if (!["user", "driver"].includes(req.user.role)) {
+    if (!["user", "driver", "worker"].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: "Unauthorized access",
@@ -601,7 +601,7 @@ exports.updateTrip = async (req, res) => {
 
 exports.completeTrip = async (req, res) => {
   try {
-    if (!["user", "driver"].includes(req.user.role)) {
+    if (!["user", "driver", "worker"].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: "Unauthorized access",
