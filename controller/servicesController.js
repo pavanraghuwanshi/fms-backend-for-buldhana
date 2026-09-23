@@ -13,7 +13,7 @@ const { logAction } = require("../utils/logger");
 
 exports.setData = async (req, res) => {
   try {
-    const allowedRoles = ["superadmin", "user", "driver"];
+    const allowedRoles = ["superadmin", "user", "driver", "worker"];
     if (!req.user?.role || !allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ message: "Unauthorized Access" });
     }
@@ -216,7 +216,7 @@ exports.setData = async (req, res) => {
 
 exports.editService = async (req, res) => {
   try {
-    const allowedRoles = ["superadmin", "user", "driver"];
+    const allowedRoles = ["superadmin", "user", "driver", "worker"];
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ message: "Unauthorized Access." });
     }
@@ -349,7 +349,7 @@ exports.editService = async (req, res) => {
 
 exports.deleteService = async (req, res) => {
   try {
-    const allowedRoles = ["superadmin", "user"];
+    const allowedRoles = ["superadmin", "user", "worker"];
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ message: "Unauthorized Access." });
     }
@@ -417,7 +417,7 @@ exports.deleteService = async (req, res) => {
 
 exports.getOdometerByVehicleId = async (req, res) => {
   try {
-    const allowedRoles = ["superadmin", "user", "driver"];
+    const allowedRoles = ["superadmin", "user", "driver", "worker"];
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ message: "Unauthorized Access." });
     }
@@ -463,7 +463,7 @@ exports.getOdometerByVehicleId = async (req, res) => {
 
 exports.getImageById = async (req, res) => {
   try {
-    const allowedRoles = ["user", "superadmin", "driver"];
+    const allowedRoles = ["user", "superadmin", "driver", "worker"];
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ message: "Unauthorized Access." });
     }
@@ -569,8 +569,8 @@ exports.getAllServiceLogs = async (req, res) => {
       deviceFilter.branchId = id;
     } else if (roleType === "branchGroup") {
       deviceFilter.branchId = { $in: AssignedBranch };
-    } else if (role === "user" || role === "driver") {
-      deviceFilter.users = id;
+    } else if (role === "user" || role === "driver" || role === "worker") {
+      deviceFilter.users = (role === "worker" ? req.user.supervisor : id);
     } else {
       return res.status(403).json({ message: "Unauthorized role" });
     }
