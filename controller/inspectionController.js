@@ -9,7 +9,7 @@ const { logAction } = require("../utils/logger");
 exports.addInspection = async (req, res) => {
   try {
     const { vehicleId } = req.query;
-    if (!["user", "superadmin", "driver"].includes(req.user.role))
+    if (!["user", "superadmin", "driver", "worker"].includes(req.user.role))
       return res.status(401).json({ message: "Unauthorized Access" });
 
     const driver = await Driver.findOne({ deviceId: vehicleId });
@@ -121,7 +121,7 @@ exports.addInspection = async (req, res) => {
 
 exports.getAllInspections = async (req, res) => {
   try {
-    const allowedRoles = ['superadmin', 'user', 'driver'];
+    const allowedRoles = ['superadmin', 'user', 'driver', 'worker'];
     if (!allowedRoles.includes(req.user.role)) return res.status(403).json({ message: "Unauthorized Access" });
 
     let filter = {};
@@ -166,7 +166,7 @@ exports.getAllInspections = async (req, res) => {
 exports.getInspectionByDriverId = async (req, res) => {
   try {
     const role = req.user.role
-    if (!['superadmin', 'user', 'driver'].includes(role)) return res.status(403).json({ message: "Unauthorized Access" });
+    if (!['superadmin', 'user', 'driver', 'worker'].includes(role)) return res.status(403).json({ message: "Unauthorized Access" });
 
     let filter = {};
     if (role === "driver") {
@@ -190,7 +190,7 @@ exports.getInspectionByDriverId = async (req, res) => {
 
 exports.getInspectionByVehicleId = async (req, res) => {
   try {
-    const allowedRoles = ['superadmin', 'user', 'driver'];
+    const allowedRoles = ['superadmin', 'user', 'driver', 'worker'];
     if (!allowedRoles.includes(req.user.role)) return res.status(403).json({ message: "Unauthorized Access" });
     const { vehicleId } = req.params;
     if (!vehicleId) return res.status(400).json({ message: "vehicleId parameter is required" });
@@ -234,7 +234,7 @@ exports.editInspection = async (req, res) => {
   try {
     const { id } = req.params;
     if (!id) return res.status(400).json({ message: "Inspection ID is required in params" });
-    if (!['user', 'superadmin', 'driver'].includes(req.user.role)) return res.status(401).json({ message: "Unauthorized Access" });
+    if (!['user', 'superadmin', 'driver', 'worker'].includes(req.user.role)) return res.status(401).json({ message: "Unauthorized Access" });
     const inspection = await Inspection.findById(id);
     if (!inspection) return res.status(404).json({ message: "Inspection not found" });
 
@@ -327,7 +327,7 @@ exports.deleteInspection = async (req, res) => {
   try {
     const { id } = req.params;
     if (!id) return res.status(400).json({ message: "Inspection ID is required in params" });
-    if (!['superadmin', 'user', 'driver'].includes(req.user.role)) return res.status(401).json({ message: "Unauthorized Access" });
+    if (!['superadmin', 'user', 'driver', 'worker'].includes(req.user.role)) return res.status(401).json({ message: "Unauthorized Access" });
     const inspection = await Inspection.findById(id);
     if (!inspection) return res.status(404).json({ message: "Inspection not found" });
 

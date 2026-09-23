@@ -6,7 +6,7 @@ const { logAction } = require("../utils/logger");
 
 exports.getData = async (req, res) => {
     try {
-        if (req.user.role !== "driver" && req.user.role !== "user" && req.user.role !== "superadmin") return res.status(403).json({ success: false, message: "Unauthorized access" });
+        if (req.user.role !== "driver" && req.user.role !== "user" && req.user.role !== "superadmin" && req.user.role !== "worker") return res.status(403).json({ success: false, message: "Unauthorized access" });
 
         const deviceData = await Device.findById(req.params.id).lean();
         if (!deviceData) return res.status(404).json({ success: false, message: "Device not found" });
