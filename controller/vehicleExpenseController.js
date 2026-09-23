@@ -135,7 +135,7 @@ exports.getAllExpenses = async (req, res) => {
       const query = supervisorId ? { supervisor: supervisorId } : {};
 
       const drivers = await Driver.find(query);
-      if (drivers.length === 0) return res.status(404).json({ message: "No driver found." });
+      if (drivers.length === 0) return res.status(200).json({ success: true, expenses: [], message: "No driver found." });
 
       const expenses = await Vehicleexpense.find({
         driverId: { $in: drivers.map((d) => d._id) },
@@ -585,7 +585,7 @@ exports.getTodayExpensesOfVehicleAndDriver = async (req, res) => {
       const { supervisorId } = req.query;
       const query = supervisorId ? { supervisor: supervisorId } : {}
       const drivers = await Driver.find(query).select('_id').lean();
-      if (drivers.length === 0) return res.status(404).json({ message: "No driver found." });
+      if (drivers.length === 0) return res.status(200).json({ success: true, data: [], message: "No driver found." });
 
       const [driverExpenses, vehicleExpenses] = await Promise.all([
         DriverExpense.find(
@@ -602,11 +602,11 @@ exports.getTodayExpensesOfVehicleAndDriver = async (req, res) => {
         ).populate("driverId", " -_id name supervisor").select("-__v -vehicleId -createdAt -updatedAt").sort({ createdAt: -1 })
       ]);
 
-      if (driverExpenses.length === 0 && vehicleExpenses.length === 0) return res.status(404).json({ message: "No expenses found for today." });
+      if (driverExpenses.length === 0 && vehicleExpenses.length === 0) return res.status(200).json({ success: true, data: [], message: "No expenses found for today." });
       return res.status(200).json(vehicleExpenses.concat(driverExpenses));
     } else if (req.user.role === "user" || req.user.role === "worker") {
       const drivers = await Driver.find({ supervisor: req.user.role === 'worker' ? req.user.supervisor : req.user.id }).select('_id').lean();
-      if (drivers.length === 0) return res.status(404).json({ message: "No driver found." });
+      if (drivers.length === 0) return res.status(200).json({ success: true, data: [], message: "No driver found." });
 
       const [driverExpenses, vehicleExpenses] = await Promise.all([
         DriverExpense.find(
@@ -623,7 +623,7 @@ exports.getTodayExpensesOfVehicleAndDriver = async (req, res) => {
         ).populate("driverId", " -_id name supervisor").select("-__v -vehicleId -createdAt -updatedAt").sort({ createdAt: -1 })
       ]);
 
-      if (driverExpenses.length === 0 && vehicleExpenses.length === 0) return res.status(404).json({ message: "No expenses found for today." });
+      if (driverExpenses.length === 0 && vehicleExpenses.length === 0) return res.status(200).json({ success: true, data: [], message: "No expenses found for today." });
       return res.status(200).json(vehicleExpenses.concat(driverExpenses));
     } else if (req.user.role === "driver") {
       const driverId = req.user.id;
@@ -642,7 +642,7 @@ exports.getTodayExpensesOfVehicleAndDriver = async (req, res) => {
         ).populate("driverId", " -_id name supervisor").select("-__v -vehicleId -createdAt -updatedAt").sort({ createdAt: -1 })
       ]);
 
-      if (driverExpenses.length === 0 && vehicleExpenses.length === 0) return res.status(404).json({ message: "No expenses found for today." });
+      if (driverExpenses.length === 0 && vehicleExpenses.length === 0) return res.status(200).json({ success: true, data: [], message: "No expenses found for today." });
       return res.status(200).json(vehicleExpenses.concat(driverExpenses));
     } else {
       return res.status(403).json({ success: false, message: "Unauthorized access" });

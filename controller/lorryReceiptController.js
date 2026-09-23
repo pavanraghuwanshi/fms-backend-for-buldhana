@@ -82,7 +82,7 @@ exports.getAllLorryReceipts = async (req, res) => {
     else if (req.user.role === "worker") filter.workerId = req.user.id;
 
     const receipts = await LorryReceipt.find(filter).populate('workerId', 'name phone supervisor').populate('driverId', 'contactNumber').populate('companyId', 'companyName address mobileNumber officeNumber email gstNumber digitalSignatureId');
-    if (receipts.length === 0) return res.status(404).json({ message: "No receipts found" });
+    if (receipts.length === 0) return res.status(200).json([]);
     return res.status(200).json(receipts);
   } catch (error) {
     return res.status(500).json({ message: error.message });

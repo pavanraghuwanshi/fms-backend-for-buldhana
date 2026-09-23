@@ -210,7 +210,7 @@ exports.getWorkers = async (req, res) => {
         if (req.user.role === "user" || req.user.role === "worker") filter.supervisor = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
 
         const workers = await Worker.find(filter).lean();
-        if (workers.length === 0) return res.status(404).json({ message: "No workers found" });
+        if (workers.length === 0) return res.status(200).json({ success: true, workers: [], message: "No workers found" });
 
         const workersWithDecryptedPassword = workers.map(worker => ({
             ...worker,

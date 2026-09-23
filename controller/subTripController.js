@@ -144,7 +144,7 @@ exports.createSubtrip = async (req, res) => {
 exports.getSubtripByTripId = async (req, res) => {
     try {
         const subtrip = await Subtrip.find({ tripId: req.params.id }).select('-__v -tripId').sort({ createdAt: -1 });
-        if (!subtrip.length) return res.status(404).json({ success: false, message: "Subtrip not found" });
+        if (!subtrip.length) return res.status(200).json({ success: true, subtrip: [], message: "Subtrip not found" });
         return res.status(200).json({ success: true, subtrip });
     } catch (error) {
         return res.status(500).json({ success: false, message: "Error fetching subtrip", error: error.message });

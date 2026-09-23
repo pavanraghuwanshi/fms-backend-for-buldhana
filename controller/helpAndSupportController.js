@@ -257,7 +257,7 @@ exports.getPendingTickets = async (req, res) => {
     try {
         if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Unauthorized access' });
         const tickets = await HelpAndSupport.find({ status: 'Pending' }).populate('driver', 'name').lean();
-        if (tickets.length === 0) return res.status(404).json({ message: 'No pending tickets found' });
+        if (tickets.length === 0) return res.status(200).json({ message: 'No pending tickets found', tickets: [] });
 
         return res.status(200).json({ message: 'Pending tickets fetched successfully', tickets });
     } catch (error) {

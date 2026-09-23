@@ -130,7 +130,7 @@ exports.getCompanies = async (req, res) => {
         if (role === "worker") filter.supervisorId = req.user.supervisor;
 
         const companies = await Company.find(filter).lean().select("-__v -createdAt -updatedAt");
-        if (companies.length === 0) return res.status(404).json({ message: "No companies found" });
+        if (companies.length === 0) return res.status(200).json([]);
         return res.status(200).json(companies);
     } catch (error) {
         return res.status(500).json({ message: "Error fetching companies" + error.message });

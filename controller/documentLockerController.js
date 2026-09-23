@@ -69,7 +69,7 @@ exports.getAllDocuments = async (req, res) => {
             driverId = req.params.id;
         }
         const documents = await DocumentLocker.find({ driverId }).select('documentName ');
-        if (!documents.length) return res.status(404).json({ message: 'No documents found.' });
+        if (!documents.length) return res.status(200).json({ documents: [] });
         return res.status(200).json({ documents });
     } catch (error) {
         return res.status(500).json({ message: 'Server error', error: error.message });

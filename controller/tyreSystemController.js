@@ -9,7 +9,7 @@ const { logAction } = require("../utils/logger");
 
 exports.addTire = async (req, res) => {
      try {
-          if (req.user.role !== "driver" && req.user.role !== "user" && req.user.role !== "superadmin") return res.status(403).json({ success: false, message: "Unauthorized access" });
+          if (req.user.role !== "driver" && req.user.role !== "user" && req.user.role !== "superadmin" && req.user.role !== "worker") return res.status(403).json({ success: false, message: "Unauthorized access" });
           const { vehicleId, position, tyreSerialNumber, brandName, tyreStatus, installationDate, vendorName, location, lat, long, tyreSize, amount, paymentMode } = req.body;
           if (!vehicleId) return res.status(400).json({ message: "Vehicle ID is required" });
 
@@ -144,7 +144,7 @@ exports.getAllTires = async (req, res) => {
                const drivers = await Driver.find({ supervisor: req.user.role === 'worker' ? req.user.supervisor : req.user.id }).select("deviceId");
 
                if (drivers.length === 0) {
-                    return res.status(404).json({ message: "No drivers found." });
+                    return res.status(200).json([]);
                }
 
                const deviceIds = drivers
@@ -241,7 +241,7 @@ exports.getAllTires = async (req, res) => {
 
 exports.updateTire = async (req, res) => {
      try {
-          if (req.user.role !== "driver" && req.user.role !== "user") {
+          if (req.user.role !== "driver" && req.user.role !== "user" && req.user.role !== "worker") {
                return res.status(403).json({ success: false, message: "Unauthorized access" });
           }
 
@@ -410,7 +410,7 @@ exports.updateTire = async (req, res) => {
 
 exports.deleteTire = async (req, res) => {
      try {
-          const allowedRoles = ["driver", "user", "superadmin"];
+          const allowedRoles = ["driver", "user", "superadmin", "worker"];
           if (!allowedRoles.includes(req.user.role)) {
                return res.status(403).json({ success: false, message: "Unauthorized access" });
           }
@@ -531,7 +531,7 @@ exports.getTiresByVehicleId = async (req, res) => {
                .sort({ createdAt: -1 });
 
           if (!tires.length) {
-               return res.status(404).json({ message: "No tires found for this vehicle" });
+               return res.status(200).json([]);
           }
 
           const formattedTires = tires.map((item) => ({

@@ -435,7 +435,7 @@ exports.getAllExpense = async (req, res) => {
     } else if (req.user.role === "user" || req.user.role === "worker") {
       const supervisorId = (req.user.role === 'worker' ? req.user.supervisor : req.user.id);
       const drivers = await Driver.find({ supervisor: supervisorId }).select("_id");
-      if (drivers.length === 0) return res.status(404).json({ message: "No driver found." });
+      if (drivers.length === 0) return res.status(200).json([]);
 
       const driverIds = drivers.map((driver) => driver._id);
 

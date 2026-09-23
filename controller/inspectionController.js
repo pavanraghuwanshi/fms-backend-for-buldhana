@@ -130,14 +130,14 @@ exports.getAllInspections = async (req, res) => {
       if (supervisorId) {
         const drivers = await Driver.find({ supervisor: supervisorId }).select('_id').lean();
         const driverIds = drivers.map(driver => driver._id);
-        if (driverIds.length === 0) return res.status(404).json({ message: "No drivers found for this supervisor" });
+        if (driverIds.length === 0) return res.status(200).json({ success: true, data: [], message: "No drivers found for this supervisor" });
         filter.DriverId = { $in: driverIds };
       }
 
     } else if (req.user.role === "user" || req.user.role === "worker") {
       const drivers = await Driver.find({ supervisor: req.user.role === 'worker' ? req.user.supervisor : req.user.id }).select('_id').lean();
       const driverIds = drivers.map(driver => driver._id);
-      if (driverIds.length === 0) return res.status(404).json({ message: "No drivers assigned to this user" });
+      if (driverIds.length === 0) return res.status(200).json({ success: true, data: [], message: "No drivers assigned to this user" });
       filter.DriverId = { $in: driverIds };
     } else if (req.user.role === "driver") {
       filter.DriverId = req.user.id;
@@ -150,7 +150,7 @@ exports.getAllInspections = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    if (!inspections.length) return res.status(404).json({ message: "No inspections found" });
+    if (!inspections.length) return res.status(200).json({ success: true, data: [], message: "No inspections found" });
 
     // Collect all unique vehicle IDs
     const vehicleIds = inspections.map(i => i.vehicleId?.toString()).filter(Boolean);
@@ -179,7 +179,7 @@ exports.getInspectionByDriverId = async (req, res) => {
     }
 
     const inspections = await Inspection.find(filter).populate("DriverId", "name").populate("tripId", "startLocation endLocation status vehicleName").sort({ createdAt: -1 }).lean();
-    if (!inspections.length) return res.status(404).json({ message: "No inspections found for this vehicle" });
+    if (!inspections.length) return res.status(200).json({ success: true, data: [], message: "No inspections found for this vehicle" });
 
     return res.status(200).json({ success: true, data: inspections });
   } catch (error) {
@@ -201,13 +201,13 @@ exports.getInspectionByVehicleId = async (req, res) => {
       if (supervisorId) {
         const drivers = await Driver.find({ supervisor: supervisorId }).select('_id').lean();
         const driverIds = drivers.map(driver => driver._id);
-        if (driverIds.length === 0) return res.status(404).json({ message: "No drivers found for this supervisor" });
+        if (driverIds.length === 0) return res.status(200).json({ success: true, data: [], message: "No drivers found for this supervisor" });
         filter.DriverId = { $in: driverIds };
       }
     } else if (req.user.role === "user" || req.user.role === "worker") {
       const drivers = await Driver.find({ supervisor: req.user.role === 'worker' ? req.user.supervisor : req.user.id }).select('_id').lean();
       const driverIds = drivers.map(driver => driver._id);
-      if (driverIds.length === 0) return res.status(404).json({ message: "No drivers assigned to this user" });
+      if (driverIds.length === 0) return res.status(200).json({ success: true, data: [], message: "No drivers assigned to this user" });
 
       filter.DriverId = { $in: driverIds };
     } else if (req.user.role === "driver") {
@@ -221,7 +221,7 @@ exports.getInspectionByVehicleId = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    if (!inspections.length) return res.status(404).json({ message: "No inspections found for this vehicle" });
+    if (!inspections.length) return res.status(200).json({ success: true, data: [], message: "No inspections found for this vehicle" });
 
     return res.status(200).json({ success: true, data: inspections });
   } catch (error) {

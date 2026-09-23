@@ -85,13 +85,13 @@ exports.getDriverSalariesById = async (req, res) => {
     if (req.user.role === "superadmin" || req.user.role === "user" || req.user.role === "worker") {
       const driverId = req.params.id;
       const salaries = await Salary.find({ driverId }).sort({ createdAt: 1 });
-      if (!salaries.length) return res.status(404).json({ message: "No salary records found for this driver." });
+      if (!salaries.length) return res.status(200).json([]);
       return res.status(200).json(salaries);
 
     } else if (req.user.role === "driver") {
       const driverId = req.user.id;
       const salaries = await Salary.find({ driverId }).sort({ createdAt: 1 });
-      if (!salaries.length) return res.status(404).json({ message: "No salary records found for this driver." });
+      if (!salaries.length) return res.status(200).json([]);
       return res.status(200).json(salaries);
 
     } else {
@@ -249,7 +249,7 @@ exports.getSalariesByMonth = async (req, res) => {
       date: { $gte: startDate, $lt: endDate },
     }).populate("driverId", "name contactNumber supervisor").select('-supervisorId -__v');
 
-    if (salaries.length === 0) return res.status(404).json({ message: "No salary records found for this month." });
+    if (salaries.length === 0) return res.status(200).json([]);
 
     return res.status(200).json(salaries);
   } catch (error) {
