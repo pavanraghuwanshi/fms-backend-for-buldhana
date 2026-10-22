@@ -855,15 +855,6 @@ exports.updateBuilty = async (req, res) => {
         });
       }
     }
-    await syncBuiltyAutoExpenses({
-      builty: updatedBuilty,
-      body: payload, // Use the updated payload
-      allowedTypes: ["loading", "unloading"], // Sync all types
-      trip: trip
-    });
-
-
-
     if (
       builty.vehicleId &&
       payload.vehicleId &&
@@ -893,6 +884,7 @@ exports.updateBuilty = async (req, res) => {
         $set: {
           isAssigned: false,
           deviceId: null,
+          currentTripId: null,
         },
       });
 
@@ -928,32 +920,34 @@ exports.updateBuilty = async (req, res) => {
     }
 
     let updatedTrip = null;
+    const assignedDriverId = payload.driverId || builty.driverId;
+    const assignedVehicleId = payload.vehicleId || builty.vehicleId;
 
-    if (payload.driverId && payload.vehicleId) {
-      const pickupLocation = await Location.findById(payload.pickupLocationId)
+    if (assignedDriverId && assignedVehicleId) {
+      const pickupLocation = await Location.findById(payload.pickupLocationId || builty.pickupLocationId)
         .select("name locationName")
         .lean();
 
-      const destinationLocation = await Location.findById(payload.destinationLocationId)
+      const destinationLocation = await Location.findById(payload.destinationLocationId || builty.destinationLocationId)
         .select("name locationName")
         .lean();
 
       const tripUpdateData = {
-        driverId: payload.driverId,
-        vehicleId: payload.vehicleId,
-        vehicleName: payload.vehicleNumber,
+        driverId: assignedDriverId,
+        vehicleId: assignedVehicleId,
+        vehicleName: payload.vehicleNumber || builty.vehicleNumber,
         supervisorId: req.user.role === 'worker' ? req.user.supervisor : req.user.id,
         startLocation:
           pickupLocation?.name ||
           pickupLocation?.locationName ||
-          payload.pickupLocationId.toString(),
+          (payload.pickupLocationId || builty.pickupLocationId)?.toString(),
         endLocation:
           destinationLocation?.name ||
           destinationLocation?.locationName ||
-          payload.destinationLocationId.toString(),
-        materialType: payload.products?.[0]?.productName || "",
+          (payload.destinationLocationId || builty.destinationLocationId)?.toString(),
+        materialType: payload.products?.[0]?.productName || builty.products?.[0]?.productName || "",
         transportMode: "transport",
-        budgetAllocated: payload.vehicleExpenseAmount || 0,
+        budgetAllocated: payload.vehicleExpenseAmount !== undefined ? payload.vehicleExpenseAmount : (builty.vehicleExpenseAmount || 0),
       };
 
       if (payload.loadingStartDate) {
@@ -969,19 +963,74 @@ exports.updateBuilty = async (req, res) => {
         tripUpdateData.unloadingEndDate = payload.unloadingEndDate;
       }
 
-      updatedTrip = await Trip.findOneAndUpdate(
-        {
-          driverId: payload.driverId,
-          status: "in-progress",
-        },
-        {
-          $set: tripUpdateData,
-        },
-        {
-          new: true,
-        }
-      );
+      const existingTrip = trip || await Trip.findOne({
+        $or: [
+          { builtyIds: id },
+          { builtyId: id }
+        ],
+        status: "in-progress"
+      }) || await Trip.findOne({
+        $or: [
+          { builtyIds: id },
+          { builtyId: id }
+        ]
+      });
+
+      if (existingTrip) {
+        updatedTrip = await Trip.findByIdAndUpdate(
+          existingTrip._id,
+          {
+            $set: tripUpdateData,
+            $addToSet: { builtyIds: id },
+          },
+          {
+            new: true,
+          }
+        );
+      } else {
+        updatedTrip = await linkBuiltyToTrip({
+          payload: {
+            ...payload,
+            driverId: assignedDriverId,
+            vehicleId: assignedVehicleId,
+            vehicleNumber: payload.vehicleNumber || builty.vehicleNumber,
+          },
+          builty: updatedBuilty,
+          req,
+        });
+      }
+
+      if (updatedTrip && assignedDriverId) {
+        await Driver.findByIdAndUpdate(assignedDriverId, {
+          $set: {
+            currentTripId: updatedTrip._id,
+            deviceId: assignedVehicleId,
+            isAssigned: true,
+          },
+        });
+      }
+
+      const vehicleChanged = payload.vehicleId && String(builty.vehicleId || "") !== String(payload.vehicleId);
+      if ((isDriverNewlyAssigned || vehicleChanged) && assignedDriverId && assignedVehicleId) {
+        await recordAssignment({
+          vehicleId: assignedVehicleId,
+          vehicleNumber: payload.vehicleNumber || builty.vehicleNumber,
+          driverId: assignedDriverId,
+          tripId: updatedTrip?._id || null,
+          builtyId: id,
+          actionBy: req.user.id,
+          actionByRole: req.user.role,
+          reason: "Assigned via Builty update",
+        });
+      }
     }
+
+    await syncBuiltyAutoExpenses({
+      builty: updatedBuilty,
+      body: payload, // Use the updated payload
+      allowedTypes: ["loading", "unloading"], // Sync all types
+      trip: updatedTrip || trip
+    });
 
     const targetSupervisorId = updatedBuilty?.supervisorId || builty?.supervisorId || payload?.supervisorId;
     const targetSupervisorModel = updatedBuilty?.supervisorModel || builty?.supervisorModel || payload?.supervisorModel;
