@@ -1252,7 +1252,7 @@ exports.getAllTripswithPegination = async (req, res) => {
           path: "builtyId",
           select: "tpNo docNo consigneeName consignerName",
         })
-        .populate("builtyIds", "docNo tpNo")
+        .populate("builtyIds", "docNo tpNo pickupLocation destinationLocation")
         .sort({ createdAt: -1 })
         .skip(skip)   // Applied pagination
         .limit(limit); // Applied pagination
