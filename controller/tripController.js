@@ -1270,7 +1270,7 @@ exports.getAllTripswithPegination = async (req, res) => {
           path: "builtyId",
           select: "tpNo docNo consigneeName consignerName",
         })
-        .populate("builtyIds", "docNo tpNo")
+        .populate("builtyIds", "docNo tpNo pickupLocation destinationLocation")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);
@@ -1284,7 +1284,7 @@ exports.getAllTripswithPegination = async (req, res) => {
             select: "vehicleNumber",
           },
         })
-        .populate("builtyIds", "docNo tpNo")
+        .populate("builtyIds", "docNo tpNo pickupLocation destinationLocation")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);
