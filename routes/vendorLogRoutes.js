@@ -13,6 +13,7 @@ const {
   getSupervisorCreatedLogs,
   getLogsByVendorIdCreatedBySup,
   getFuelPumpLogsByTripId,
+  addFuelPumpLogByTripId,
   getLogsForLoggedInUser
 } = require("../controller/vendorLogController");
 
@@ -34,6 +35,30 @@ router.get("/", getAllLogs);
 router.get("/fuel-pump/trip/:tripId", getFuelPumpLogsByTripId);
 router.get("/fuel-pump/trip", getFuelPumpLogsByTripId);
 router.get("/trip/:tripId/fuel-pump", getFuelPumpLogsByTripId);
+router.put("/fuel-pump", uploadVendorLogs.fields([
+  { name: "billImgPath", maxCount: 1 },
+  { name: "vehicleImgPath", maxCount: 1 },
+  { name: "odometerImgPath", maxCount: 1 },
+  { name: "profileImgPaths", maxCount: 5 }
+]), addFuelPumpLogByTripId);
+router.put("/fuel-pump/trip/:tripId", uploadVendorLogs.fields([
+  { name: "billImgPath", maxCount: 1 },
+  { name: "vehicleImgPath", maxCount: 1 },
+  { name: "odometerImgPath", maxCount: 1 },
+  { name: "profileImgPaths", maxCount: 5 }
+]), addFuelPumpLogByTripId);
+router.put("/fuel-pump/trip", uploadVendorLogs.fields([
+  { name: "billImgPath", maxCount: 1 },
+  { name: "vehicleImgPath", maxCount: 1 },
+  { name: "odometerImgPath", maxCount: 1 },
+  { name: "profileImgPaths", maxCount: 5 }
+]), addFuelPumpLogByTripId);
+router.put("/trip/:tripId/fuel-pump", uploadVendorLogs.fields([
+  { name: "billImgPath", maxCount: 1 },
+  { name: "vehicleImgPath", maxCount: 1 },
+  { name: "odometerImgPath", maxCount: 1 },
+  { name: "profileImgPaths", maxCount: 5 }
+]), addFuelPumpLogByTripId);
 router.get("/driver/:driverId", getLogsByDriverId);
 router.get("/driver", getLogsByDriverId);
 router.patch("/driver/odometer/:id", uploadVendorLogs.fields([

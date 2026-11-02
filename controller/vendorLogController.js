@@ -1272,39 +1272,12 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    let finalLogs = [];
-
-    if (currentTripLogs.length >= 2) {
-      // If 2 or more entries exist in current trip, send top 2 from current trip (no previous trip entries)
-      finalLogs = currentTripLogs.slice(0, 2);
-    } else {
-      // If less than 2 entries in current trip, top up with previous trip entries for that vehicle
-      const targetVehicleId = vehicleId || (currentTripLogs.length > 0 ? (currentTripLogs[0].vehicleId?._id || currentTripLogs[0].vehicleId) : null);
-      const neededCount = 2 - currentTripLogs.length;
-
-      let previousTripLogs = [];
-      if (targetVehicleId) {
-        previousTripLogs = await VendorLog.find({
-          vehicleId: targetVehicleId,
-          vendorType: "Fuel Pump",
-          tripId: { $ne: searchTripId }
-        })
-          .select("driverId vehicleId vendorId amount odometer fuel vendorType vendorAction driverAction")
-          .populate(POPULATE_FUEL_PUMP_LOGS)
-          .sort({ createdAt: -1 })
-          .limit(neededCount)
-          .lean();
-      }
-
-      finalLogs = [...currentTripLogs, ...previousTripLogs];
-    }
-
     return res.status(200).json({
       success: true,
       message: "Fuel pump vendor logs fetched successfully",
-      total: finalLogs.length,
-      count: finalLogs.length,
-      data: finalLogs,
+      total: currentTripLogs.length,
+      count: currentTripLogs.length,
+      data: currentTripLogs,
     });
   } catch (error) {
     console.error("Error fetching fuel pump vendor logs by trip ID:", error);
@@ -1313,6 +1286,231 @@ exports.getFuelPumpLogsByTripId = async (req, res) => {
       message: "An error occurred while fetching fuel pump logs.",
       error: error.message,
     });
+  }
+};
+
+exports.addFuelPumpLogByTripId = async (req, res) => {
+  try {
+    const tripId = req.query.tripId || req.params.tripId || req.body.tripId;
+
+    if (!tripId) {
+      rollbackUploadedFiles(req.files);
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID is required in query parameters (tripId)."
+      });
+    }
+
+    const isObjectId = mongoose.Types.ObjectId.isValid(tripId);
+    const tripQuery = isObjectId
+      ? { $or: [{ _id: tripId }, { tripId }] }
+      : { tripId };
+
+    const tripDoc = await Trip.findOne(tripQuery);
+    if (!tripDoc) {
+      rollbackUploadedFiles(req.files);
+      return res.status(404).json({
+        success: false,
+        message: "Trip not found."
+      });
+    }
+
+    const finalSupervisorId = tripDoc.supervisorId || determineSupervisorId(req.user, req.body);
+    const driverId = req.body.driverId && req.body.driverId !== "null" && req.body.driverId !== "undefined"
+      ? req.body.driverId
+      : tripDoc.driverId;
+    const vehicleId = req.body.vehicleId && req.body.vehicleId !== "null" && req.body.vehicleId !== "undefined"
+      ? req.body.vehicleId
+      : tripDoc.vehicleId;
+    const builtyId = req.body.builtyId && req.body.builtyId !== "null" && req.body.builtyId !== "undefined"
+      ? req.body.builtyId
+      : (tripDoc.builtyId || (tripDoc.builtyIds && tripDoc.builtyIds.length > 0 ? tripDoc.builtyIds[0] : null));
+
+    await validateForeignKeys(driverId, vehicleId, null);
+
+    // Support flexible naming conventions for Diesel Rate, Diesel Liters, Diesel Amount
+    const rawRate = req.body["Diesel Rate"] !== undefined ? req.body["Diesel Rate"] : (req.body.dieselRate !== undefined ? req.body.dieselRate : req.body.rate);
+    const rawLiters = req.body["Diesel Liters"] !== undefined ? req.body["Diesel Liters"] : (req.body["Diesel Litres"] !== undefined ? req.body["Diesel Litres"] : (req.body.dieselLiters !== undefined ? req.body.dieselLiters : (req.body.dieselLitres !== undefined ? req.body.dieselLitres : (req.body.fuel !== undefined ? req.body.fuel : req.body.liters))));
+    const rawAmount = req.body["Diesel Amount"] !== undefined ? req.body["Diesel Amount"] : (req.body.dieselAmount !== undefined ? req.body.dieselAmount : req.body.amount);
+
+    let parsedFuel = null;
+    if (rawLiters !== undefined && rawLiters !== null && rawLiters !== "") {
+      const parsed = Number(rawLiters);
+      if (!isNaN(parsed)) parsedFuel = parsed;
+    }
+
+    let parsedAmount = 0;
+    if (rawAmount !== undefined && rawAmount !== null && rawAmount !== "") {
+      const parsed = Number(rawAmount);
+      if (!isNaN(parsed)) parsedAmount = parsed;
+    } else if (rawRate !== undefined && parsedFuel !== null) {
+      const parsedR = Number(rawRate);
+      if (!isNaN(parsedR)) parsedAmount = parsedR * parsedFuel;
+    }
+
+    let desc = req.body.description;
+    if (rawRate !== undefined && rawRate !== null && rawRate !== "") {
+      const rateInfo = `Rate: ₹${rawRate}/L`;
+      desc = desc ? `${desc} (${rateInfo})` : rateInfo;
+    }
+
+    const logData = {
+      ...req.body,
+      tripId: tripDoc._id,
+      driverId: driverId || null,
+      vehicleId: vehicleId || null,
+      builtyId: builtyId || null,
+      supervisorId: finalSupervisorId,
+      amount: parsedAmount,
+      fuel: parsedFuel,
+      description: desc || null,
+      vendorType: "Fuel Pump",
+      createdBy: req.body.createdBy || (req.user?.role === "vendor" ? "vendor" : "supervisor")
+    };
+
+    if (!logData.vendorId) {
+      if (req.user?.role === "vendor") {
+        logData.vendorId = req.user.id || req.user._id;
+      } else if (req.body.vendorId) {
+        logData.vendorId = req.body.vendorId;
+      }
+    }
+
+    processFilePaths(req.files, logData);
+
+    if (req.user?.role === "vendor" || logData.createdBy === "vendor") {
+      logData.vendorAction = req.body.vendorAction || "Completed";
+    } else if (!logData.vendorAction) {
+      logData.vendorAction = "Completed";
+    }
+
+    if (req.body.driverAction) {
+      logData.driverAction = req.body.driverAction;
+    }
+
+    const vendorLatVal = req.body.vendorLat !== undefined ? req.body.vendorLat : req.body.lat;
+    const vendorLongVal = req.body.vendorLong !== undefined ? req.body.vendorLong : (req.body.vendorLng !== undefined ? req.body.vendorLng : (req.body.long !== undefined ? req.body.long : req.body.lng));
+    const vendorAddressVal = req.body.vendorAddress !== undefined ? req.body.vendorAddress : req.body.address;
+
+    if (vendorLatVal !== undefined && vendorLatVal !== null && vendorLatVal !== "") {
+      const parsedLat = Number(vendorLatVal);
+      if (!isNaN(parsedLat)) logData.vendorLat = parsedLat;
+    }
+
+    if (vendorLongVal !== undefined && vendorLongVal !== null && vendorLongVal !== "") {
+      const parsedLong = Number(vendorLongVal);
+      if (!isNaN(parsedLong)) logData.vendorLong = parsedLong;
+    }
+
+    if (vendorAddressVal !== undefined && vendorAddressVal !== null) {
+      logData.vendorAddress = String(vendorAddressVal).trim();
+    }
+
+    // Check if fuel pump log(s) already exist for this trip
+    const existingLogs = await VendorLog.find({
+      tripId: tripDoc._id,
+      vendorType: "Fuel Pump"
+    }).sort({ createdAt: -1 });
+
+    let log;
+    let oldDataForAudit = null;
+    let actionType = 'CREATE';
+
+    if (existingLogs && existingLogs.length > 0) {
+      actionType = 'UPDATE';
+      const [primaryLog, ...extraLogs] = existingLogs;
+      oldDataForAudit = primaryLog.toObject ? primaryLog.toObject() : primaryLog;
+
+      if (req.files) {
+        const filesToDelete = getReplacedFilePaths(logData, primaryLog);
+        deleteFilesSilently(filesToDelete);
+      }
+
+      // If more than 1 entry exists, clean up associated files and remove extra logs
+      if (extraLogs.length > 0) {
+        const extraFilesToDelete = [];
+        extraLogs.forEach((item) => {
+          if (item.billImgPath) extraFilesToDelete.push(path.join(__dirname, "..", item.billImgPath));
+          if (item.vehicleImgPath) extraFilesToDelete.push(path.join(__dirname, "..", item.vehicleImgPath));
+          if (item.odometerImgPath) extraFilesToDelete.push(path.join(__dirname, "..", item.odometerImgPath));
+          if (item.profileImgPaths && item.profileImgPaths.length > 0) {
+            item.profileImgPaths.forEach((p) => {
+              if (p) extraFilesToDelete.push(path.join(__dirname, "..", p));
+            });
+          }
+        });
+        deleteFilesSilently(extraFilesToDelete);
+
+        const extraIds = extraLogs.map((l) => l._id);
+        await VendorLog.deleteMany({ _id: { $in: extraIds } });
+      }
+
+      log = await VendorLog.findByIdAndUpdate(
+        primaryLog._id,
+        { $set: logData },
+        { new: true, runValidators: true }
+      );
+    } else {
+      log = await VendorLog.create(logData);
+    }
+
+    const populatedLog = await VendorLog.findById(log._id).populate(POPULATE_FUEL_PUMP_LOGS);
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id || 'SYSTEM',
+        userType: req.user?.role || 'User',
+        action: actionType,
+        module: 'VendorLog',
+        recordId: log._id,
+        oldData: oldDataForAudit,
+        newData: log && typeof log.toObject === 'function' ? log.toObject() : log,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for addFuelPumpLogByTripId:", logError);
+    }
+
+    if (finalSupervisorId && (req.user?.role === 'vendor' || log.createdBy === 'vendor')) {
+      notifySupervisorVendorExpense(finalSupervisorId, null, log.vendorId, log).catch((err) => {
+        console.error("Async vendor log creation notification error:", err);
+      });
+    }
+
+    if (log.driverId) {
+      notifyDriverFuelPumpLog(log.driverId, log).catch((err) => {
+        console.error("Async driver fuel pump log notification error:", err);
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: (existingLogs && existingLogs.length > 0) ? "Fuel pump log updated successfully for trip" : "Fuel pump log added successfully for trip",
+      data: populatedLog || log
+    });
+  } catch (error) {
+    try {
+      await logAction({
+        userId: req.user?._id || 'SYSTEM',
+        userType: req.user?.role || 'System',
+        action: 'CREATE',
+        module: 'VendorLog',
+        recordId: null,
+        status: 'FAILED',
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        error: error.message
+      });
+    } catch (logErr) {}
+
+    rollbackUploadedFiles(req.files);
+    return handleApiError(error, res);
   }
 };
 
