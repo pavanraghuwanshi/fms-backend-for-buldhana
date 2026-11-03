@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Trip = require("../model/tripModel");
 const Driver = require("../model/driverModel");
 const Subtrip = require("../model/subTripModel");
@@ -1677,6 +1678,137 @@ exports.getDriverLedgerHistory = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "An internal server error occurred."
+    });
+  }
+};
+
+exports.updateTripOdometer = async (req, res) => {
+  try {
+    const tripId = req.query.tripId || req.params.tripId || req.body.tripId;
+
+    if (!tripId) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID is required in query parameters (tripId)."
+      });
+    }
+
+    const isObjectId = mongoose.Types.ObjectId.isValid(tripId);
+    const tripQuery = isObjectId
+      ? { $or: [{ _id: tripId }, { tripId }] }
+      : { tripId };
+
+    const trip = await Trip.findOne(tripQuery);
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: "Trip not found."
+      });
+    }
+
+    const rawStart = req.body["Start Odometer"] !== undefined ? req.body["Start Odometer"] : (req.body["start odometer"] !== undefined ? req.body["start odometer"] : (req.body.startOdometer !== undefined ? req.body.startOdometer : (req.body.startOdometerReading !== undefined ? req.body.startOdometerReading : (req.body.startodometer !== undefined ? req.body.startodometer : req.body.start))));
+    const rawEnd = req.body["End Odometer"] !== undefined ? req.body["End Odometer"] : (req.body["end odometer"] !== undefined ? req.body["end odometer"] : (req.body.endOdometer !== undefined ? req.body.endOdometer : (req.body.endOdometerReading !== undefined ? req.body.endOdometerReading : (req.body.endodometer !== undefined ? req.body.endodometer : req.body.end))));
+
+    if (rawStart === undefined && rawEnd === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one of startOdometer or endOdometer is required."
+      });
+    }
+
+    const oldTripSnapshot = trip.toObject ? trip.toObject() : trip;
+
+    const updateFields = {};
+
+    if (rawStart !== undefined && rawStart !== null && rawStart !== "") {
+      const parsedStart = Number(rawStart);
+      if (isNaN(parsedStart) || parsedStart < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid start odometer value."
+        });
+      }
+      updateFields.startOdometerReading = parsedStart;
+      updateFields.driverCheckIn = true;
+    }
+
+    if (rawEnd !== undefined && rawEnd !== null && rawEnd !== "") {
+      const parsedEnd = Number(rawEnd);
+      if (isNaN(parsedEnd) || parsedEnd < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid end odometer value."
+        });
+      }
+      const effectiveStart = updateFields.startOdometerReading !== undefined ? updateFields.startOdometerReading : trip.startOdometerReading;
+      if (effectiveStart !== undefined && effectiveStart !== null && parsedEnd < effectiveStart) {
+        return res.status(400).json({
+          success: false,
+          message: `End odometer reading (${parsedEnd}) cannot be less than start odometer reading (${effectiveStart}).`
+        });
+      }
+      updateFields.endOdometerReading = parsedEnd;
+    }
+
+    const updatedTrip = await Trip.findByIdAndUpdate(
+      trip._id,
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    );
+
+    // Also sync odometer readings to associated builtys if available
+    const associatedBuiltyIds = [];
+    if (updatedTrip.builtyId) associatedBuiltyIds.push(updatedTrip.builtyId);
+    if (Array.isArray(updatedTrip.builtyIds)) associatedBuiltyIds.push(...updatedTrip.builtyIds);
+
+    if (associatedBuiltyIds.length > 0) {
+      if (updateFields.startOdometerReading !== undefined) {
+        await Builty.findByIdAndUpdate(associatedBuiltyIds[0], {
+          $set: { startOdometerReading: updateFields.startOdometerReading }
+        });
+      }
+      if (updateFields.endOdometerReading !== undefined) {
+        await Builty.findByIdAndUpdate(associatedBuiltyIds[associatedBuiltyIds.length - 1], {
+          $set: { endOdometerReading: updateFields.endOdometerReading }
+        });
+      }
+    }
+
+    try {
+      await logAction({
+        userId: req.user?._id || req.user?.id || 'SYSTEM',
+        userType: req.user?.role || 'User',
+        action: 'UPDATE_ODOMETER',
+        module: 'Trip',
+        recordId: updatedTrip._id,
+        oldData: oldTripSnapshot,
+        newData: updatedTrip.toObject ? updatedTrip.toObject() : updatedTrip,
+        ipAddress: req.ip,
+        userAgent: req.headers ? req.headers['user-agent'] : null,
+        apiEndpoint: req.originalUrl,
+        requestMethod: req.method,
+        status: 'SUCCESS'
+      });
+    } catch (logError) {
+      console.error("Audit log failed for updateTripOdometer:", logError);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Trip odometer readings updated successfully",
+      data: {
+        _id: updatedTrip._id,
+        tripId: updatedTrip.tripId,
+        startOdometerReading: updatedTrip.startOdometerReading,
+        endOdometerReading: updatedTrip.endOdometerReading
+      }
+    });
+  } catch (error) {
+    console.error("Error updating trip odometer:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while updating trip odometer.",
+      error: error.message
     });
   }
 };

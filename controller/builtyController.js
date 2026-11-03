@@ -2167,7 +2167,7 @@ exports.getBuiltysByTripId = async (req, res) => {
     }
 
     const trip = await Trip.findById(tripId)
-      .select("tripId vehicleId builtyId builtyIds loadingStartDate loadingEndDate unloadingStartDate unloadingEndDate createdAt")
+      .select("tripId vehicleId builtyId builtyIds startOdometerReading endOdometerReading loadingStartDate loadingEndDate unloadingStartDate unloadingEndDate createdAt")
       .lean();
 
     if (!trip) {
@@ -2358,22 +2358,26 @@ async function getExtendedTripDetails(trip, Builty) {
     }
   }
 
-  // Get start odometer from the current trip's first builty and end odometer from the last builty
-  let startOdometerReading = 0;
-  let endOdometerReading = 0;
+  // Get start and end odometer readings: prefer Trip model readings if set, fallback to builtys
+  let startOdometerReading = (trip.startOdometerReading !== undefined && trip.startOdometerReading !== null)
+    ? trip.startOdometerReading
+    : 0;
+  let endOdometerReading = (trip.endOdometerReading !== undefined && trip.endOdometerReading !== null)
+    ? trip.endOdometerReading
+    : 0;
 
   const currentBuiltyIds = [];
   if (trip.builtyId) currentBuiltyIds.push(trip.builtyId);
   if (Array.isArray(trip.builtyIds)) currentBuiltyIds.push(...trip.builtyIds);
 
-  if (currentBuiltyIds.length > 0) {
+  if (currentBuiltyIds.length > 0 && (!startOdometerReading || !endOdometerReading)) {
     const [firstBuilty, lastBuilty] = await Promise.all([
       Builty.findById(currentBuiltyIds[0]).select("startOdometerReading").lean(),
       Builty.findById(currentBuiltyIds[currentBuiltyIds.length - 1]).select("endOdometerReading").lean()
     ]);
 
-    if (firstBuilty) startOdometerReading = firstBuilty.startOdometerReading || 0;
-    if (lastBuilty) endOdometerReading = lastBuilty.endOdometerReading || 0;
+    if (!startOdometerReading && firstBuilty) startOdometerReading = firstBuilty.startOdometerReading || 0;
+    if (!endOdometerReading && lastBuilty) endOdometerReading = lastBuilty.endOdometerReading || 0;
   }
 
   // Bhatta Days Calculation (IST based)
